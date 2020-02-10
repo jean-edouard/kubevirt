@@ -4745,7 +4745,13 @@
     }
    },
    "v1.EFI": {
-    "description": "If set, EFI will be used instead of BIOS."
+    "description": "If set, EFI will be used instead of BIOS.",
+    "properties": {
+     "secureBoot": {
+      "description": "If set, SecureBoot will be enabled and the OVMF roms will be swapped for\nSecureBoot-enabled ones.\nRequires SMM to be enabled.\nDefaults to false\n+optional",
+      "type": "boolean"
+     }
+    }
    },
    "v1.EmptyDiskSource": {
     "description": "EmptyDisk represents a temporary disk which shares the vmis lifecycle.",
