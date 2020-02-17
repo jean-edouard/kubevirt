@@ -956,7 +956,7 @@ func (t *templateService) RenderLaunchManifest(vmi *v1.VirtualMachineInstance) (
 	// If an SELinux type was specified, use that--otherwise default to the one KubeVirt Defines
 	selinuxLauncherType := t.clusterConfig.GetSELinuxLauncherType()
 	if selinuxLauncherType == virtconfig.DefaultSELinuxLauncherType {
-		selinuxLauncherType = "virt_launcher.process"
+		selinuxLauncherType = "svirt_t"
 	}
 
 	// TODO use constants for podLabels
