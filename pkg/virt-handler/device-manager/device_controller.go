@@ -65,7 +65,17 @@ func (c *DeviceController) nodeHasDevice(devicePath string) bool {
 func (c *DeviceController) startDevicePlugin(dev GenericDevice, stop chan struct{}) {
 	logger := log.DefaultLogger()
 	deviceName := dev.GetDeviceName()
+	devicePath := dev.GetDevicePath()
 	retries := 0
+
+	// Making sure the tun and vhost-net modules are loaded on the host
+	// Opening and closing the corresponding dev nodes will trigger modprobes if necessary
+	if deviceName == TunName || deviceName == VhostNetName {
+		devnode, err := os.Open(devicePath)
+		if err == nil {
+			devnode.Close()
+		}
+	}
 
 	for {
 		err := dev.Start(stop)
