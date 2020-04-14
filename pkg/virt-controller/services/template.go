@@ -1044,10 +1044,15 @@ func (t *templateService) RenderLaunchManifest(vmi *v1.VirtualMachineInstance) (
 		},
 	}
 
-	// If an SELinux type was specified, use that--otherwise don't set an SELinux type
+	// If an SELinux type was specified in virtconfig, use that.
+	// If network multiqueues is enabled, use spc_t, since libvirtd will try to relabel sockets,
+	//   which is not allowed under container_t. TODO: remove this when fixed upstream
+	// Otherwise, do not set SELinuxOptions to let k8s manage SELinux for us.
 	selinuxType := t.clusterConfig.GetSELinuxLauncherType()
 	if selinuxType != virtconfig.DefaultSELinuxLauncherType {
 		pod.Spec.SecurityContext.SELinuxOptions = &k8sv1.SELinuxOptions{Type: selinuxType}
+	} else if vmi.Spec.Domain.Devices.NetworkInterfaceMultiQueue != nil && *vmi.Spec.Domain.Devices.NetworkInterfaceMultiQueue {
+		pod.Spec.SecurityContext.SELinuxOptions = &k8sv1.SELinuxOptions{Type: "spc_t"}
 	}
 
 	if vmi.Spec.PriorityClassName != "" {
