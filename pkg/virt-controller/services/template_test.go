@@ -174,6 +174,9 @@ var _ = Describe("Template", func() {
 			})
 		})
 		Context("with SELinux types", func() {
+			AfterEach(func() {
+				testutils.UpdateFakeClusterConfig(configMapInformer, &kubev1.ConfigMap{})
+			})
 			It("should run under the SELinux type container_t if none specified", func() {
 				vmi := v1.VirtualMachineInstance{
 					ObjectMeta: metav1.ObjectMeta{
@@ -196,6 +199,27 @@ var _ = Describe("Template", func() {
 						Name: "testvmi", Namespace: "default", UID: "1234",
 					},
 					Spec: v1.VirtualMachineInstanceSpec{Volumes: []v1.Volume{}, Domain: v1.DomainSpec{}},
+				}
+				pod, err := svc.RenderLaunchManifest(&vmi)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(pod.Spec.SecurityContext).ToNot(BeNil())
+				Expect(pod.Spec.SecurityContext.SELinuxOptions).ToNot(BeNil())
+				Expect(pod.Spec.SecurityContext.SELinuxOptions.Type).To(Equal("spc_t"))
+			})
+			It("should run under spc_t if network multiqueue is enabled", func() {
+				enabled := true
+				vmi := v1.VirtualMachineInstance{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "testvmi", Namespace: "default", UID: "1234",
+					},
+					Spec: v1.VirtualMachineInstanceSpec{
+						Volumes: []v1.Volume{},
+						Domain: v1.DomainSpec{
+							Devices: v1.Devices{
+								NetworkInterfaceMultiQueue: &enabled,
+							},
+						},
+					},
 				}
 				pod, err := svc.RenderLaunchManifest(&vmi)
 				Expect(err).ToNot(HaveOccurred())
