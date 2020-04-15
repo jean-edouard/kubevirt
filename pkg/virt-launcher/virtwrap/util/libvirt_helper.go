@@ -348,7 +348,7 @@ func SetupLibvirt() error {
 	if err != nil {
 		return err
 	}
-
+	qemuConf.WriteString("security_driver = [ ]\n")
 	// If hugepages exist, tell libvirt about them
 	_, err = os.Stat("/dev/hugepages")
 	if err == nil {

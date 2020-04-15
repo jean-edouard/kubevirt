@@ -188,6 +188,12 @@ type DomainSpec struct {
 	VCPU          *VCPU          `xml:"vcpu"`
 	CPUTune       *CPUTune       `xml:"cputune"`
 	IOThreads     *IOThreads     `xml:"iothreads,omitempty"`
+	SecLabel      *SecLabel      `xml:"seclabel,omitempty"`
+}
+
+type SecLabel struct {
+	Type    string `xml:"type,attr"`
+	Relabel string `xml:"relabel,attr,omitempty"`
 }
 
 type CPUTune struct {

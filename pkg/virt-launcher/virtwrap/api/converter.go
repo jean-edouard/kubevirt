@@ -693,6 +693,7 @@ func Convert_v1_VirtualMachine_To_api_Domain(vmi *v1.VirtualMachineInstance, dom
 	}
 
 	domain.Spec.SysInfo = &SysInfo{}
+	domain.Spec.SecLabel = &SecLabel{Type: "none", Relabel: "no"}
 	if vmi.Spec.Domain.Firmware != nil {
 		domain.Spec.SysInfo.System = []Entry{
 			{
