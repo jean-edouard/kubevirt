@@ -409,9 +409,9 @@ var _ = Describe("Configurations", func() {
 			})
 		})
 
-		Context("[rfe_id:2262][crit:medium][vendor:cnv-qe@redhat.com][level:component]with EFI bootloader method", func() {
+		FContext("[rfe_id:2262][crit:medium][vendor:cnv-qe@redhat.com][level:component]with EFI bootloader method", func() {
 
-			It("[test_id:1668]should use EFI", func() {
+			FIt("[test_id:1668]should use EFI", func() {
 				vmi := tests.NewRandomVMIWithEFIBootloader()
 
 				By("Starting a VirtualMachineInstance")
@@ -422,7 +422,21 @@ var _ = Describe("Configurations", func() {
 				By("Checking if UEFI is enabled")
 				domXml, err := tests.GetRunningVirtualMachineInstanceDomainXML(virtClient, vmi)
 				Expect(err).ToNot(HaveOccurred())
-				Expect(domXml).To(ContainSubstring("OVMF_CODE"))
+				Expect(domXml).To(ContainSubstring("OVMF_CODE.fd"))
+			})
+
+			FIt("[test_id:4242]should honor the secureboot flag", func() {
+				vmi := tests.NewRandomVMIWithSecureBootEFIBootloader()
+
+				By("Starting a VirtualMachineInstance")
+				vmi, err = virtClient.VirtualMachineInstance(tests.NamespaceTestDefault).Create(vmi)
+				Expect(err).ToNot(HaveOccurred())
+				tests.WaitUntilVMIReady(vmi, tests.LoggedInAlpineExpecter)
+
+				By("Checking if UEFI is enabled")
+				domXml, err := tests.GetRunningVirtualMachineInstanceDomainXML(virtClient, vmi)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(domXml).To(ContainSubstring("OVMF_CODE.secboot.fd"))
 			})
 		})
 

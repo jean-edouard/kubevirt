@@ -604,6 +604,7 @@ func (alias *Alias) UnmarshalXML(d *xml.Decoder, start xml.StartElement) error {
 //BEGIN OS --------------------
 
 type OS struct {
+	Firmware   string    `xml:"firmware,attr"`
 	Type       OSType    `xml:"type"`
 	SMBios     *SMBios   `xml:"smbios,omitempty"`
 	BootOrder  []Boot    `xml:"boot"`

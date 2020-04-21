@@ -1815,6 +1815,27 @@ func NewRandomVMIWithEFIBootloader() *v1.VirtualMachineInstance {
 
 }
 
+func NewRandomVMIWithSecureBootEFIBootloader() *v1.VirtualMachineInstance {
+	vmi := NewRandomVMIWithEFIBootloader()
+
+	// SecureBoot needs SMM
+	if vmi.Spec.Domain.Features == nil {
+		vmi.Spec.Domain.Features = &v1.Features{
+			SMM: &v1.FeatureState{
+				Enabled: NewBool(true),
+			},
+		}
+	} else {
+		vmi.Spec.Domain.Features.SMM = &v1.FeatureState{
+			Enabled: NewBool(true),
+		}
+	}
+
+	vmi.Spec.Domain.Firmware.Bootloader.EFI.SecureBoot = NewBool(true)
+
+	return vmi
+}
+
 func NewRandomMigration(vmiName string, namespace string) *v1.VirtualMachineInstanceMigration {
 	return &v1.VirtualMachineInstanceMigration{
 		TypeMeta: metav1.TypeMeta{
