@@ -21,7 +21,9 @@ package tests_test
 
 import (
 	"encoding/xml"
+	"encoding/json"
 	"fmt"
+	"time"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -29,12 +31,53 @@ import (
 	k8sv1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 
 	v1 "kubevirt.io/client-go/api/v1"
 	"kubevirt.io/client-go/kubecli"
 	"kubevirt.io/kubevirt/pkg/virt-launcher/virtwrap/api"
 	"kubevirt.io/kubevirt/tests"
+	virtconfig "kubevirt.io/kubevirt/pkg/virt-config"
+
 )
+
+func setSpcT(virtClient *kubecli.KubevirtClient) *string {
+	kubeVirtConfig, err := (*virtClient).CoreV1().ConfigMaps(tests.KubeVirtInstallNamespace).Get("kubevirt-config", metav1.GetOptions{})
+	Expect(err).ToNot(HaveOccurred())
+	originalContext, present := kubeVirtConfig.Data[virtconfig.SELinuxLauncherTypeKey]
+	kubeVirtConfig.Data[virtconfig.SELinuxLauncherTypeKey] = "spc_t"
+	newData, err := json.Marshal(kubeVirtConfig.Data)
+	Expect(err).ToNot(HaveOccurred())
+	data := fmt.Sprintf(`[{ "op": "replace", "path": "/data", "value": %s }]`, string(newData))
+	kubeVirtConfig, err = (*virtClient).CoreV1().ConfigMaps(tests.KubeVirtInstallNamespace).Patch("kubevirt-config", types.JSONPatchType, []byte(data))
+	Expect(err).ToNot(HaveOccurred())
+	// Allow time for virt-controller's ConfigMap cache to sync
+	time.Sleep(3 * time.Second)
+
+	if present {
+		return &originalContext
+	} else {
+		return nil
+	}
+}
+
+func unSetSpcT(virtClient *kubecli.KubevirtClient, originalContext *string) {
+	kubeVirtConfig, err := (*virtClient).CoreV1().ConfigMaps(tests.KubeVirtInstallNamespace).Get("kubevirt-config", metav1.GetOptions{})
+	Expect(err).ToNot(HaveOccurred())
+	if originalContext != nil {
+		kubeVirtConfig.Data[virtconfig.SELinuxLauncherTypeKey] = *originalContext
+	} else {
+		delete(kubeVirtConfig.Data, virtconfig.SELinuxLauncherTypeKey)
+	}
+	newData, err := json.Marshal(kubeVirtConfig.Data)
+	Expect(err).ToNot(HaveOccurred())
+	data := fmt.Sprintf(`[{ "op": "replace", "path": "/data", "value": %s }]`, string(newData))
+	kubeVirtConfig, err = (*virtClient).CoreV1().ConfigMaps(tests.KubeVirtInstallNamespace).Patch("kubevirt-config", types.JSONPatchType, []byte(data))
+	Expect(err).ToNot(HaveOccurred())
+	// Allow time for virt-controller's ConfigMap cache to sync
+	time.Sleep(3 * time.Second)
+}
+
 
 var _ = Describe("MultiQueue", func() {
 	tests.FlagParse()
@@ -51,6 +94,10 @@ var _ = Describe("MultiQueue", func() {
 		availableCPUs := tests.GetHighestCPUNumberAmongNodes(virtClient)
 
 		It("should be able to successfully boot fedora to the login prompt with networking mutiqueues enabled without being blocked by selinux", func() {
+			// HACK: run virt-launcher as spc_t for this test.
+			// This should be removed once multiqueue works with container_t
+			originalContext := setSpcT(&virtClient)
+			defer unSetSpcT(&virtClient, originalContext)
 			vmi := tests.NewRandomFedoraVMIWitGuestAgent()
 			numCpus := 3
 			Expect(numCpus).To(BeNumerically("<=", availableCPUs),
@@ -63,7 +110,7 @@ var _ = Describe("MultiQueue", func() {
 			vmi.Spec.Domain.Devices.Rng = &v1.Rng{}
 
 			By("Creating and starting the VMI")
-			vmi, err := virtClient.VirtualMachineInstance(tests.NamespaceTestDefault).Create(vmi)
+			vmi, err = virtClient.VirtualMachineInstance(tests.NamespaceTestDefault).Create(vmi)
 			Expect(err).ToNot(HaveOccurred())
 			tests.WaitForSuccessfulVMIStartWithTimeout(vmi, 360)
 
