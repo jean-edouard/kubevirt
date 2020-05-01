@@ -826,8 +826,14 @@ func (t *templateService) RenderLaunchManifest(vmi *v1.VirtualMachineInstance) (
 
 	// Make sure the compute container is always the first since the mutating webhook shipped with the sriov operator
 	// for adding the requested resources to the pod will add them to the first container of the list
+	selinuxType := t.clusterConfig.GetSELinuxLauncherType()
 	containers := []k8sv1.Container{compute}
-	containersDisks := containerdisk.GenerateContainers(vmi, "container-disks", "virt-bin-share-dir")
+	var containersDisks []k8sv1.Container
+	if selinuxType != virtconfig.DefaultSELinuxLauncherType {
+		containersDisks = containerdisk.GenerateContainers(vmi, "container-disks", "virt-bin-share-dir", &selinuxType)
+	} else {
+		containersDisks = containerdisk.GenerateContainers(vmi, "container-disks", "virt-bin-share-dir", nil)
+	}
 	containers = append(containers, containersDisks...)
 
 	volumes = append(volumes,
@@ -1045,7 +1051,6 @@ func (t *templateService) RenderLaunchManifest(vmi *v1.VirtualMachineInstance) (
 	}
 
 	// If an SELinux type was specified, use that--otherwise don't set an SELinux type
-	selinuxType := t.clusterConfig.GetSELinuxLauncherType()
 	if selinuxType != virtconfig.DefaultSELinuxLauncherType {
 		pod.Spec.SecurityContext.SELinuxOptions = &k8sv1.SELinuxOptions{Type: selinuxType}
 	}

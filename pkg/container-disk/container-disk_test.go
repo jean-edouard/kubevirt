@@ -153,14 +153,14 @@ var _ = Describe("ContainerDisk", func() {
 						k8sv1.ResourceMemory: resource.MustParse("64M"),
 					},
 				}
-				containers := GenerateContainers(vmi, "libvirt-runtime", "/var/run/libvirt")
+				containers := GenerateContainers(vmi, "libvirt-runtime", "/var/run/libvirt", nil)
 				Expect(containers[0].Resources.Limits).To(HaveLen(2))
 			})
 			It("by verifying container generation", func() {
 				vmi := v1.NewMinimalVMI("fake-vmi")
 				appendContainerDisk(vmi, "r1")
 				appendContainerDisk(vmi, "r0")
-				containers := GenerateContainers(vmi, "libvirt-runtime", "bin-volume")
+				containers := GenerateContainers(vmi, "libvirt-runtime", "bin-volume", nil)
 				Expect(err).ToNot(HaveOccurred())
 
 				Expect(len(containers)).To(Equal(2))

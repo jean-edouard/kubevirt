@@ -144,7 +144,7 @@ func GetImage(root string, imagePath string) (string, error) {
 
 // The controller uses this function to generate the container
 // specs for hosting the container registry disks.
-func GenerateContainers(vmi *v1.VirtualMachineInstance, podVolumeName string, binVolumeName string) []kubev1.Container {
+func GenerateContainers(vmi *v1.VirtualMachineInstance, podVolumeName string, binVolumeName string, selinuxType *string) []kubev1.Container {
 	var containers []kubev1.Container
 
 	initialDelaySeconds := 1
@@ -211,6 +211,19 @@ func GenerateContainers(vmi *v1.VirtualMachineInstance, podVolumeName string, bi
 					SuccessThreshold:    int32(successThreshold),
 					FailureThreshold:    int32(failureThreshold),
 				},
+			}
+			if selinuxType != nil {
+				// If we're here, a custom SELinux type will be set on the virt-launcher pod.
+				// That has the interesting side effect of generating different categories
+				//   for each container, instead of using the same for all as usual.
+				// We can't have different categories than the compute container, so we force our
+				//   level to be just "s0", since setting no categories means all can read/write.
+				container.SecurityContext = &kubev1.SecurityContext{
+					SELinuxOptions: &kubev1.SELinuxOptions{
+						Type:  *selinuxType,
+						Level: "s0",
+					},
+				}
 			}
 
 			containers = append(containers, container)
