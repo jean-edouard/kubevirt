@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"os/exec"
 
 	"google.golang.org/grpc"
 
@@ -102,6 +103,10 @@ func main() {
 
 	socketPath := hooks.HookSocketsSharedDirectory + "/cloudinit.sock"
 	socket, err := net.Listen("unix", socketPath)
+	cmd := exec.Command("chcon", "-l", "s0", hooks.HookSocketsSharedDirectory)
+	cmd.Run()
+	cmd = exec.Command("chcon", "-l", "s0", socketPath)
+	cmd.Run()
 	if err != nil {
 		log.Log.Reason(err).Errorf("Failed to initialized socket on path: %s", socket)
 		log.Log.Error("Check whether given directory exists and socket name is not already taken by other file")
