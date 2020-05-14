@@ -885,6 +885,7 @@ var _ = Describe("[rfe_id:273][crit:high][vendor:cnv-qe@redhat.com][level:compon
 							cpuFeatureSupportedNodes = append(cpuFeatureSupportedNodes, n.Name)
 						}
 
+						// Flaky note: shouldn't the needle be `supportedCPU` instead of `services.NFD_CPU_MODEL_PREFIX`?
 						if strings.Contains(key, services.NFD_CPU_MODEL_PREFIX) {
 							cpuModelSupportedNodes = append(cpuModelSupportedNodes, n.Name)
 						}
@@ -903,10 +904,12 @@ var _ = Describe("[rfe_id:273][crit:high][vendor:cnv-qe@redhat.com][level:compon
 
 			AfterEach(func() {
 				tests.UpdateClusterConfigValueAndWait(virtconfig.FeatureGatesKey, originalFeatureGates)
+				// Flaky note: why the sleep? Did the function above not wait long enough? Let's fix it then.
 				time.Sleep(5 * time.Second)
 			})
 
-			It("[test_id:1639]the vmi with cpu.model matching a nfd label on a node should be scheduled", func() {
+			// Flaky, randomly fails with libvirt error 'the CPU is incompatible with host CPU: Host CPU does not provide required features: svm'
+			PIt("[test_id:1639] [flaky] the vmi with cpu.model matching a nfd label on a node should be scheduled", func() {
 				vmi := tests.NewRandomVMIWithEphemeralDiskAndUserdata(tests.ContainerDiskFor(tests.ContainerDiskCirros), "#!/bin/bash\necho 'hello'\n")
 				vmi.Spec.Domain.CPU = &v1.CPU{
 					Cores: 1,
