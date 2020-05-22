@@ -8,7 +8,7 @@ if [ "${KUBEVIRT_RUN_UNNESTED}" == "true" ]; then
     exit $?
 fi
 
-KUBEVIRT_BUILDER_IMAGE="kubevirt/builder@sha256:e6a76ec71f2de87c3bc648bae87ab43a113540bf57da69f07f76bd0edfd500ab"
+KUBEVIRT_BUILDER_IMAGE="builder:latest"
 
 SYNC_OUT=${SYNC_OUT:-true}
 

@@ -41,6 +41,20 @@ container_image(
     visibility = ["//visibility:public"],
 )
 
+genrule(
+    name = "extracted_fedora_coreos_image",
+    srcs = ["@fedora_coreos_image//file"],
+    outs = ["fedora_coreos_extracted.qcow2"],
+    cmd = "/usr/bin/xz --decompress --stdout $< > $@",
+)
+
+container_image(
+    name = "fedora-coreos-container-disk-image",
+    directory = "/disk",
+    files = ["//containerimages:extracted_fedora_coreos_image"],
+    visibility = ["//visibility:public"],
+)
+
 container_image(
     name = "virtio-container-disk-image",
     directory = "/disk",

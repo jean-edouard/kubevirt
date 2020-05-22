@@ -33,7 +33,8 @@ RUN dnf install -y dnf-plugins-core && \
         protobuf-compiler \
         python3-devel \
         redhat-rpm-config \
-        jq && \
+        jq \
+        xz && \
     dnf -y clean all
 
 ENV GIMME_GO_VERSION=1.12.8

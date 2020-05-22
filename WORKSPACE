@@ -159,6 +159,15 @@ http_file(
 )
 
 http_file(
+    name = "fedora_coreos_image",
+    sha256 = "0057f323f54b0cb71652235cd6221810fca33176ad62ef62763c38125c38f740",
+    urls = [
+        "https://builds.coreos.fedoraproject.org/prod/streams/stable/builds/31.20200505.3.0/x86_64/fedora-coreos-31.20200505.3.0-qemu.x86_64.qcow2.xz",
+        "https://storage.googleapis.com/builddeps/0057f323f54b0cb71652235cd6221810fca33176ad62ef62763c38125c38f740",
+    ],
+)
+
+http_file(
     name = "virtio_win_image",
     sha256 = "7bf7f53e30c69a360f89abb3d2cc19cc978f533766b1b2270c2d8344edf9b3ef",
     urls = [
