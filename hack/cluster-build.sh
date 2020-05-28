@@ -76,7 +76,7 @@ else
 fi
 
 for node in ${nodes[@]}; do
-    until ${KUBEVIRT_PATH}cluster-up/ssh.sh ${node} "echo \"${container}\" | xargs \-\-max-args=1 sudo ${pull_command} pull"; do
+    until ${KUBEVIRT_PATH}cluster-up/ssh.sh ${node} "echo \"${container}\" | xargs \-\-max-args=1 sudo DOCKER_API_VERSION=1.39 ${pull_command} pull"; do
         sleep 1
     done
 
