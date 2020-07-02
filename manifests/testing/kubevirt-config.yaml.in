@@ -6,5 +6,13 @@ metadata:
   labels:
     kubevirt.io: ""
 data:
-  feature-gates: "DataVolumes, CPUManager, LiveMigration, ExperimentalIgnitionSupport, Sidecar, Snapshot"
-  selinuxLauncherType: "virt_launcher.process"
+  feature-gates: DataVolumes,SRIOV,LiveMigration,CPUManager,CPUNodeDiscovery,Sidecar
+  machine-type: pc-q35-rhel8.2.0
+  migrations: '{"nodeDrainTaintKey" : "node.kubernetes.io/unschedulable"}'
+  selinuxLauncherType: virt_launcher.process
+  smbios: |-
+    Family: Red Hat
+    Product: Container-native virtualization
+    Manufacturer: Red Hat
+    Sku: 2.4.0
+    Version: 2.4.0

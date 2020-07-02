@@ -77,6 +77,25 @@ fi
 
 for node in ${nodes[@]}; do
     count=0
+    until ${KUBEVIRT_PATH}cluster-up/ssh.sh ${node} "sudo sed -i 's/\"registry:5000\"/&, \"192.168.0.25:5000\"/' /etc/docker/daemon.json"; do
+        count=$((count + 1))
+        if [ $count -eq 10 ]; then
+            echo "Failed to '${pull_command} pull' in ${node}" >&2
+            exit 1
+        fi
+        sleep 1
+    done
+    count=0
+    until ${KUBEVIRT_PATH}cluster-up/ssh.sh ${node} "sudo service docker restart"; do
+        count=$((count + 1))
+        if [ $count -eq 10 ]; then
+            echo "Failed to '${pull_command} pull' in ${node}" >&2
+            exit 1
+        fi
+        sleep 1
+    done
+    sleep 1
+    count=0
     until ${KUBEVIRT_PATH}cluster-up/ssh.sh ${node} "echo \"${container}\" | xargs \-\-max-args=1 sudo ${pull_command} pull"; do
         count=$((count + 1))
         if [ $count -eq 10 ]; then
@@ -85,7 +104,6 @@ for node in ${nodes[@]}; do
         fi
         sleep 1
     done
-
     count=0
     until ${KUBEVIRT_PATH}cluster-up/ssh.sh ${node} "echo \"${container_alias}\" | xargs \-\-max-args=2 sudo ${pull_command} tag"; do
         count=$((count + 1))

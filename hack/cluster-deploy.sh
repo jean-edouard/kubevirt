@@ -69,7 +69,7 @@ metadata:
 EOF
 
 # Deploy kubevirt operator
-_kubectl apply -f ${MANIFESTS_OUT_DIR}/release/kubevirt-operator.yaml
+_kubectl apply -f jedman/kubevirt-operator.yaml
 
 if [[ "$KUBEVIRT_PROVIDER" =~ os-* ]] || [[ "$KUBEVIRT_PROVIDER" =~ (okd|ocp)-* ]]; then
     # Helpful for development. Allows admin to access everything KubeVirt creates in the web console
