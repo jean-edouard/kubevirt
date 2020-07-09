@@ -5,5 +5,5 @@ source hack/config.sh
 
 bazel test \
     --config=${ARCHITECTURE} \
-    --stamp \
+    --stamp --sandbox_debug \
     --test_output=errors -- //staging/src/kubevirt.io/client-go/... //pkg/... //cmd/...

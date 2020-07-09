@@ -24,12 +24,12 @@ source hack/config.sh
 
 shfmt -i 4 -w ${KUBEVIRT_DIR}/hack/ ${KUBEVIRT_DIR}/images/
 bazel run \
-    --config=${ARCHITECTURE} \
+    --config=${ARCHITECTURE} --sandbox_debug \
     //:gazelle -- pkg/ tools/ tests/ cmd/
 bazel run \
-    --config=${ARCHITECTURE} \
+    --config=${ARCHITECTURE} --sandbox_debug \
     //:goimports
 # allign BAZEL files to a single format
 bazel run \
-    --config=${ARCHITECTURE} \
+    --config=${ARCHITECTURE} --sandbox_debug \
     //:buildifier

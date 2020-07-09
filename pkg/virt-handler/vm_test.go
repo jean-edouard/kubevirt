@@ -100,6 +100,7 @@ var _ = Describe("VirtualMachineInstance", func() {
 	var podTestUUID types.UID
 	var stop chan struct{}
 	var eventChan chan watch.Event
+	var finished chan bool
 
 	var host string
 
@@ -210,9 +211,11 @@ var _ = Describe("VirtualMachineInstance", func() {
 
 		StubOutNetworkForTest()
 
-		go func() {
+		finished = make(chan bool)
+		go func(finished chan bool) {
 			notifyserver.RunServer(shareDir, stop, eventChan, nil, nil)
-		}()
+			finished <- true
+		}(finished)
 		time.Sleep(1 * time.Second)
 
 		client = cmdclient.NewMockLauncherClient(ctrl)
@@ -231,6 +234,7 @@ var _ = Describe("VirtualMachineInstance", func() {
 		os.RemoveAll(podsDir)
 		os.RemoveAll(certDir)
 		os.RemoveAll(ghostCacheDir)
+		<-finished
 	})
 
 	initGracePeriodHelper := func(gracePeriod int64, vmi *v1.VirtualMachineInstance, dom *api.Domain) {

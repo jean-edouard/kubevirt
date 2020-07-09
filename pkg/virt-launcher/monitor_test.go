@@ -47,6 +47,7 @@ var _ = Describe("VirtLauncher", func() {
 	var mon *monitor
 	var cmd *exec.Cmd
 	var cmdLock sync.Mutex
+	var gracefulShutdownCallbackTriggeredLock sync.Mutex
 
 	uuid := "123-123-123-123"
 
@@ -120,6 +121,8 @@ var _ = Describe("VirtLauncher", func() {
 			syscall.Kill(pid, syscall.SIGTERM)
 		}
 		gracefulShutdownCallback := func() {
+			gracefulShutdownCallbackTriggeredLock.Lock()
+			defer gracefulShutdownCallbackTriggeredLock.Unlock()
 			gracefulShutdownCallbackTriggered = true
 		}
 		mon = &monitor{
@@ -206,10 +209,14 @@ var _ = Describe("VirtLauncher", func() {
 				}()
 
 				time.Sleep(time.Second)
+				gracefulShutdownCallbackTriggeredLock.Lock()
+				defer gracefulShutdownCallbackTriggeredLock.Unlock()
 				Expect(gracefulShutdownCallbackTriggered).To(BeFalse())
+				gracefulShutdownCallbackTriggeredLock.Unlock()
 				close(stopChan)
 
 				time.Sleep(time.Second)
+				gracefulShutdownCallbackTriggeredLock.Lock()
 				Expect(gracefulShutdownCallbackTriggered).To(BeTrue())
 			})
 
@@ -227,7 +234,7 @@ var _ = Describe("VirtLauncher", func() {
 				}()
 
 				close(stopChan)
-				noExitCheck := time.After(5 * time.Second)
+				noExitCheck := time.After(10 * time.Second)
 				exited := false
 
 				select {
