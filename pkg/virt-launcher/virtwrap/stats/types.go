@@ -58,6 +58,7 @@ type DomainStats struct {
 	Net   []DomainStatsNet
 	Block []DomainStatsBlock
 	// omitted from libvirt-go: Perf
+	Migration []DomainStatsMigration
 }
 
 type DomainStatsCPU struct {
@@ -145,4 +146,9 @@ type DomainStatsMemory struct {
 	SwapIn           uint64
 	SwapOutSet       bool
 	SwapOut          uint64
+}
+
+type DomainStatsMigration struct {
+	TotalSet bool
+	Total    uint64
 }

@@ -409,6 +409,47 @@ func (metrics *vmiMetrics) updateNetwork(vmi *k6tv1.VirtualMachineInstance, vmSt
 	}
 }
 
+func (metrics *vmiMetrics) updateMigration(vmi *k6tv1.VirtualMachineInstance, vmStats *stats.DomainStats, ch chan<- prometheus.Metric, k8sLabels []string, k8sLabelValues []string) {
+	for _, mig := range vmStats.Migration {
+		if mig.TotalSet {
+			var migrationTotalLabels = []string{"node", "namespace", "name"}
+			migrationTotalLabels = append(migrationTotalLabels, k8sLabels...)
+			metrics.migrationTotalDesc = prometheus.NewDesc(
+				"kubevirt_vmi_migration_total",
+				"migration total.",
+				migrationTotalLabels,
+				nil,
+			)
+			var migrationTotalLabelValues = []string{vmi.Status.NodeName, vmi.Namespace, vmi.Name}
+			migrationTotalLabelValues = append(migrationTotalLabelValues, k8sLabelValues...)
+			mv, err := prometheus.NewConstMetric(
+				metrics.migrationTotalDesc, prometheus.CounterValue,
+				float64(mig.Total),
+				migrationTotalLabelValues...,
+			)
+			tryToPushMetric(metrics.migrationTotalDesc, mv, err, ch)
+		}
+	}
+	// TEST CODE
+	var migrationTotalLabels = []string{"node", "namespace", "name"}
+	migrationTotalLabels = append(migrationTotalLabels, k8sLabels...)
+	metrics.migrationTotalDesc = prometheus.NewDesc(
+		"kubevirt_vmi_migration_total",
+		"migration total.",
+		migrationTotalLabels,
+		nil,
+	)
+	var migrationTotalLabelValues = []string{vmi.Status.NodeName, vmi.Namespace, vmi.Name}
+	migrationTotalLabelValues = append(migrationTotalLabelValues, k8sLabelValues...)
+	mv, err := prometheus.NewConstMetric(
+		metrics.migrationTotalDesc, prometheus.CounterValue,
+		float64(42),
+		migrationTotalLabelValues...,
+	)
+	tryToPushMetric(metrics.migrationTotalDesc, mv, err, ch)
+	// END TEST CODE
+}
+
 func makeVMIsPhasesMap(vmis []*k6tv1.VirtualMachineInstance) map[string]uint64 {
 	phasesMap := make(map[string]uint64)
 
@@ -455,6 +496,7 @@ type vmiMetrics struct {
 	memoryAvailableDesc     *prometheus.Desc
 	memoryResidentDesc      *prometheus.Desc
 	swapTrafficDesc         *prometheus.Desc
+	migrationTotalDesc      *prometheus.Desc
 }
 
 func newVmiMetrics() *vmiMetrics {
@@ -591,6 +633,7 @@ func (ps *prometheusScraper) Report(socketFile string, vmi *k6tv1.VirtualMachine
 	vmiMetrics.updateVcpu(vmi, vmStats, ps.ch, k8sLabels, k8sLabelValues)
 	vmiMetrics.updateBlock(vmi, vmStats, ps.ch, k8sLabels, k8sLabelValues)
 	vmiMetrics.updateNetwork(vmi, vmStats, ps.ch, k8sLabels, k8sLabelValues)
+	vmiMetrics.updateMigration(vmi, vmStats, ps.ch, k8sLabels, k8sLabelValues)
 }
 
 func Handler(MaxRequestsInFlight int) http.Handler {
