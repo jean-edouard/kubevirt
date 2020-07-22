@@ -275,7 +275,7 @@ func (app *virtHandlerApp) Run() {
 		app.VirtShareDir,
 	)
 
-	promvm.SetupCollector(app.virtCli, app.VirtShareDir, app.HostOverride, app.MaxRequestsInFlight)
+	promvm.SetupCollector(app.virtCli, app.VirtShareDir, app.HostOverride, app.MaxRequestsInFlight, vmiInformer)
 
 	go app.clientcertmanager.Start()
 	go app.servercertmanager.Start()

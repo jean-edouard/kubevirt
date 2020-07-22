@@ -18,6 +18,7 @@ go_library(
         "//staging/src/kubevirt.io/client-go/version:go_default_library",
         "//vendor/github.com/prometheus/client_golang/prometheus:go_default_library",
         "//vendor/github.com/prometheus/client_golang/prometheus/promhttp:go_default_library",
+        "//vendor/k8s.io/client-go/tools/cache:go_default_library",
     ],
 )
 

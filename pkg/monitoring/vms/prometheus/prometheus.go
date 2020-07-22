@@ -23,10 +23,13 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+
+	"k8s.io/client-go/tools/cache"
 
 	k6tv1 "kubevirt.io/client-go/api/v1"
 	"kubevirt.io/client-go/kubecli"
@@ -409,6 +412,62 @@ func (metrics *vmiMetrics) updateNetwork(vmi *k6tv1.VirtualMachineInstance, vmSt
 	}
 }
 
+func (metrics *vmiMetrics) updatePhases(vmi *k6tv1.VirtualMachineInstance, vmStats *stats.DomainStats, ch chan<- prometheus.Metric, k8sLabels []string, k8sLabelValues []string) {
+	phasesMutex.Lock()
+	phase, present := phases[vmi.Name]
+	phasesMutex.Unlock()
+
+	if !present {
+		return
+	}
+
+	// Current phase labels
+	var phaseLabels = []string{"node", "namespace", "name", "phase"}
+	phaseLabels = append(phaseLabels, k8sLabels...)
+	metrics.phaseDesc = prometheus.NewDesc(
+		"kubevirt_vmi_current_phase_seconds",
+		"number of seconds the VMI spent in its current phase",
+		phaseLabels,
+		nil,
+	)
+
+	// Current phase values
+	var phaseLabelValues = []string{vmi.Status.NodeName, vmi.Namespace, vmi.Name, string(phase.currPhase)}
+	phaseLabelValues = append(phaseLabelValues, k8sLabelValues...)
+
+	mv, err := prometheus.NewConstMetric(
+		metrics.phaseDesc, prometheus.CounterValue,
+		time.Since(phase.currTime).Seconds(),
+		phaseLabelValues...,
+	)
+	tryToPushMetric(metrics.phaseDesc, mv, err, ch)
+
+	if phase.prevPhase == k6tv1.VmPhaseUnset {
+		return
+	}
+
+	// Previous phase labels
+	phaseLabels = []string{"node", "namespace", "name", "phase"}
+	phaseLabels = append(phaseLabels, k8sLabels...)
+	metrics.phaseDesc = prometheus.NewDesc(
+		"kubevirt_vmi_previous_phase_seconds",
+		"number of seconds the VMI spent in its previous phase",
+		phaseLabels,
+		nil,
+	)
+
+	// Previous phase values
+	phaseLabelValues = []string{vmi.Status.NodeName, vmi.Namespace, vmi.Name, string(phase.prevPhase)}
+	phaseLabelValues = append(phaseLabelValues, k8sLabelValues...)
+
+	mv, err = prometheus.NewConstMetric(
+		metrics.phaseDesc, prometheus.CounterValue,
+		phase.currTime.Sub(phase.prevTime).Seconds(),
+		phaseLabelValues...,
+	)
+	tryToPushMetric(metrics.phaseDesc, mv, err, ch)
+}
+
 func makeVMIsPhasesMap(vmis []*k6tv1.VirtualMachineInstance) map[string]uint64 {
 	phasesMap := make(map[string]uint64)
 
@@ -455,6 +514,7 @@ type vmiMetrics struct {
 	memoryAvailableDesc     *prometheus.Desc
 	memoryResidentDesc      *prometheus.Desc
 	swapTrafficDesc         *prometheus.Desc
+	phaseDesc               *prometheus.Desc
 }
 
 func newVmiMetrics() *vmiMetrics {
@@ -466,16 +526,72 @@ type Collector struct {
 	virtShareDir  string
 	nodeName      string
 	concCollector *concurrentCollector
+	vmiInformer   cache.SharedIndexInformer
 }
 
-func SetupCollector(virtCli kubecli.KubevirtClient, virtShareDir, nodeName string, MaxRequestsInFlight int) *Collector {
+type vmiPhases struct {
+	currPhase k6tv1.VirtualMachineInstancePhase
+	currTime  time.Time
+	prevPhase k6tv1.VirtualMachineInstancePhase
+	prevTime  time.Time
+}
+
+var phases map[string]vmiPhases = make(map[string]vmiPhases)
+var phasesMutex sync.Mutex
+
+func vmiAddCallback(obj interface{}) {
+	vmi := obj.(*k6tv1.VirtualMachineInstance)
+	phasesMutex.Lock()
+	defer phasesMutex.Unlock()
+	phases[vmi.Name] = vmiPhases{
+		currPhase: vmi.Status.Phase,
+		currTime:  time.Now(),
+		prevPhase: k6tv1.VmPhaseUnset,
+		prevTime:  time.Now(),
+	}
+}
+
+func vmiDeleteCallback(obj interface{}) {
+	vmi := obj.(*k6tv1.VirtualMachineInstance)
+	phasesMutex.Lock()
+	defer phasesMutex.Unlock()
+	delete(phases, vmi.Name)
+}
+
+func vmiUpdateCallback(prev interface{}, curr interface{}) {
+	prevVmi := prev.(*k6tv1.VirtualMachineInstance)
+	currVmi := curr.(*k6tv1.VirtualMachineInstance)
+	phasesMutex.Lock()
+	defer phasesMutex.Unlock()
+	phase, present := phases[prevVmi.Name]
+	if !present || currVmi.Status.Phase == phase.currPhase {
+		return
+	}
+	phase.prevPhase = phase.currPhase
+	phase.prevTime = phase.currTime
+	phase.currPhase = currVmi.Status.Phase
+	phase.currTime = time.Now()
+	phases[currVmi.Name] = phase
+	if currVmi.Name != prevVmi.Name {
+		delete(phases, prevVmi.Name)
+	}
+}
+
+func SetupCollector(virtCli kubecli.KubevirtClient, virtShareDir, nodeName string, MaxRequestsInFlight int, vmiInformer cache.SharedIndexInformer) *Collector {
 	log.Log.Infof("Starting collector: node name=%v", nodeName)
 	co := &Collector{
 		virtCli:       virtCli,
 		virtShareDir:  virtShareDir,
 		nodeName:      nodeName,
 		concCollector: NewConcurrentCollector(MaxRequestsInFlight),
+		vmiInformer:   vmiInformer,
 	}
+	co.vmiInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc:    vmiAddCallback,
+		DeleteFunc: vmiDeleteCallback,
+		UpdateFunc: vmiUpdateCallback,
+	})
+	//go watchVMIs(co.vmiInformer)
 	prometheus.MustRegister(co)
 	return co
 }
@@ -591,6 +707,7 @@ func (ps *prometheusScraper) Report(socketFile string, vmi *k6tv1.VirtualMachine
 	vmiMetrics.updateVcpu(vmi, vmStats, ps.ch, k8sLabels, k8sLabelValues)
 	vmiMetrics.updateBlock(vmi, vmStats, ps.ch, k8sLabels, k8sLabelValues)
 	vmiMetrics.updateNetwork(vmi, vmStats, ps.ch, k8sLabels, k8sLabelValues)
+	vmiMetrics.updatePhases(vmi, vmStats, ps.ch, k8sLabels, k8sLabelValues)
 }
 
 func Handler(MaxRequestsInFlight int) http.Handler {
