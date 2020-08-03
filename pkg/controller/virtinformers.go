@@ -106,6 +106,9 @@ type KubeInformerFactory interface {
 	// Watches for ConfigMap objects
 	ConfigMap() cache.SharedIndexInformer
 
+	// Watches for Host Devices ConfigMap objects
+	HostDevicesConfigMap() cache.SharedIndexInformer
+
 	// Watches for PersistentVolumeClaim objects
 	PersistentVolumeClaim() cache.SharedIndexInformer
 
@@ -427,6 +430,15 @@ func (f *kubeInformerFactory) ConfigMap() cache.SharedIndexInformer {
 	return f.getInformer("configMapInformer", func() cache.SharedIndexInformer {
 		restClient := f.clientSet.CoreV1().RESTClient()
 		fieldSelector := fields.OneTermEqualSelector("metadata.name", "kubevirt-config")
+		lw := cache.NewListWatchFromClient(restClient, "configmaps", f.kubevirtNamespace, fieldSelector)
+		return cache.NewSharedIndexInformer(lw, &k8sv1.ConfigMap{}, f.defaultResync, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc})
+	})
+}
+
+func (f *kubeInformerFactory) HostDevicesConfigMap() cache.SharedIndexInformer {
+	return f.getInformer("extensionsHostDevConfigMapInformer", func() cache.SharedIndexInformer {
+		restClient := f.clientSet.CoreV1().RESTClient()
+		fieldSelector := fields.OneTermEqualSelector("metadata.name", "kubevirt-host-device-plugin-config")
 		lw := cache.NewListWatchFromClient(restClient, "configmaps", f.kubevirtNamespace, fieldSelector)
 		return cache.NewSharedIndexInformer(lw, &k8sv1.ConfigMap{}, f.defaultResync, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc})
 	})
