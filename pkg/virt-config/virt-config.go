@@ -153,3 +153,7 @@ func (c *ClusterConfig) GetSupportedAgentVersions() []string {
 func (c *ClusterConfig) GetOVMFPath() string {
 	return c.GetConfig().OVMFPath
 }
+
+func (c *ClusterConfig) GetPermittedHostDevices() *v1.PermittedHostDevices {
+	return c.GetConfig().PermittedHostDevices
+}
