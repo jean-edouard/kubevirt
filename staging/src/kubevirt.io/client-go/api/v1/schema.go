@@ -372,6 +372,9 @@ type Devices struct {
 	//Whether to attach a GPU device to the vmi.
 	// +optional
 	GPUs []GPU `json:"gpus,omitempty"`
+	//Whether to attach a host device to the vmi.
+	// +optional
+	HostDevices []HostDevice `json:"hostDevices,omitempty"`
 }
 
 //
@@ -391,6 +394,14 @@ type Input struct {
 // +k8s:openapi-gen=true
 type GPU struct {
 	// Name of the GPU device as exposed by a device plugin
+	Name       string `json:"name"`
+	DeviceName string `json:"deviceName"`
+}
+
+//
+// +k8s:openapi-gen=true
+type HostDevice struct {
+	// DeviceName is the resource name of the host device exposed by a device plugin
 	Name       string `json:"name"`
 	DeviceName string `json:"deviceName"`
 }
