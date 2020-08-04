@@ -57,6 +57,7 @@ type GenericDevicePlugin struct {
 	health     chan string
 	devicePath string
 	deviceName string
+	resourceName string
 	done       chan struct{}
 	deviceRoot string
 	preOpen    bool
@@ -72,6 +73,7 @@ func NewGenericDevicePlugin(deviceName string, devicePath string, maxDevices int
 		deviceName: deviceName,
 		devicePath: devicePath,
 		deviceRoot: util.HostRootMount,
+		resourceName: fmt.Sprintf("%s/%s", DeviceNamespace, deviceName),
 		preOpen:    preOpen,
 	}
 	for i := 0; i < maxDevices; i++ {
@@ -191,7 +193,7 @@ func (dpi *GenericDevicePlugin) Register() error {
 	reqt := &pluginapi.RegisterRequest{
 		Version:      pluginapi.Version,
 		Endpoint:     path.Base(dpi.socketPath),
-		ResourceName: fmt.Sprintf("%s/%s", DeviceNamespace, dpi.deviceName),
+		ResourceName: dpi.resourceName,
 	}
 
 	_, err = client.Register(context.Background(), reqt)
@@ -238,6 +240,8 @@ func (dpi *GenericDevicePlugin) ListAndWatch(e *pluginapi.Empty, s pluginapi.Dev
 }
 
 func (dpi *GenericDevicePlugin) Allocate(ctx context.Context, r *pluginapi.AllocateRequest) (*pluginapi.AllocateResponse, error) {
+	log.DefaultLogger().Infof("Generic Allocate: resourceName: %s", dpi.deviceName)
+	log.DefaultLogger().Infof("Generic Allocate: request: %v", r.ContainerRequests)
 	response := pluginapi.AllocateResponse{}
 	containerResponse := new(pluginapi.ContainerAllocateResponse)
 
