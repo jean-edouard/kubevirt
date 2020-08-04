@@ -1,6 +1,9 @@
 package util
 
 import (
+	"fmt"
+	"strings"
+
 	v1 "kubevirt.io/client-go/api/v1"
 )
 
@@ -33,4 +36,11 @@ func IsGPUVMI(vmi *v1.VirtualMachineInstance) bool {
 		return true
 	}
 	return false
+}
+
+func ResourceNameToEnvvar(prefix string, resourceName string) string {
+	varName := strings.ToUpper(resourceName)
+	varName = strings.Replace(varName, "/", "_", -1)
+	varName = strings.Replace(varName, ".", "_", -1)
+	return fmt.Sprintf("%s_%s", prefix, varName)
 }
