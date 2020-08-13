@@ -6787,6 +6787,13 @@
        "$ref": "#/definitions/v1.GPU"
       }
      },
+     "hostDevices": {
+      "description": "Whether to attach a host device to the vmi.",
+      "type": "array",
+      "items": {
+       "$ref": "#/definitions/v1.HostDevice"
+      }
+     },
      "inputs": {
       "description": "Inputs describe input devices",
       "type": "array",
@@ -7236,6 +7243,22 @@
      }
     }
    },
+   "v1.HostDevice": {
+    "type": "object",
+    "required": [
+     "name",
+     "deviceName"
+    ],
+    "properties": {
+     "deviceName": {
+      "type": "string"
+     },
+     "name": {
+      "description": "DeviceName is the resource name of the host device exposed by a device plugin",
+      "type": "string"
+     }
+    }
+   },
    "v1.HostDisk": {
     "description": "Represents a disk created on the cluster level",
     "type": "object",
@@ -7494,6 +7517,9 @@
      },
      "ovmfPath": {
       "type": "string"
+     },
+     "permittedHostDevices": {
+      "$ref": "#/definitions/v1.PermittedHostDevices"
      },
      "selinuxLauncherType": {
       "type": "string"
@@ -7768,6 +7794,25 @@
      "time": {
       "description": "Time is timestamp of when these fields were set. It should always be empty if Operation is 'Apply'",
       "$ref": "#/definitions/v1.Time"
+     }
+    }
+   },
+   "v1.MediatedHostDevice": {
+    "description": "MediatedHostDevice represents a host mediated device allowed for passthrough",
+    "type": "object",
+    "required": [
+     "mdevNameSelector",
+     "resourceName"
+    ],
+    "properties": {
+     "externalResourceProvider": {
+      "type": "boolean"
+     },
+     "mdevNameSelector": {
+      "type": "string"
+     },
+     "resourceName": {
+      "type": "string"
      }
     }
    },
@@ -8093,6 +8138,43 @@
    "v1.Patch": {
     "description": "Patch is provided to give a concrete name and type to the Kubernetes PATCH request body.",
     "type": "object"
+   },
+   "v1.PciHostDevice": {
+    "description": "PciHostDevice represents a host PCI device allowed for passthrough",
+    "type": "object",
+    "required": [
+     "pciVendorSelector",
+     "resourceName"
+    ],
+    "properties": {
+     "externalResourceProvider": {
+      "type": "boolean"
+     },
+     "pciVendorSelector": {
+      "type": "string"
+     },
+     "resourceName": {
+      "type": "string"
+     }
+    }
+   },
+   "v1.PermittedHostDevices": {
+    "description": "PermittedHostDevices holds inforamtion about devices allowed for passthrough",
+    "type": "object",
+    "properties": {
+     "mdevs": {
+      "type": "array",
+      "items": {
+       "$ref": "#/definitions/v1.MediatedHostDevice"
+      }
+     },
+     "pciDevices": {
+      "type": "array",
+      "items": {
+       "$ref": "#/definitions/v1.PciHostDevice"
+      }
+     }
+    }
    },
    "v1.PersistentVolumeClaim": {
     "description": "PersistentVolumeClaim is a user's request for and claim to a persistent volume",
