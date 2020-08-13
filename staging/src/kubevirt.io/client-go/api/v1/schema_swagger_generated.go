@@ -181,6 +181,7 @@ func (Devices) SwaggerDoc() map[string]string {
 		"networkInterfaceMultiqueue": "If specified, virtual network interfaces configured with a virtio bus will also enable the vhost multiqueue feature\n+optional",
 		"gpus":                       "Whether to attach a GPU device to the vmi.\n+optional",
 		"filesystems":                "Filesystems describes filesystem which is connected to the vmi.\n+optional\n+listType=set",
+		"hostDevices":                "Whether to attach a host device to the vmi.\n+optional",
 	}
 }
 
@@ -210,6 +211,13 @@ func (GPU) SwaggerDoc() map[string]string {
 	return map[string]string{
 		"":     "+k8s:openapi-gen=true",
 		"name": "Name of the GPU device as exposed by a device plugin",
+	}
+}
+
+func (HostDevice) SwaggerDoc() map[string]string {
+	return map[string]string{
+		"":     "+k8s:openapi-gen=true",
+		"name": "DeviceName is the resource name of the host device exposed by a device plugin",
 	}
 }
 
