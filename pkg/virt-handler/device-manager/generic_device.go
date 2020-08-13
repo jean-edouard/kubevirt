@@ -49,32 +49,32 @@ type GenericDevice interface {
 }
 
 type GenericDevicePlugin struct {
-	counter    int
-	devs       []*pluginapi.Device
-	server     *grpc.Server
-	socketPath string
-	stop       chan struct{}
-	health     chan string
-	devicePath string
-	deviceName string
+	counter      int
+	devs         []*pluginapi.Device
+	server       *grpc.Server
+	socketPath   string
+	stop         chan struct{}
+	health       chan string
+	devicePath   string
+	deviceName   string
 	resourceName string
-	done       chan struct{}
-	deviceRoot string
-	preOpen    bool
+	done         chan struct{}
+	deviceRoot   string
+	preOpen      bool
 }
 
 func NewGenericDevicePlugin(deviceName string, devicePath string, maxDevices int, preOpen bool) *GenericDevicePlugin {
 	serverSock := SocketPath(deviceName)
 	dpi := &GenericDevicePlugin{
-		counter:    0,
-		devs:       []*pluginapi.Device{},
-		socketPath: serverSock,
-		health:     make(chan string),
-		deviceName: deviceName,
-		devicePath: devicePath,
-		deviceRoot: util.HostRootMount,
+		counter:      0,
+		devs:         []*pluginapi.Device{},
+		socketPath:   serverSock,
+		health:       make(chan string),
+		deviceName:   deviceName,
+		devicePath:   devicePath,
+		deviceRoot:   util.HostRootMount,
 		resourceName: fmt.Sprintf("%s/%s", DeviceNamespace, deviceName),
-		preOpen:    preOpen,
+		preOpen:      preOpen,
 	}
 	for i := 0; i < maxDevices; i++ {
 		dpi.addNewGenericDevice()
