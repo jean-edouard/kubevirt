@@ -46,6 +46,7 @@ type GenericDevice interface {
 	Start(chan struct{}) (err error)
 	GetDevicePath() string
 	GetDeviceName() string
+	Stop() error
 }
 
 type GenericDevicePlugin struct {
