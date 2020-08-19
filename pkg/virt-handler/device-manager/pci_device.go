@@ -152,7 +152,13 @@ func (dpi *PCIDevicePlugin) Start(stop chan struct{}) (err error) {
 	}()
 
 	logger.Infof("%s device plugin started", dpi.deviceName)
-	err = <-errChan
+
+	// Wait for an error or a stop, dpi.Stop() is deferred
+	select {
+	case err = <-errChan:
+	case <-stop:
+		err = nil
+	}
 
 	return err
 }
@@ -318,6 +324,7 @@ func (dpi *PCIDevicePlugin) GetDeviceName() string {
 
 // Stop stops the gRPC server
 func (dpi *PCIDevicePlugin) Stop() error {
+	log.DefaultLogger().Infof("Stop() called for %s.", dpi.deviceName)
 	defer func() {
 		if !IsChanClosed(dpi.done) {
 			close(dpi.done)

@@ -22,11 +22,14 @@ package device_manager
 import (
 	"math"
 	"os"
+	"reflect"
 	"strings"
+	"sync"
 	"time"
 
 	"k8s.io/client-go/tools/cache"
 
+	v1 "kubevirt.io/client-go/api/v1"
 	"kubevirt.io/client-go/log"
 	virtconfig "kubevirt.io/kubevirt/pkg/virt-config"
 )
@@ -45,6 +48,8 @@ type DeviceController struct {
 	virtConfig               *virtconfig.ClusterConfig
 	hostDevConfigMapInformer cache.SharedIndexInformer
 	stop                     chan struct{}
+	prevPciHostDevices       []v1.PciHostDevice
+	prevPciHostDevicesMutex  sync.Mutex
 }
 
 type ControlledDevice struct {
@@ -72,11 +77,6 @@ func NewDeviceController(host string, maxDevices int, clusterConfig *virtconfig.
 	}
 	controller.virtConfig = clusterConfig
 	controller.hostDevConfigMapInformer = hostDevConfigMapInformer
-	hostDevConfigMapInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc:    controller.hostDevAddDeleteFunc,
-		DeleteFunc: controller.hostDevAddDeleteFunc,
-		UpdateFunc: controller.hostDevUpdateFunc,
-	})
 
 	return controller
 }
@@ -108,17 +108,9 @@ func (c *DeviceController) startDevicePlugin(controlledDev ControlledDevice) {
 		if err != nil {
 			logger.Reason(err).Errorf("Error starting %s device plugin", deviceName)
 			retries = int(math.Min(float64(retries+1), float64(len(c.backoff)-1)))
-		} else {
-			retries = 0
-		}
-
-		select {
-		case <-stop:
-			// Ok we don't want to re-register
-			return
-		default:
-			// Wait a little bit and re-register
 			time.Sleep(c.backoff[retries])
+		} else {
+			return
 		}
 	}
 }
@@ -126,9 +118,21 @@ func (c *DeviceController) startDevicePlugin(controlledDev ControlledDevice) {
 // updatePermittedHostDevicePlugins will return a map of device plugins for permitted devices which are present on the node
 // and a map of restricted devices that should be removed
 func (c *DeviceController) updatePermittedHostDevicePlugins() (map[string]ControlledDevice, map[string]ControlledDevice) {
+	logger := log.DefaultLogger()
 	devicePluginsToRun := make(map[string]ControlledDevice)
 	devicePluginsToStop := make(map[string]ControlledDevice)
-	if hostDevs := c.virtConfig.GetPermittedHostDevices(); hostDevs != nil {
+	hostDevs := c.virtConfig.GetPermittedHostDevices()
+	c.prevPciHostDevicesMutex.Lock()
+	if reflect.DeepEqual(c.prevPciHostDevices, hostDevs.PciHostDevices) {
+		c.prevPciHostDevicesMutex.Unlock()
+		logger.Infof("Got %v, SAME as %v, bailing.", hostDevs.PciHostDevices, c.prevPciHostDevices)
+		return devicePluginsToRun, devicePluginsToStop
+	} else {
+		logger.Infof("Got %v, DIFFERENT than %v, staying.", hostDevs.PciHostDevices, c.prevPciHostDevices)
+		c.prevPciHostDevices = hostDevs.PciHostDevices
+	}
+	c.prevPciHostDevicesMutex.Unlock()
+	if hostDevs != nil {
 		// generate a map of currently started device plugins
 		for resourceName, hostDevDP := range c.devicePlugins {
 			devicePluginsToStop[resourceName] = hostDevDP
@@ -222,30 +226,27 @@ func (c *DeviceController) refreshPermittedDevices() error {
 func (c *DeviceController) Run(stop chan struct{}) error {
 	logger := log.DefaultLogger()
 	// start the permanent DevicePlugins
+	logger.Infof("Run: starting %v", c.devicePlugins)
 	for _, dev := range c.devicePlugins {
 		go c.startDevicePlugin(dev)
 	}
+	c.hostDevConfigMapInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc:    c.hostDevAddDeleteFunc,
+		DeleteFunc: c.hostDevAddDeleteFunc,
+		UpdateFunc: c.hostDevUpdateFunc,
+	})
 	// Wait for the hostDevConfigMapInformer cache to be synced
 	go c.hostDevConfigMapInformer.Run(stop)
 	cache.WaitForCacheSync(stop, c.hostDevConfigMapInformer.HasSynced)
-	enabledDevicePlugins, _ := c.updatePermittedHostDevicePlugins()
-	for _, dev := range enabledDevicePlugins {
-		go c.startDevicePlugin(dev)
-	}
+	c.refreshPermittedDevices()
 
 	// keep running until stop
-	for {
-		select {
-		case <-stop:
-			// stop all device plugings
-			for _, dev := range c.devicePlugins {
-				dev.stopChan <- struct{}{}
-			}
-			logger.Info("Shutting down device plugin controller")
-			return nil
-		default:
-			time.Sleep(100 * time.Millisecond)
-		}
-	}
+	<-stop
 
+	// stop all device plugings
+	for _, dev := range c.devicePlugins {
+		dev.stopChan <- struct{}{}
+	}
+	logger.Info("Shutting down device plugin controller")
+	return nil
 }
