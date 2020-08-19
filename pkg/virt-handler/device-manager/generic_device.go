@@ -46,7 +46,6 @@ type GenericDevice interface {
 	Start(chan struct{}) (err error)
 	GetDevicePath() string
 	GetDeviceName() string
-	Stop() error
 }
 
 type GenericDevicePlugin struct {
@@ -177,7 +176,11 @@ func (dpi *GenericDevicePlugin) Start(stop chan struct{}) (err error) {
 
 // Stop stops the gRPC server
 func (dpi *GenericDevicePlugin) Stop() error {
-	defer close(dpi.done)
+	defer func() {
+		if !IsChanClosed(dpi.done) {
+			close(dpi.done)
+		}
+	}()
 	dpi.server.Stop()
 	return dpi.cleanup()
 }
@@ -340,6 +343,16 @@ func (dpi *GenericDevicePlugin) healthCheck() error {
 			}
 		}
 	}
+}
+
+func IsChanClosed(ch <-chan struct{}) bool {
+	select {
+	case <-ch:
+		return true
+	default:
+	}
+
+	return false
 }
 
 func SocketPath(deviceName string) string {
