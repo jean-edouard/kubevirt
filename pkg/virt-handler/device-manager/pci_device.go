@@ -318,6 +318,7 @@ func (dpi *PCIDevicePlugin) GetDeviceName() string {
 
 // Stop stops the gRPC server
 func (dpi *PCIDevicePlugin) Stop() error {
+	log.DefaultLogger().Infof("Stop() called for %s.", dpi.deviceName)
 	defer func() {
 		if !IsChanClosed(dpi.done) {
 			close(dpi.done)
