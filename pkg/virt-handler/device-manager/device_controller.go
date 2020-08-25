@@ -71,9 +71,9 @@ func NewDeviceController(host string, maxDevices int, clusterConfig *virtconfig.
 		host:          host,
 		maxDevices:    maxDevices,
 		backoff:       []time.Duration{1 * time.Second, 2 * time.Second, 5 * time.Second, 10 * time.Second},
+		virtConfig: clusterConfig,
+		hostDevConfigMapInformer: hostDevConfigMapInformer,
 	}
-	controller.virtConfig = clusterConfig
-	controller.hostDevConfigMapInformer = hostDevConfigMapInformer
 
 	return controller
 }

@@ -32,6 +32,22 @@ func NewFakeClusterConfig(cfgMap *v1.ConfigMap) (*virtconfig.ClusterConfig, cach
 	return virtconfig.NewClusterConfig(configMapInformer, crdInformer, kubeVirtInformer, hostDevConfigMapInformer, namespace), configMapInformer, crdInformer, kubeVirtInformer
 }
 
+func NewFakeClusterConfigWithHostDevConfigMap(cfgMap *v1.ConfigMap) (*virtconfig.ClusterConfig, cache.SharedIndexInformer, cache.SharedIndexInformer, cache.SharedIndexInformer) {
+	configMapInformer, _ := NewFakeInformerFor(&v1.ConfigMap{})
+	hostDevConfigMapInformer, _ := NewFakeInformerFor(&v1.ConfigMap{})
+	crdInformer, _ := NewFakeInformerFor(&extv1beta1.CustomResourceDefinition{})
+	kubeVirtInformer, _ := NewFakeInformerFor(&KVv1.KubeVirt{})
+
+	if cfgMap != nil {
+		copy := copy(cfgMap)
+		hostDevConfigMapInformer.GetStore().Add(copy)
+	}
+
+	AddDataVolumeAPI(crdInformer)
+
+	return virtconfig.NewClusterConfig(configMapInformer, crdInformer, kubeVirtInformer, hostDevConfigMapInformer, namespace), configMapInformer, crdInformer, kubeVirtInformer
+}
+
 func NewFakeClusterConfigUsingKV(kv *KVv1.KubeVirt) (*virtconfig.ClusterConfig, cache.SharedIndexInformer, cache.SharedIndexInformer, cache.SharedIndexInformer) {
 	configMapInformer, _ := NewFakeInformerFor(&v1.ConfigMap{})
 	hostDevConfigMapInformer, _ := NewFakeInformerFor(&v1.ConfigMap{})

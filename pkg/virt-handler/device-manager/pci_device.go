@@ -120,6 +120,11 @@ func (dpi *PCIDevicePlugin) Start(stop chan struct{}) (err error) {
 		return err
 	}
 
+	err = os.MkdirAll(path.Base(dpi.socketPath), 0700)
+	if err != nil {
+		return err
+	}
+
 	sock, err := net.Listen("unix", dpi.socketPath)
 	if err != nil {
 		return fmt.Errorf("error creating GRPC server socket: %v", err)
