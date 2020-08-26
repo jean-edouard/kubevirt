@@ -1943,7 +1943,7 @@ var _ = Describe("Validating VMICreate Admitter", func() {
 			Expect(causes[0].Field).To(Equal("fake.HostDevices"))
 		})
 		It("should reject host devices that are not permitted in the hostdev config", func() {
-		        enableFeatureGate(virtconfig.HostDevicesGate)
+			enableFeatureGate(virtconfig.HostDevicesGate)
 			fakePermittedHostDevicesConfig := `
   pciDevices:
   - pciVendorSelector: "DEAD:BEEF"
@@ -1966,7 +1966,7 @@ var _ = Describe("Validating VMICreate Admitter", func() {
 			Expect(causes[0].Field).To(Equal("fake.HostDevices"))
 		})
 		It("should accept permitted host devices", func() {
-		        enableFeatureGate(virtconfig.HostDevicesGate)
+			enableFeatureGate(virtconfig.HostDevicesGate)
 			fakePermittedHostDevicesConfig := `
   pciDevices:
   - pciVendorSelector: "DEAD:BEEF"
