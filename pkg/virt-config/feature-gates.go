@@ -31,6 +31,7 @@ const (
 	HypervStrictCheckGate = "HypervStrictCheck"
 	SidecarGate           = "Sidecar"
 	GPUGate               = "GPU"
+	HostDevicesGate       = "HostDevices"
 	SnapshotGate          = "Snapshot"
 	HostDiskGate          = "HostDisk"
 	VirtIOFSGate          = "ExperimentalVirtiofsSupport"
@@ -83,4 +84,8 @@ func (config *ClusterConfig) HostDiskEnabled() bool {
 
 func (config *ClusterConfig) VirtiofsEnabled() bool {
 	return config.isFeatureGateEnabled(VirtIOFSGate)
+}
+
+func (config *ClusterConfig) HostDevicesPassthroughEnabled() bool {
+	return config.isFeatureGateEnabled(HostDevicesGate)
 }
