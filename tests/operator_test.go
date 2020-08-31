@@ -83,6 +83,7 @@ var _ = Describe("Operator", func() {
 		sanityCheckDeploymentsExistWithNS func(string)
 		sanityCheckDeploymentsExist       func()
 		sanityCheckDeploymentsDeleted     func()
+		sanityCheckCreationOrder          func(*v1.KubeVirt)
 		allPodsAreReady                   func(*v1.KubeVirt)
 		waitForUpdateCondition            func(*v1.KubeVirt)
 		waitForKvWithTimeout              func(*v1.KubeVirt, int)
@@ -185,6 +186,33 @@ var _ = Describe("Operator", func() {
 				}
 				return nil
 			}, 10*time.Second, 1*time.Second).ShouldNot(HaveOccurred())
+		}
+
+		sanityCheckCreationOrder = func(kv *v1.KubeVirt) {
+			curKv, err := virtClient.KubeVirt(kv.Namespace).Get(kv.Name, &metav1.GetOptions{})
+			Expect(err).ToNot(HaveOccurred())
+			pods, err := virtClient.CoreV1().Pods(curKv.Namespace).List(metav1.ListOptions{LabelSelector: "kubevirt.io"})
+			Expect(err).ToNot(HaveOccurred())
+
+			// Find when the last virt-controller and the first virt-api pods were created
+			latestVirtController := metav1.Time{}
+			earliestVirtApi := metav1.Now()
+			for _, pod := range pods.Items {
+				if strings.HasPrefix(pod.Name, "virt-controller") && latestVirtController.Before(pod.Status.StartTime) {
+					latestVirtController = *pod.Status.StartTime
+				}
+				if strings.HasPrefix(pod.Name, "virt-api") && pod.Status.StartTime.Before(&earliestVirtApi) {
+					earliestVirtApi = *pod.Status.StartTime
+				}
+			}
+
+			// Ensure all virt-handler pods were created in between virt-controller and virt-api pods
+			for _, pod := range pods.Items {
+				if strings.HasPrefix(pod.Name, "virt-handler") {
+					Expect(latestVirtController.Before(pod.Status.StartTime)).To(BeTrue(), "%s was created before a virt-controller", pod.Name)
+					Expect(pod.Status.StartTime.Before(&earliestVirtApi)).To(BeTrue(), "%s was created after a virt-api pod", pod.Name)
+				}
+			}
 		}
 
 		allPodsAreReady = func(kv *v1.KubeVirt) {
@@ -707,7 +735,7 @@ spec:
 		// running a VM/VMI using that previous release
 		// Updating KubeVirt to the target tested code
 		// Ensuring VM/VMI is still operational after the update from previous release.
-		It("[test_id:3145]from previous release to target tested release", func() {
+		FIt("[test_id:3145]from previous release to target tested release", func() {
 			previousImageTag := flags.PreviousReleaseTag
 			previousImageRegistry := flags.PreviousReleaseRegistry
 			if previousImageTag == "" {
@@ -748,6 +776,7 @@ spec:
 			By("Verifying infrastructure is Ready")
 			allPodsAreReady(kv)
 			sanityCheckDeploymentsExist()
+			sanityCheckCreationOrder(kv)
 
 			// kubectl API discovery cache only refreshes every 10 minutes
 			// Since we're likely dealing with api additions/removals here, we
