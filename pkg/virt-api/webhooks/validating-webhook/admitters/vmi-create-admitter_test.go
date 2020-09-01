@@ -1891,8 +1891,6 @@ var _ = Describe("Validating VMICreate Admitter", func() {
   - pciVendorSelector: "DEAD:BEEF"
     resourceName: "example.org/deadbeef"`
 
-			configMapData := make(map[string]string)
-			configMapData["permittedHostDevices"] = fakePermittedHostDevicesConfig
 			testutils.UpdateFakeClusterConfigByName(hostDevConfigMapInformer, &k8sv1.ConfigMap{
 				Data: map[string]string{virtconfig.PermittedHostDevicesKey: fakePermittedHostDevicesConfig},
 			}, testutils.HostDevicesConfigMapName)
@@ -1914,8 +1912,6 @@ var _ = Describe("Validating VMICreate Admitter", func() {
   - pciVendorSelector: "DEAD:BEEF"
     resourceName: "example.org/deadbeef"`
 
-			configMapData := make(map[string]string)
-			configMapData["permittedHostDevices"] = fakePermittedHostDevicesConfig
 			testutils.UpdateFakeClusterConfigByName(hostDevConfigMapInformer, &k8sv1.ConfigMap{
 				Data: map[string]string{virtconfig.PermittedHostDevicesKey: fakePermittedHostDevicesConfig},
 			}, testutils.HostDevicesConfigMapName)

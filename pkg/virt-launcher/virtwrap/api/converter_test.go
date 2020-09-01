@@ -2423,7 +2423,7 @@ var _ = Describe("Converter", func() {
 						GPUs: []v1.GPU{
 							v1.GPU{
 								DeviceName: "vendor.com/gpu_name",
-								Name: "gpu_name",
+								Name:       "gpu_name",
 							},
 						},
 					},
@@ -2436,12 +2436,12 @@ var _ = Describe("Converter", func() {
 		It("should convert GPU resource request into host devices", func() {
 			c := &ConverterContext{
 				UseEmulation: true,
-				HostDevices:   map[string]HostDevicesList{
+				HostDevices: map[string]HostDevicesList{
 					"vendor.com/gpu_name": HostDevicesList{
-						Type: HostDevicePCI,
+						Type:     HostDevicePCI,
 						AddrList: []string{"2609:19:90.0", "2609:19:90.1"},
-						},
 					},
+				},
 			}
 
 			domain := vmiToDomain(vmi, c)
@@ -2459,16 +2459,16 @@ var _ = Describe("Converter", func() {
 		It("should convert 2 GPU resource request into host devices", func() {
 			c := &ConverterContext{
 				UseEmulation: true,
-				HostDevices:   map[string]HostDevicesList{
+				HostDevices: map[string]HostDevicesList{
 					"vendor.com/gpu_name": HostDevicesList{
-						Type: HostDevicePCI,
+						Type:     HostDevicePCI,
 						AddrList: []string{"2609:19:90.0", "2609:19:90.1"},
-						},
 					},
+				},
 			}
 			newGpu := v1.GPU{
 				DeviceName: "vendor.com/gpu_name",
-				Name: "gpu_name1",
+				Name:       "gpu_name1",
 			}
 			vmi.Spec.Domain.Devices.GPUs = append(vmi.Spec.Domain.Devices.GPUs, newGpu)
 
@@ -2494,25 +2494,25 @@ var _ = Describe("Converter", func() {
 		It("should convert GPU resource request into host devices for VGPU", func() {
 			c := &ConverterContext{
 				UseEmulation: true,
-				HostDevices:   map[string]HostDevicesList{
+				HostDevices: map[string]HostDevicesList{
 					"vendor.com/gpu_name": HostDevicesList{
-						Type: HostDevicePCI,
+						Type:     HostDevicePCI,
 						AddrList: []string{"2609:19:90.0", "2609:19:90.1"},
-						},
-					"vendor.com/vgpu_name": HostDevicesList{
-						Type: HostDeviceMDEV,
-						AddrList: []string{"aa618089-8b16-4d01-a136-25a0f3c73123", "aa618089-8b16-4d01-a136-25a0f3c73124"},
-						},
 					},
+					"vendor.com/vgpu_name": HostDevicesList{
+						Type:     HostDeviceMDEV,
+						AddrList: []string{"aa618089-8b16-4d01-a136-25a0f3c73123", "aa618089-8b16-4d01-a136-25a0f3c73124"},
+					},
+				},
 			}
 			gpus := []v1.GPU{
 				v1.GPU{
 					DeviceName: "vendor.com/gpu_name",
-					Name: "gpu_name",
+					Name:       "gpu_name",
 				},
 				v1.GPU{
 					DeviceName: "vendor.com/vgpu_name",
-					Name: "vgpu_name1",
+					Name:       "vgpu_name1",
 				},
 			}
 			vmi.Spec.Domain.Devices.GPUs = gpus
@@ -2548,11 +2548,11 @@ var _ = Describe("Converter", func() {
 						HostDevices: []v1.HostDevice{
 							v1.HostDevice{
 								DeviceName: "vendor.com/pci_name",
-								Name: "pci_name",
+								Name:       "pci_name",
 							},
 							v1.HostDevice{
 								DeviceName: "vendor.com/mdev_name",
-								Name: "mdev_name",
+								Name:       "mdev_name",
 							},
 						},
 					},
@@ -2564,16 +2564,16 @@ var _ = Describe("Converter", func() {
 		It("should convert HostDevices resources request into host devices for MDEV and PCI", func() {
 			c := &ConverterContext{
 				UseEmulation: true,
-				HostDevices:   map[string]HostDevicesList{
+				HostDevices: map[string]HostDevicesList{
 					"vendor.com/pci_name": HostDevicesList{
-						Type: HostDevicePCI,
+						Type:     HostDevicePCI,
 						AddrList: []string{"2609:19:90.0", "2609:19:90.1"},
-						},
-					"vendor.com/mdev_name": HostDevicesList{
-						Type: HostDeviceMDEV,
-						AddrList: []string{"aa618089-8b16-4d01-a136-25a0f3c73123", "aa618089-8b16-4d01-a136-25a0f3c73124"},
-						},
 					},
+					"vendor.com/mdev_name": HostDevicesList{
+						Type:     HostDeviceMDEV,
+						AddrList: []string{"aa618089-8b16-4d01-a136-25a0f3c73123", "aa618089-8b16-4d01-a136-25a0f3c73124"},
+					},
+				},
 			}
 			domain := vmiToDomain(vmi, c)
 
