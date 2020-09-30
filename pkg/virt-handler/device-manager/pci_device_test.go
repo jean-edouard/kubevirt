@@ -9,10 +9,7 @@ import (
 	. "github.com/onsi/gomega"
 
 	v1 "kubevirt.io/client-go/api/v1"
-	"kubevirt.io/kubevirt/pkg/testutils"
-	virtconfig "kubevirt.io/kubevirt/pkg/virt-config"
 
-	k8sv1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/yaml"
 )
 

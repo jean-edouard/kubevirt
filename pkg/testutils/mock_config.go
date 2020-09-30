@@ -17,7 +17,7 @@ const (
 	namespace                = "kubevirt"
 )
 
-func NewFakeClusterConfig(cfgMap *v1.ConfigMap) (*virtconfig.ClusterConfig, cache.SharedIndexInformer, cache.SharedIndexInformer, cache.SharedIndexInformer, cache.SharedIndexInformer) {
+func NewFakeClusterConfig(cfgMap *v1.ConfigMap) (*virtconfig.ClusterConfig, cache.SharedIndexInformer, cache.SharedIndexInformer, cache.SharedIndexInformer) {
 	configMapInformer, _ := NewFakeInformerFor(&v1.ConfigMap{})
 	crdInformer, _ := NewFakeInformerFor(&extv1beta1.CustomResourceDefinition{})
 	kubeVirtInformer, _ := NewFakeInformerFor(&KVv1.KubeVirt{})
