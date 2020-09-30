@@ -57,7 +57,7 @@ var _ = Describe("Device Controller", func() {
 	var fakeInformer cache.SharedIndexInformer
 
 	BeforeEach(func() {
-		fakeConfigMap, fakeInformer, _, _, _ = testutils.NewFakeClusterConfig(&k8sv1.ConfigMap{})
+		fakeConfigMap, fakeInformer, _, _ = testutils.NewFakeClusterConfig(&k8sv1.ConfigMap{})
 		workDir, err = ioutil.TempDir("", "kubevirt-test")
 		Expect(err).ToNot(HaveOccurred())
 
