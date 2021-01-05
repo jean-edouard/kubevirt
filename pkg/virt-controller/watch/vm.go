@@ -284,7 +284,7 @@ func (c *VMController) execute(key string) error {
 		logger.Reason(err).Error("Creating the VirtualMachine failed.")
 	}
 
-	err = c.updateStatus(vm, vmi, createErr)
+	err = c.updateStatus(vm, vmi, createErr, key)
 	if err != nil {
 		logger.Reason(err).Error("Updating the VirtualMachine status failed.")
 		return err
@@ -1155,7 +1155,7 @@ func (c *VMController) enqueueVm(obj interface{}) {
 	c.Queue.Add(key)
 }
 
-func (c *VMController) updateStatus(vmOrig *virtv1.VirtualMachine, vmi *virtv1.VirtualMachineInstance, createErr error) error {
+func (c *VMController) updateStatus(vmOrig *virtv1.VirtualMachine, vmi *virtv1.VirtualMachineInstance, createErr error, key string) error {
 	vm := vmOrig.DeepCopy()
 
 	created := vmi != nil
@@ -1316,7 +1316,12 @@ func (c *VMController) updateStatus(vmOrig *virtv1.VirtualMachine, vmi *virtv1.V
 	// only update if necessary
 	err = nil
 	if !reflect.DeepEqual(vm.Status, vmOrig.Status) {
-		err = c.statusUpdater.UpdateStatus(vm)
+		fresh, err := c.clientset.VirtualMachine(vm.ObjectMeta.Namespace).Get(vm.ObjectMeta.Name, &v1.GetOptions{})
+		if err != nil {
+			return err
+		}
+		fresh.Status = vm.Status
+		err = c.statusUpdater.UpdateStatus(fresh)
 	}
 
 	return err

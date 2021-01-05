@@ -945,7 +945,12 @@ func (d *VirtualMachineController) updateVMIStatus(vmi *v1.VirtualMachineInstanc
 	condManager.CheckFailure(vmi, syncError, "Synchronizing with the Domain failed.")
 
 	if !reflect.DeepEqual(oldStatus, vmi.Status) {
-		_, err = d.clientset.VirtualMachineInstance(vmi.ObjectMeta.Namespace).Update(vmi)
+		fresh, err := d.clientset.VirtualMachineInstance(vmi.ObjectMeta.Namespace).Get(vmi.ObjectMeta.Name, &metav1.GetOptions{})
+		if err != nil {
+			fresh = vmi
+		}
+		fresh.Status = vmi.Status
+		_, err = d.clientset.VirtualMachineInstance(vmi.ObjectMeta.Namespace).Update(fresh)
 		if err != nil {
 			return err
 		}
