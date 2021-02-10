@@ -1254,7 +1254,7 @@ var _ = Describe("Manager", func() {
 			migrationMode := migrationType == "postCopy"
 
 			flags := prepareMigrationFlags(isBlockMigration, isUnsafeMigration, allowAutoConverge, migrationMode)
-			expectedMigrateFlags := libvirt.MIGRATE_LIVE | libvirt.MIGRATE_PEER2PEER
+			expectedMigrateFlags := libvirt.MIGRATE_LIVE | libvirt.MIGRATE_PEER2PEER | libvirt.MIGRATE_PERSIST_DEST
 
 			if isBlockMigration {
 				expectedMigrateFlags |= libvirt.MIGRATE_NON_SHARED_INC
