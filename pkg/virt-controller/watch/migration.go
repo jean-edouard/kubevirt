@@ -254,6 +254,33 @@ func (c *MigrationController) canMigrateVMI(migration *virtv1.VirtualMachineInst
 
 }
 
+func (c *MigrationController) canCreateTarget(migration *virtv1.VirtualMachineInstanceMigration, vmi *virtv1.VirtualMachineInstance) (bool, error) {
+	curMigrationUID := "none"
+	if vmi.Status.MigrationState != nil {
+		curMigrationUID = string(vmi.Status.MigrationState.MigrationUID)
+	}
+
+	// check to see if the curMigrationUID still exists or is finalized
+	objs, err := c.migrationInformer.GetIndexer().ByIndex(cache.NamespaceIndex, migration.Namespace)
+	if err != nil {
+		return false, err
+	}
+
+	for _, obj := range objs {
+		curMigration := obj.(*virtv1.VirtualMachineInstanceMigration)
+		if curMigration.Spec.VMIName != vmi.Name {
+			continue
+		}
+
+		if string(curMigration.UID) != curMigrationUID && !curMigration.IsFinal() && curMigration.TargetIsHandedOff() {
+			// There's already a migration running for this VMI, we can't create the target
+			return false, nil
+		}
+	}
+
+	return true, nil
+}
+
 func (c *MigrationController) updateStatus(migration *virtv1.VirtualMachineInstanceMigration, vmi *virtv1.VirtualMachineInstance, pods []*k8sv1.Pod, syncErr error) error {
 
 	var pod *k8sv1.Pod = nil
@@ -496,7 +523,7 @@ func (c *MigrationController) sync(key string, migration *virtv1.VirtualMachineI
 			// Don't start new migrations if we wait for migration object updates because of new target pods
 			runningMigrations, err := c.findRunningMigrations()
 			if err != nil {
-				return fmt.Errorf("failed to determin the number of running migrations: %v", err)
+				return fmt.Errorf("failed to determine the number of running migrations: %v", err)
 			}
 
 			// XXX: Make this configurable, think about limit per node, bandwidth per migration, and so on.
@@ -521,7 +548,8 @@ func (c *MigrationController) sync(key string, migration *virtv1.VirtualMachineI
 
 			// migration was accepted into the system, now see if we
 			// should create the target pod
-			if vmi.IsRunning() {
+			okToCreate, err := c.canCreateTarget(migration, vmi)
+			if err == nil && okToCreate && vmi.IsRunning() {
 				return c.createTargetPod(migration, vmi)
 			}
 			return nil
