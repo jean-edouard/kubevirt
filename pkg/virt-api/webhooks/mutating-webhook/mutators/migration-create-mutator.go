@@ -51,6 +51,13 @@ func (mutator *MigrationCreateMutator) Mutate(ar *v1beta1.AdmissionReview) *v1be
 		return webhookutils.ToAdmissionResponseError(err)
 	}
 
+	// Add a special label
+	if migration.Labels == nil {
+		migration.Labels = map[string]string{"special": migration.Spec.VMIName}
+	} else {
+		migration.Labels["special"] = migration.Spec.VMIName
+	}
+
 	// Add a finalizer
 	migration.Finalizers = append(migration.Finalizers, v1.VirtualMachineInstanceMigrationFinalizer)
 	var patch []patchOperation
