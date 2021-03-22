@@ -112,6 +112,14 @@ group_file(
 )
 
 pkg_tar(
+    name = "vhostmd-config",
+    srcs = [
+        ":vhostmd.conf",
+    ],
+    package_dir = "/etc/vhostmd",
+)
+
+pkg_tar(
     name = "passwd-tar",
     srcs = [
         ":group",
