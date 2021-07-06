@@ -2278,6 +2278,11 @@ func (in *MigrationConfiguration) DeepCopyInto(out *MigrationConfiguration) {
 		*out = new(bool)
 		**out = **in
 	}
+	if in.DedicatedMigrationNetwork != nil {
+		in, out := &in.DedicatedMigrationNetwork, &out.DedicatedMigrationNetwork
+		*out = new(string)
+		**out = **in
+	}
 	return
 }
 

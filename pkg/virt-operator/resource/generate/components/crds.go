@@ -978,6 +978,7 @@ func NewPrometheusRuleSpec(ns string, workloadUpdatesEnabled bool) *promv1.Prome
 
 // Used by manifest generation
 func NewKubeVirtCR(namespace string, pullPolicy corev1.PullPolicy, featureGates string) *virtv1.KubeVirt {
+	mignet := "jedtest"
 	cr := &virtv1.KubeVirt{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: virtv1.GroupVersion.String(),
@@ -992,11 +993,15 @@ func NewKubeVirtCR(namespace string, pullPolicy corev1.PullPolicy, featureGates 
 		},
 	}
 
+	cr.Spec.Configuration = virtv1.KubeVirtConfiguration{
+		MigrationConfiguration: &virtv1.MigrationConfiguration{
+			DedicatedMigrationNetwork: &mignet,
+		},
+	}
+
 	if featureGates != "" {
-		cr.Spec.Configuration = virtv1.KubeVirtConfiguration{
-			DeveloperConfiguration: &virtv1.DeveloperConfiguration{
-				FeatureGates: strings.Split(featureGates, ","),
-			},
+		cr.Spec.Configuration.DeveloperConfiguration = &virtv1.DeveloperConfiguration{
+			FeatureGates: strings.Split(featureGates, ","),
 		}
 	}
 

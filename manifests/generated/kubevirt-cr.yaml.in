@@ -12,6 +12,8 @@ spec:
       {{- range .FeatureGates}}
       - {{.}}
       {{- end}}{{else}} []{{end}}
+    migrations:
+      dedicatedMigrationNetwork: jedtest
   customizeComponents: {}
   imagePullPolicy: {{.ImagePullPolicy}}
   workloadUpdateStrategy: {}
