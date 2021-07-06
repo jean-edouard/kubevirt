@@ -12706,6 +12706,9 @@
       "type": "integer",
       "format": "int64"
      },
+     "dedicatedMigrationNetwork": {
+      "type": "string"
+     },
      "disableTLS": {
       "type": "boolean"
      },

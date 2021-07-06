@@ -22334,6 +22334,12 @@ func schema_client_go_apis_core_v1_MigrationConfiguration(ref common.ReferenceCa
 							Format: "",
 						},
 					},
+					"dedicatedMigrationNetwork": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
 				},
 			},
 		},
