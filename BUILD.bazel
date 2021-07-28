@@ -213,6 +213,7 @@ container_bundle(
     name = "virt-components-bundle",
     images = {
         "$(container_prefix)/$(image_prefix)virt-api:$(container_tag)": "//cmd/virt-api:virt-api-image",
+        "$(container_prefix)/$(image_prefix)virt-binaries:$(container_tag)": "//cmd/virt-binaries:virt-binaries-image",
         "$(container_prefix)/$(image_prefix)virt-controller:$(container_tag)": "//cmd/virt-controller:virt-controller-image",
         "$(container_prefix)/$(image_prefix)virt-handler:$(container_tag)": "//cmd/virt-handler:virt-handler-image",
         "$(container_prefix)/$(image_prefix)virt-launcher:$(container_tag)": "//cmd/virt-launcher:virt-launcher-image",
@@ -244,6 +245,15 @@ container_push(
     image = "//cmd/virt-api:virt-api-image",
     registry = "$(container_prefix)",
     repository = "$(image_prefix)virt-api",
+    tag = "$(container_tag)",
+)
+
+container_push(
+    name = "push-virt-binaries",
+    format = "Docker",
+    image = "//cmd/virt-binaries:virt-binaries-image",
+    registry = "$(container_prefix)",
+    repository = "$(image_prefix)virt-binaries",
     tag = "$(container_tag)",
 )
 
@@ -301,6 +311,7 @@ genrule(
     outs = ["virtctl-copier"],
     cmd = "echo '#!/bin/sh\n\ncp -f $(SRCS) $$1' > \"$@\"",
     executable = 1,
+    visibility = ["//visibility:public"],
 )
 
 genrule(

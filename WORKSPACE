@@ -367,6 +367,21 @@ container_pull(
     repository = "distroless/base",
 )
 
+# Pull nginx
+container_pull(
+    name = "nginx",
+    digest = "sha256:fcc42aef11edacef6408663bb3e8ebb0f83cf1d958a0cb97973106cb7f618e49",
+    registry = "index.docker.io",
+    repository = "nginx",
+)
+
+container_pull(
+    name = "nginx_aarch64",
+    digest = "sha256:b25c166d4167467b27b2c4739e3f24537e80bbfb50d5513f919d3595fbde9856",
+    registry = "index.docker.io",
+    repository = "nginx",
+)
+
 # Pull nfs-server image
 # WARNING: please update any automated process to push this image to quay.io
 # instead of index.docker.io

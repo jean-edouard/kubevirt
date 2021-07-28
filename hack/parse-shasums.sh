@@ -35,6 +35,7 @@ fi
 
 VIRT_OPERATOR_SHA=$(cat ${DIGESTS_DIR}/bazel-bin/push-virt-operator.digest)
 VIRT_API_SHA=$(cat ${DIGESTS_DIR}/bazel-bin/push-virt-api.digest)
+VIRT_BINARIES_SHA=$(cat ${DIGESTS_DIR}/bazel-bin/push-virt-binaries.digest)
 VIRT_CONTROLLER_SHA=$(cat ${DIGESTS_DIR}/bazel-bin/push-virt-controller.digest)
 VIRT_HANDLER_SHA=$(cat ${DIGESTS_DIR}/bazel-bin/push-virt-handler.digest)
 VIRT_LAUNCHER_SHA=$(cat ${DIGESTS_DIR}/bazel-bin/push-virt-launcher.digest)

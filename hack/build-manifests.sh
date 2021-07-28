@@ -91,6 +91,7 @@ for arg in $args; do
         --quay-repository=${QUAY_REPOSITORY} \
         --virt-operator-sha=${VIRT_OPERATOR_SHA} \
         --virt-api-sha=${VIRT_API_SHA} \
+        --virt-binaries-sha=${VIRT_API_SHA} \
         --virt-controller-sha=${VIRT_CONTROLLER_SHA} \
         --virt-handler-sha=${VIRT_HANDLER_SHA} \
         --virt-launcher-sha=${VIRT_LAUNCHER_SHA} \
