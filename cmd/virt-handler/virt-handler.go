@@ -22,20 +22,15 @@ package main
 import (
 	"context"
 	"crypto/tls"
+	"encoding/json"
 	"fmt"
-	"io"
-	"net/http"
-	"os"
-	"os/exec"
-	"os/signal"
-	"path/filepath"
-	"runtime"
-	"syscall"
-	"time"
-
 	"github.com/emicklei/go-restful"
 	"github.com/golang/glog"
+	nadclientset "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/client/clientset/versioned"
 	flag "github.com/spf13/pflag"
+	"gopkg.in/yaml.v2"
+	"io"
+	"io/ioutil"
 	k8sv1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 	utilwait "k8s.io/apimachinery/pkg/util/wait"
@@ -44,6 +39,14 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/certificate"
+	"net/http"
+	"os"
+	"os/exec"
+	"os/signal"
+	"path/filepath"
+	"runtime"
+	"syscall"
+	"time"
 
 	"kubevirt.io/kubevirt/pkg/virt-handler/node-labeller/api"
 
@@ -170,6 +173,65 @@ func (app *virtHandlerApp) markNodeAsUnschedulable(logger *log.FilteredLogger) {
 	if err != nil {
 		logger.V(1).Level(log.ERROR).Log("Unable to mark node as unschedulable", err.Error())
 	}
+}
+
+type NadConfig struct {
+	Name string `json:"name"`
+}
+
+func (app *virtHandlerApp) findNetworkName(networkAttachmentDefinition string) (string, error) {
+	var nadConfig NadConfig
+
+	nadclient, err := nadclientset.NewForConfig(app.virtCli.Config())
+	if err != nil {
+		return "", err
+	}
+	list, err := nadclient.K8sCniCncfIoV1().NetworkAttachmentDefinitions(app.namespace).List(metav1.ListOptions{})
+	if err != nil {
+		return "", err
+	}
+
+	config := ""
+	for _, nad := range list.Items {
+		if nad.Name == networkAttachmentDefinition {
+			config = nad.Spec.Config
+		}
+	}
+	if config == "" {
+		return "", fmt.Errorf("network attachment definition %s not found", networkAttachmentDefinition)
+	}
+	err = json.Unmarshal([]byte(config), &nadConfig)
+	if err != nil {
+		return "", err
+	}
+
+	return nadConfig.Name, nil
+}
+
+type NetworkStatus struct {
+	Name      string   `yaml:"name"`
+	Ips       []string `yaml:"ips"`
+}
+
+// Using the downward API, look for dedicated migration network net1 and, if found, set migration IP to its IP
+func (app *virtHandlerApp) findMigrationIP(networkName string) error {
+	var networkStatus []NetworkStatus
+
+	dat, err := ioutil.ReadFile("/etc/podinfo/network-status")
+	if err != nil {
+		return err
+	}
+	err = yaml.Unmarshal(dat, &networkStatus)
+	if err != nil {
+		return err
+	}
+	for _, ns := range networkStatus {
+		if ns.Name == networkName && len(ns.Ips) > 0 {
+			app.PodIpAddress = ns.Ips[0]
+		}
+	}
+
+	return nil
 }
 
 func (app *virtHandlerApp) Run() {
@@ -310,6 +372,16 @@ func (app *virtHandlerApp) Run() {
 		} else {
 			logger.V(1).Level(log.INFO).Log("node-labeller is disabled, cannot work without KVM device.")
 		}
+	}
+
+	// Figure out which IP to use for migrations
+	migrationConfiguration := app.clusterConfig.GetMigrationConfiguration()
+	if migrationConfiguration != nil && migrationConfiguration.DedicatedMigrationNetwork != nil {
+		networkName, err := app.findNetworkName(*migrationConfiguration.DedicatedMigrationNetwork)
+		if err != nil {
+			glog.Fatalf(`Error finding the name of the "%s" migration network: %v`, *migrationConfiguration.DedicatedMigrationNetwork, err)
+		}
+		app.findMigrationIP(networkName)
 	}
 
 	vmController := virthandler.NewController(

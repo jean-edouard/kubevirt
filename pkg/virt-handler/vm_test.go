@@ -1520,7 +1520,7 @@ var _ = Describe("VirtualMachineInstance", func() {
 			destSrcPorts := controller.migrationProxy.GetTargetListenerPorts(string(vmi.UID))
 			fmt.Println("destSrcPorts: ", destSrcPorts)
 			updatedVmi := vmi.DeepCopy()
-			updatedVmi.Status.MigrationState.TargetNodeAddress = controller.ipAddress
+			updatedVmi.Status.MigrationState.TargetNodeAddress = controller.migrationIpAddress
 			updatedVmi.Status.MigrationState.TargetDirectMigrationNodePorts = destSrcPorts
 
 			client.EXPECT().Ping()
@@ -1593,7 +1593,7 @@ var _ = Describe("VirtualMachineInstance", func() {
 			destSrcPorts := controller.migrationProxy.GetTargetListenerPorts(string(vmi.UID))
 			fmt.Println("destSrcPorts: ", destSrcPorts)
 			updatedVmi := vmi.DeepCopy()
-			updatedVmi.Status.MigrationState.TargetNodeAddress = controller.ipAddress
+			updatedVmi.Status.MigrationState.TargetNodeAddress = controller.migrationIpAddress
 			updatedVmi.Status.MigrationState.TargetDirectMigrationNodePorts = destSrcPorts
 			mockHotplugVolumeMounter.EXPECT().UnmountAll(gomock.Any()).Return(nil)
 
