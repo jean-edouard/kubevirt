@@ -4144,12 +4144,8 @@ func StopVirtualMachineWithTimeout(vm *v1.VirtualMachine, timeout time.Duration)
 	By("Stopping the VirtualMachineInstance")
 	virtClient, err := kubecli.GetKubevirtClient()
 	util2.PanicOnError(err)
-	running := false
 	Eventually(func() error {
-		updatedVM, err := virtClient.VirtualMachine(vm.Namespace).Get(vm.Name, &metav1.GetOptions{})
-		Expect(err).ToNot(HaveOccurred())
-		updatedVM.Spec.Running = &running
-		_, err = virtClient.VirtualMachine(updatedVM.Namespace).Update(updatedVM)
+		err = virtClient.VirtualMachine(vm.Namespace).Stop(vm.Name)
 		return err
 	}, timeout, 1*time.Second).ShouldNot(HaveOccurred())
 	updatedVM, err := virtClient.VirtualMachine(vm.Namespace).Get(vm.Name, &metav1.GetOptions{})
@@ -4172,7 +4168,7 @@ func StopVirtualMachineWithTimeout(vm *v1.VirtualMachine, timeout time.Duration)
 }
 
 func StopVirtualMachine(vm *v1.VirtualMachine) *v1.VirtualMachine {
-	return StopVirtualMachineWithTimeout(vm, time.Second*300)
+	return StopVirtualMachineWithTimeout(vm, 5*time.Minute)
 }
 
 func StartVirtualMachine(vm *v1.VirtualMachine) *v1.VirtualMachine {

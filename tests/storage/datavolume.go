@@ -561,7 +561,7 @@ var _ = SIGDescribe("[Serial]DataVolume Integration", func() {
 					return true
 				}
 				return false
-			}, 100*time.Second, 1*time.Second).Should(BeTrue())
+			}, 5*time.Minute, 1*time.Second).Should(BeTrue())
 		}
 
 		waitForDeletionDataVolume := func(name, namespace string) {
