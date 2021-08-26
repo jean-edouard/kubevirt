@@ -35,6 +35,7 @@ import (
 	"time"
 
 	expect "github.com/google/goexpect"
+	k8snetworkplumbingwgv1 "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1"
 	. "github.com/onsi/ginkgo"
 	"github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
@@ -2721,6 +2722,57 @@ var _ = Describe("[Serial][rfe_id:393][crit:high][vendor:cnv-qe@redhat.com][leve
 			table.Entry("[test_id:6984]hugepages-1Gi", "1Gi", "1Gi"),
 		)
 	})
+
+	Context("With a dedicated migration network", func() {
+		BeforeEach(func() {
+			virtClient, err = kubecli.GetKubevirtClient()
+			Expect(err).ToNot(HaveOccurred())
+
+			By("Creating the Network Attachment Definition")
+			nad := generateMigrationCNINetworkAttachmentDefinition()
+			_, err = virtClient.NetworkClient().K8sCniCncfIoV1().NetworkAttachmentDefinitions(flags.KubeVirtInstallNamespace).Create(context.TODO(), nad, metav1.CreateOptions{})
+			Expect(err).NotTo(HaveOccurred())
+
+			By("Setting it as the migration network in the KubeVirt CR")
+			tests.SetDedicatedMigrationNetwork(nad.Name)
+			// FIXME: Even if SetDedicatedMigrationNetwork() calls UpdateKubeVirtConfigValueAndWait(),
+			//   the wait part doesn't seem to include waiting for virt-handlers to be destroyed and re-recreated.
+			//   Not sure how that works for the other tests, something to look into...
+			//   In the meantime, sleeping to give virt-handlers some time to do their thing, or the migration will fail
+			time.Sleep(30 * time.Second)
+		})
+		AfterEach(func() {
+			By("Clearing the migration network in the KubeVirt CR")
+			tests.ClearDedicatedMigrationNetwork()
+
+			By("Deleting the Network Attachment Definition")
+			nad := generateMigrationCNINetworkAttachmentDefinition()
+			err = virtClient.NetworkClient().K8sCniCncfIoV1().NetworkAttachmentDefinitions(flags.KubeVirtInstallNamespace).Delete(context.TODO(), nad.Name, metav1.DeleteOptions{})
+			Expect(err).NotTo(HaveOccurred())
+		})
+		It("Should migrate over that network", func() {
+			vmi := tests.NewRandomVMIWithEphemeralDisk(cd.ContainerDiskFor(cd.ContainerDiskCirros))
+			tests.AddUserData(vmi, "cloud-init", "#!/bin/bash\necho 'hello'\n")
+
+			By("Starting the VirtualMachineInstance")
+			vmi = runVMIAndExpectLaunch(vmi, 240)
+
+			By("Starting the migration")
+			migration := tests.NewRandomMigration(vmi.Name, vmi.Namespace)
+			migrationUID := tests.RunMigrationAndExpectCompletion(virtClient, migration, tests.MigrationWaitTime)
+
+			By("Checking if the migration happened, and over the right network")
+			vmi = tests.ConfirmVMIPostMigration(virtClient, vmi, migrationUID)
+			Expect(vmi.Status.MigrationState.TargetNodeAddress).To(HavePrefix("10.1.1."))
+
+			// delete VMI
+			By("Deleting the VMI")
+			Expect(virtClient.VirtualMachineInstance(vmi.Namespace).Delete(vmi.Name, &metav1.DeleteOptions{})).To(Succeed())
+
+			By("Waiting for VMI to disappear")
+			tests.WaitForVirtualMachineToDisappearWithTimeout(vmi, 240)
+		})
+	})
 })
 
 func fedoraVMIWithEvictionStrategy() *v1.VirtualMachineInstance {
@@ -2758,4 +2810,28 @@ func temporaryTLSConfig() *tls.Config {
 			return &cert, nil
 		},
 	}
+}
+
+func generateMigrationCNINetworkAttachmentDefinition() *k8snetworkplumbingwgv1.NetworkAttachmentDefinition {
+	nad := &k8snetworkplumbingwgv1.NetworkAttachmentDefinition{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "migration-cni",
+			Namespace: flags.KubeVirtInstallNamespace,
+		},
+		Spec: k8snetworkplumbingwgv1.NetworkAttachmentDefinitionSpec{
+			Config: `{
+      "cniVersion": "0.3.1",
+      "name": "migration-bridge",
+      "type": "macvlan",
+      "master": "eth1",
+      "mode": "bridge",
+      "ipam": {
+        "type": "whereabouts",
+        "range": "10.1.1.0/24"
+      }
+}`,
+		},
+	}
+
+	return nad
 }
