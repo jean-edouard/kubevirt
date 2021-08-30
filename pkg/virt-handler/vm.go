@@ -2286,9 +2286,7 @@ func (d *VirtualMachineController) handleTargetMigrationProxy(vmi *v1.VirtualMac
 	baseDir := fmt.Sprintf(filepath.Join(d.virtLauncherFSRunDirPattern, "kubevirt"), res.Pid())
 	migrationTargetSockets = append(migrationTargetSockets, socketFile)
 
-	isBlockMigration := vmi.Status.MigrationMethod == v1.BlockMigration
-	migrationPortsRange := migrationproxy.GetMigrationPortsList(isBlockMigration)
-	for _, port := range migrationPortsRange {
+	for port := migrationproxy.LibvirtMigrationMinPort; port <= migrationproxy.LibvirtMigrationMaxPort; port++ {
 		key := migrationproxy.ConstructProxyKey(string(vmi.UID), port)
 		// a proxy between the target direct qemu channel and the connector in the destination pod
 		destSocketFile := migrationproxy.SourceUnixFile(baseDir, key)

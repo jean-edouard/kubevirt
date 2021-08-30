@@ -748,13 +748,11 @@ func (l *LibvirtDomainManager) generateMigrationProxies(vmi *v1.VirtualMachineIn
 	//
 	// This creates a tcp server for each additional direct migration connections
 	// that will be proxied to the destination pod
-	migrationPortsRange := migrationproxy.GetMigrationPortsList(isBlockMigration(vmi))
-
 	proxies := []migrationproxy.MigrationProxyListener{}
 
 	loopbackAddress := ip.GetLoopbackAddress()
 	// Create a tcp server for each direct connection proxy
-	for _, port := range migrationPortsRange {
+	for port := migrationproxy.LibvirtMigrationMinPort; port <= migrationproxy.LibvirtMigrationMaxPort; port++ {
 		if osChosenMigrationProxyPort {
 			// this is only set to 0 during unit tests
 			port = 0
@@ -819,7 +817,6 @@ func (l *LibvirtDomainManager) migrateHelper(vmi *v1.VirtualMachineInstance, opt
 	migrateFlags := generateMigrationFlags(isBlockMigration(vmi), options.UnsafeMigration, options.AllowAutoConverge, options.AllowPostCopy, migratePaused, options.ParallelConnections > 1)
 	logger := log.Log.Object(vmi)
 	logger.Warningf("JED %d", options.ParallelConnections)
-
 
 	// anything that modifies the domain needs to be performed with the domainModifyLock held
 	// The domain params and unHotplug need to be performed in a critical section together.

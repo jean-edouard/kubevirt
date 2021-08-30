@@ -38,11 +38,9 @@ import (
 )
 
 const (
-	LibvirtDirectMigrationPort = 49152
-	LibvirtBlockMigrationPort  = 49153
+	LibvirtMigrationMinPort = 49152
+	LibvirtMigrationMaxPort = 49215
 )
-
-var migrationPortsRange = []int{LibvirtDirectMigrationPort, LibvirtBlockMigrationPort}
 
 type ProxyManager interface {
 	StartTargetListener(key string, targetUnixFiles []string) error
@@ -103,14 +101,6 @@ func (m *migrationProxyManager) OpenListenerCount() int {
 	defer m.managerLock.Unlock()
 
 	return len(m.sourceProxies) + len(m.targetProxies)
-}
-
-func GetMigrationPortsList(isBlockMigration bool) (ports []int) {
-	ports = append(ports, migrationPortsRange[0])
-	if isBlockMigration {
-		ports = append(ports, migrationPortsRange[1])
-	}
-	return
 }
 
 func NewMigrationProxyManager(serverTLSConfig *tls.Config, clientTLSConfig *tls.Config, config *virtconfig.ClusterConfig) ProxyManager {
@@ -221,7 +211,7 @@ func (m *migrationProxyManager) GetTargetListenerPorts(key string) map[string]in
 	defer m.managerLock.Unlock()
 
 	getPortFromSocket := func(id string, path string) int {
-		for _, port := range migrationPortsRange {
+		for port := LibvirtMigrationMinPort; port <= LibvirtMigrationMaxPort; port++ {
 			key := ConstructProxyKey(id, port)
 			if strings.Contains(path, key) {
 				return port

@@ -91,8 +91,7 @@ func (l *LibvirtDomainManager) prepareMigrationTarget(vmi *v1.VirtualMachineInst
 
 	loopbackAddress := ip.GetLoopbackAddress()
 
-	migrationPortsRange := migrationproxy.GetMigrationPortsList(isBlockMigration(vmi))
-	for _, port := range migrationPortsRange {
+	for port := migrationproxy.LibvirtMigrationMinPort; port <= migrationproxy.LibvirtMigrationMaxPort; port++ {
 		// Prepare the direct migration proxy
 		key := migrationproxy.ConstructProxyKey(string(vmi.UID), port)
 		curDirectAddress := net.JoinHostPort(loopbackAddress, strconv.Itoa(port))
