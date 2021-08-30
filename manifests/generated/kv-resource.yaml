@@ -304,6 +304,8 @@ spec:
                         type: boolean
                       nodeDrainTaintKey:
                         type: string
+                      parallelConnections:
+                        type: integer
                       parallelMigrationsPerCluster:
                         format: int32
                         type: integer
@@ -2342,6 +2344,8 @@ spec:
                         type: boolean
                       nodeDrainTaintKey:
                         type: string
+                      parallelConnections:
+                        type: integer
                       parallelMigrationsPerCluster:
                         format: int32
                         type: integer

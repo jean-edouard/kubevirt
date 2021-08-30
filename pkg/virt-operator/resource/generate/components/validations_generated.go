@@ -725,6 +725,8 @@ var CRDsValidation map[string]string = map[string]string{
                   type: boolean
                 nodeDrainTaintKey:
                   type: string
+                parallelConnections:
+                  type: integer
                 parallelMigrationsPerCluster:
                   format: int32
                   type: integer

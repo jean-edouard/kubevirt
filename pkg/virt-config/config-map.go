@@ -184,6 +184,7 @@ func defaultClusterConfig(cpuArch string) *v1.KubeVirtConfiguration {
 	defaultUnsafeMigrationOverride := DefaultUnsafeMigrationOverride
 	progressTimeout := MigrationProgressTimeout
 	completionTimeoutPerGiB := MigrationCompletionTimeoutPerGiB
+	parallelConnections := MigrationParallelConnectionsDefault
 	cpuRequestDefault := resource.MustParse(DefaultCPURequest)
 	nodeSelectorsDefault, _ := parseNodeSelectors(DefaultNodeSelectors)
 	defaultNetworkInterface := DefaultNetworkInterface
@@ -227,6 +228,7 @@ func defaultClusterConfig(cpuArch string) *v1.KubeVirtConfiguration {
 			UnsafeMigrationOverride:           &defaultUnsafeMigrationOverride,
 			AllowAutoConverge:                 &allowAutoConverge,
 			AllowPostCopy:                     &allowPostCopy,
+			ParallelConnections:               &parallelConnections,
 		},
 		MachineType:      DefaultMachineType,
 		CPURequest:       &cpuRequestDefault,
@@ -304,6 +306,7 @@ type migrationConfiguration struct {
 	AllowPostCopy                     *bool              `json:"allowPostCopy,string,omitempty"`
 	DisableTLS                        *bool              `json:"disableTLS,omitempty"`
 	DedicatedMigrationNetwork         *string            `json:"dedicatedMigrationNetwork,omitempty"`
+	ParallelConnections               *int               `json:"parallelConnections,omitempty"`
 }
 
 // setConfigFromConfigMap parses the provided config map and updates the provided config.

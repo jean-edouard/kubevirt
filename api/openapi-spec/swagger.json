@@ -11377,6 +11377,10 @@
      "nodeDrainTaintKey": {
       "type": "string"
      },
+     "parallelConnections": {
+      "type": "integer",
+      "format": "int32"
+     },
      "parallelMigrationsPerCluster": {
       "type": "integer",
       "format": "int64"

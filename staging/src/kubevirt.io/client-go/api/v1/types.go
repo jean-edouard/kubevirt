@@ -2001,6 +2001,7 @@ type MigrationConfiguration struct {
 	AllowPostCopy                     *bool              `json:"allowPostCopy,omitempty"`
 	DisableTLS                        *bool              `json:"disableTLS,omitempty"`
 	DedicatedMigrationNetwork         *string            `json:"dedicatedMigrationNetwork,omitempty"`
+	ParallelConnections               *int               `json:"parallelConnections,omitempty"`
 }
 
 // DiskVerification holds container disks verification limits

@@ -2402,6 +2402,11 @@ func (in *MigrationConfiguration) DeepCopyInto(out *MigrationConfiguration) {
 		*out = new(string)
 		**out = **in
 	}
+	if in.ParallelConnections != nil {
+		in, out := &in.ParallelConnections, &out.ParallelConnections
+		*out = new(int)
+		**out = **in
+	}
 	return
 }
 

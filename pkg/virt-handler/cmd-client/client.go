@@ -74,6 +74,7 @@ type MigrationOptions struct {
 	UnsafeMigration         bool
 	AllowAutoConverge       bool
 	AllowPostCopy           bool
+	ParallelConnections     int
 }
 
 type LauncherClient interface {

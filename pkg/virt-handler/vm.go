@@ -2381,6 +2381,7 @@ func (d *VirtualMachineController) vmUpdateHelperMigrationSource(origVMI *v1.Vir
 			UnsafeMigration:         *migrationConfiguration.UnsafeMigrationOverride,
 			AllowAutoConverge:       *migrationConfiguration.AllowAutoConverge,
 			AllowPostCopy:           *migrationConfiguration.AllowPostCopy,
+			ParallelConnections:     *migrationConfiguration.ParallelConnections,
 		}
 
 		err = client.MigrateVirtualMachine(vmi, options)
