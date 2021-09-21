@@ -41,6 +41,7 @@ func NewHandlerDaemonSet(namespace string, repository string, imagePrefix string
 			Labels: map[string]string{
 				virtv1.AppLabel: VirtHandlerName,
 			},
+			Annotations: map[string]string{},
 		},
 		Spec: appsv1.DaemonSetSpec{
 			UpdateStrategy: appsv1.DaemonSetUpdateStrategy{
