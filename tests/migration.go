@@ -121,7 +121,7 @@ func GenerateMigrationCNINetworkAttachmentDefinition() *k8snetworkplumbingwgv1.N
       "mode": "bridge",
       "ipam": {
         "type": "whereabouts",
-        "range": "10.1.1.0/24"
+        "range": "172.21.42.0/24"
       }
 }`,
 		},
