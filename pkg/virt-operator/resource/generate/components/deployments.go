@@ -215,7 +215,7 @@ func newBaseDeployment(deploymentName string, imageName string, namespace string
 			},
 		},
 		Spec: appsv1.DeploymentSpec{
-			Replicas: int32Ptr(2),
+			Replicas: int32Ptr(1),
 			Selector: &metav1.LabelSelector{
 				MatchLabels: map[string]string{
 					kubevirtLabelKey: deploymentName,
@@ -429,7 +429,7 @@ func NewOperatorDeployment(namespace string, repository string, imagePrefix stri
 			},
 		},
 		Spec: appsv1.DeploymentSpec{
-			Replicas: int32Ptr(2),
+			Replicas: int32Ptr(1),
 			Selector: &metav1.LabelSelector{
 				MatchLabels: map[string]string{
 					virtv1.AppLabel: VirtOperatorName,

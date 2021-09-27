@@ -65,7 +65,7 @@ func main() {
 		GsSha:                *gsSha,
 		ReplacesCsvVersion:   *replacesCsvVersion,
 		IconBase64:           *kubeVirtLogo,
-		Replicas:             2,
+		Replicas:             1,
 		CreatedAtTimestamp:   *csvCreatedAtTimestamp,
 	}
 
