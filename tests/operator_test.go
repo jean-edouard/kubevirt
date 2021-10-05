@@ -619,6 +619,11 @@ var _ = Describe("[Serial][sig-operator]Operator", func() {
 			vmis := []*v1.VirtualMachineInstance{}
 			for i := 0; i < num; i++ {
 				vmi := tests.NewRandomVMIWithEphemeralDisk(cd.ContainerDiskFor(cd.ContainerDiskCirros))
+				if vmi.Labels == nil {
+					vmi.Labels = make(map[string]string)
+				}
+				vmi.Labels["logVerbosity"] = "6"
+				vmi.Labels["debugLogs"] = "true"
 				configMapName := "configmap-" + rand.String(5)
 				secretName := "secret-" + rand.String(5)
 				downwardAPIName := "downwardapi-" + rand.String(5)
@@ -1234,7 +1239,7 @@ spec:
 		})
 	})
 
-	Describe("[rfe_id:2291][crit:high][vendor:cnv-qe@redhat.com][level:component]should update kubevirt", func() {
+	FDescribe("[rfe_id:2291][crit:high][vendor:cnv-qe@redhat.com][level:component]should update kubevirt", func() {
 
 		// This test is installing a previous release of KubeVirt
 		// running a VM/VMI using that previous release

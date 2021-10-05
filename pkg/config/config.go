@@ -142,10 +142,13 @@ func defaultCreateEmptyIsoImage(output string, size int64) error {
 		return fmt.Errorf("failed to create empty iso: '%s'", output)
 	}
 	err = f.Truncate(size)
-	defer f.Close()
+
 	if err != nil {
+		f.Close()
 		return fmt.Errorf("failed to inflate empty iso: '%s'", output)
 	}
+	f.Close()
+	os.Chmod(output, 0777)
 	return nil
 }
 
@@ -164,9 +167,9 @@ func createIsoConfigImage(output string, volID string, files []string, size int6
 
 func findIsoSize(vmi *v1.VirtualMachineInstance, volume *v1.Volume, emptyIso bool) (int64, error) {
 	if emptyIso {
-		for _, vs := range vmi.Status.VolumeStatus {
-			if vs.Name == volume.Name {
-				return vs.Size, nil
+		for i, _ := range vmi.Status.VolumeStatus {
+			if vmi.Status.VolumeStatus[i].Name == volume.Name {
+				return vmi.Status.VolumeStatus[i].Size, nil
 			}
 		}
 		return 0, fmt.Errorf("failed to find the status of volume %s", volume.Name)

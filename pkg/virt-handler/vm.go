@@ -822,6 +822,12 @@ func (d *VirtualMachineController) updateVolumeStatusesFromDomain(vmi *v1.Virtua
 				hasHotplug = true
 				volumeStatus, needsRefresh = d.updateHotplugVolumeStatus(vmi, volumeStatus, specVolumeMap)
 			}
+			//if volumeStatus.Size == 0 {
+			//	volumeStatus = d.updateSingleIsoSizeStatus(vmi, volumeStatus)
+			//	if volumeStatus.Size != 0 {
+			//		needsRefresh = true
+			//	}
+			//}
 			newStatuses = append(newStatuses, volumeStatus)
 			newStatusMap[volumeStatus.Name] = volumeStatus
 		}
@@ -837,9 +843,65 @@ func (d *VirtualMachineController) updateVolumeStatusesFromDomain(vmi *v1.Virtua
 	return hasHotplug
 }
 
-func (d *VirtualMachineController) updateIsoSizeStatus(vmi *v1.VirtualMachineInstance) {
+func (d *VirtualMachineController) updateSingleIsoSizeStatus(vmi *v1.VirtualMachineInstance, volumeStatus v1.VolumeStatus) v1.VolumeStatus {
 	var podUID string
 	if vmi.Status.Phase != v1.Running {
+		return volumeStatus
+	}
+
+	for k, v := range vmi.Status.ActivePods {
+		if v == vmi.Status.NodeName {
+			podUID = string(k)
+			break
+		}
+	}
+	if podUID == "" {
+		return volumeStatus
+	}
+
+	basepath := path.Join(util.KubeletPodsDir, string(podUID), "volumes/kubernetes.io~empty-dir/")
+
+	for _, volume := range vmi.Spec.Volumes {
+		if volume.Name == volumeStatus.Name {
+			var volPath string
+			if volume.CloudInitNoCloud != nil {
+				volPath = path.Join(basepath, "ephemeral-disks", "cloud-init-data", vmi.Namespace, vmi.Name, "noCloud.iso")
+			} else if volume.CloudInitConfigDrive != nil {
+				volPath = path.Join(basepath, "ephemeral-disks", "cloud-init-data", vmi.Namespace, vmi.Name, "configdrive.iso")
+			} else if volume.ConfigMap != nil {
+				volPath = path.Join(basepath, "private", path.Base(config.ConfigMapDisksDir), volume.Name+".iso")
+			} else if volume.DownwardAPI != nil {
+				volPath = path.Join(basepath, "private", path.Base(config.DownwardAPIDisksDir), volume.Name+".iso")
+			} else if volume.Secret != nil {
+				volPath = path.Join(basepath, "private", path.Base(config.SecretDisksDir), volume.Name+".iso")
+			} else if volume.ServiceAccount != nil {
+				volPath = path.Join(basepath, "private", path.Base(config.ServiceAccountDiskDir), config.ServiceAccountDiskName)
+			} else if volume.Sysprep != nil {
+				volPath = path.Join(basepath, "private", path.Base(config.SysprepDisksDir), volume.Name+".iso")
+			} else {
+				continue
+			}
+			stats, err := os.Stat(volPath)
+			if err != nil {
+				continue
+			}
+			for i, _ := range vmi.Status.VolumeStatus {
+				if vmi.Status.VolumeStatus[i].Name == volume.Name {
+					vmi.Status.VolumeStatus[i].Size = stats.Size()
+					continue
+				}
+			}
+		}
+	}
+
+	return volumeStatus
+}
+
+func (d *VirtualMachineController) updateIsoSizeStatus(vmi *v1.VirtualMachineInstance) {
+	log.DefaultLogger().V(2).Info("JED ENTERING ISO SIZE STATUS")
+	var podUID string
+	if vmi.Status.Phase != v1.Running {
+		log.DefaultLogger().V(2).Infof("JED VMI NOT RUNNING: %s", vmi.Name)
 		return
 	}
 
@@ -850,40 +912,51 @@ func (d *VirtualMachineController) updateIsoSizeStatus(vmi *v1.VirtualMachineIns
 		}
 	}
 	if podUID == "" {
+		log.DefaultLogger().V(2).Infof("JED NO PODUID FOR %s", vmi.Name)
 		return
 	}
 
-	basepath := path.Join(util.KubeletPodsDir, string(podUID), "volumes/kubernetes.io~empty-dir/")
+	basepath := "/var/run"
 	for _, volume := range vmi.Spec.Volumes {
 		var volPath string
 		if volume.CloudInitNoCloud != nil {
-			volPath = path.Join(basepath, "ephemeral-disks", "cloud-init-data", vmi.Namespace, vmi.Name, "noCloud.iso")
+			volPath = path.Join(basepath, "kubevirt-ephemeral-disks", "cloud-init-data", vmi.Namespace, vmi.Name, "noCloud.iso")
 		} else if volume.CloudInitConfigDrive != nil {
-			volPath = path.Join(basepath, "ephemeral-disks", "cloud-init-data", vmi.Namespace, vmi.Name, "configdrive.iso")
+			volPath = path.Join(basepath, "kubevirt-ephemeral-disks", "cloud-init-data", vmi.Namespace, vmi.Name, "configdrive.iso")
 		} else if volume.ConfigMap != nil {
-			volPath = path.Join(basepath, "private", path.Base(config.ConfigMapDisksDir), volume.Name+".iso")
+			volPath = path.Join(basepath, "kubevirt-private", path.Base(config.ConfigMapDisksDir), volume.Name+".iso")
 		} else if volume.DownwardAPI != nil {
-			volPath = path.Join(basepath, "private", path.Base(config.DownwardAPIDisksDir), volume.Name+".iso")
+			volPath = path.Join(basepath, "kubevirt-private", path.Base(config.DownwardAPIDisksDir), volume.Name+".iso")
 		} else if volume.Secret != nil {
-			volPath = path.Join(basepath, "private", path.Base(config.SecretDisksDir), volume.Name+".iso")
+			volPath = path.Join(basepath, "kubevirt-private", path.Base(config.SecretDisksDir), volume.Name+".iso")
 		} else if volume.ServiceAccount != nil {
-			volPath = path.Join(basepath, "private", path.Base(config.ServiceAccountDiskDir), config.ServiceAccountDiskName)
+			volPath = path.Join(basepath, "kubevirt-private", path.Base(config.ServiceAccountDiskDir), config.ServiceAccountDiskName)
 		} else if volume.Sysprep != nil {
-			volPath = path.Join(basepath, "private", path.Base(config.SysprepDisksDir), volume.Name+".iso")
+			volPath = path.Join(basepath, "kubevirt-private", path.Base(config.SysprepDisksDir), volume.Name+".iso")
 		} else {
+			log.DefaultLogger().V(2).Infof("JED NOT A KNOW ISO %s", volume.Name)
 			continue
 		}
-		stats, err := os.Stat(volPath)
+		res, err := d.podIsolationDetector.Detect(vmi)
 		if err != nil {
+			log.DefaultLogger().V(2).Infof("JED FAILED TO DETECT VMI %s", vmi.Name)
 			continue
 		}
+		size, err := isolation.GetFileSize(volPath, res)
+		if err != nil {
+			log.DefaultLogger().V(2).Infof("JED FAILED TO GET FILE SIZE FOR %s", volPath)
+			continue
+		}
+
 		for i, _ := range vmi.Status.VolumeStatus {
 			if vmi.Status.VolumeStatus[i].Name == volume.Name {
-				vmi.Status.VolumeStatus[i].Size = stats.Size()
+				vmi.Status.VolumeStatus[i].Size = int64(size)
+				log.DefaultLogger().V(2).Infof("JED UPDATED THE SIZE OF %s TO %d", vmi.Status.VolumeStatus[i].Name, vmi.Status.VolumeStatus[i].Size)
 				continue
 			}
 		}
 	}
+	log.DefaultLogger().V(2).Info("JED UPDATE ISO SIZE STATUS DONE")
 }
 
 func (d *VirtualMachineController) updateVMIStatus(origVMI *v1.VirtualMachineInstance, domain *api.Domain, syncError error) (err error) {
@@ -904,7 +977,6 @@ func (d *VirtualMachineController) updateVMIStatus(origVMI *v1.VirtualMachineIns
 	vmi := origVMI.DeepCopy()
 	oldStatus := *vmi.Status.DeepCopy()
 
-	d.updateIsoSizeStatus(vmi)
 	vmi = d.setMigrationProgressStatus(vmi, domain)
 
 	if domain != nil {
@@ -928,6 +1000,7 @@ func (d *VirtualMachineController) updateVMIStatus(origVMI *v1.VirtualMachineIns
 		}
 
 		hasHotplug = d.updateVolumeStatusesFromDomain(vmi, domain)
+		d.updateIsoSizeStatus(vmi)
 		if len(vmi.Status.Interfaces) == 0 {
 			// Set Pod Interface
 			interfaces := make([]v1.VirtualMachineInstanceNetworkInterface, 0)

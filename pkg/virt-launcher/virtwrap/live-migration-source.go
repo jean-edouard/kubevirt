@@ -84,7 +84,7 @@ func generateMigrationFlags(isBlockMigration, isUnsafeMigration, allowAutoConver
 	migrateFlags := libvirt.MIGRATE_LIVE | libvirt.MIGRATE_PEER2PEER | libvirt.MIGRATE_PERSIST_DEST
 
 	if isBlockMigration {
-		migrateFlags |= libvirt.MIGRATE_NON_SHARED_INC
+		migrateFlags |= libvirt.MIGRATE_NON_SHARED_DISK
 	}
 	if isUnsafeMigration {
 		migrateFlags |= libvirt.MIGRATE_UNSAFE
