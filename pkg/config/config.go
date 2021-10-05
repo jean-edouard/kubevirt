@@ -136,16 +136,32 @@ func defaultCreateIsoImage(output string, volID string, files []string) error {
 	return nil
 }
 
+func writeBytes(f *os.File, c byte, n int64) {
+	buf := make([]byte, 0x1000)
+
+	for i := 0; i < len(buf); i++ {
+		buf[i] = c
+	}
+
+	var j int64
+	for j = 0; j < n>>12; j++ {
+		f.Write(buf)
+	}
+
+	f.Write(buf[:n&0xfff])
+}
+
 func defaultCreateEmptyIsoImage(output string, size int64) error {
 	f, err := os.Create(output)
 	if err != nil {
 		return fmt.Errorf("failed to create empty iso: '%s'", output)
 	}
-	err = f.Truncate(size)
 	defer f.Close()
+	err = f.Truncate(size)
 	if err != nil {
 		return fmt.Errorf("failed to inflate empty iso: '%s'", output)
 	}
+	writeBytes(f, 0, size)
 	return nil
 }
 

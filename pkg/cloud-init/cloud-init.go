@@ -466,6 +466,21 @@ func removeLocalData(domain string, namespace string) error {
 	return err
 }
 
+func writeBytes(f *os.File, c byte, n int64) {
+	buf := make([]byte, 0x1000)
+
+	for i := 0; i < len(buf); i++ {
+		buf[i] = c
+	}
+
+	var j int64
+	for j = 0; j < n>>12; j++ {
+		f.Write(buf)
+	}
+
+	f.Write(buf[:n&0xfff])
+}
+
 func GenerateEmptyIso(vmiName string, namespace string, data *CloudInitData, size int64) error {
 	precond.MustNotBeEmpty(vmiName)
 	precond.MustNotBeNil(data)
@@ -502,6 +517,7 @@ func GenerateEmptyIso(vmiName string, namespace string, data *CloudInitData, siz
 		f.Close()
 		return fmt.Errorf("failed to inflate empty iso: '%s'", isoStaging)
 	}
+	writeBytes(f, 0, size)
 	f.Close()
 
 	if err := diskutils.DefaultOwnershipManager.SetFileOwnership(isoStaging); err != nil {
