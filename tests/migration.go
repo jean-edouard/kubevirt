@@ -82,13 +82,16 @@ func SetDedicatedMigrationNetwork(nad string) *v1.KubeVirt {
 
 	kv := util.GetCurrentKv(virtClient)
 
-	if kv.Spec.Configuration.MigrationConfiguration == nil {
-		kv.Spec.Configuration.MigrationConfiguration = &v1.MigrationConfiguration{
-			DedicatedMigrationNetwork: &nad,
-		}
+	if kv.Spec.Configuration.NetworkConfiguration == nil {
+		kv.Spec.Configuration.NetworkConfiguration = &v1.NetworkConfiguration{}
 	}
 
-	kv.Spec.Configuration.MigrationConfiguration.DedicatedMigrationNetwork = &nad
+	kv.Spec.Configuration.NetworkConfiguration.Roles = v1.NetworkRoles{
+		v1.NetworkRole{
+			Role:                        "migration",
+			NetworkAttachmentDefinition: nad,
+		},
+	}
 
 	return UpdateKubeVirtConfigValueAndWait(kv.Spec.Configuration)
 }
@@ -99,8 +102,8 @@ func ClearDedicatedMigrationNetwork() *v1.KubeVirt {
 
 	kv := util.GetCurrentKv(virtClient)
 
-	if kv.Spec.Configuration.MigrationConfiguration != nil {
-		kv.Spec.Configuration.MigrationConfiguration.DedicatedMigrationNetwork = nil
+	if kv.Spec.Configuration.NetworkConfiguration == nil {
+		kv.Spec.Configuration.NetworkConfiguration.Roles = nil
 	}
 
 	return UpdateKubeVirtConfigValueAndWait(kv.Spec.Configuration)

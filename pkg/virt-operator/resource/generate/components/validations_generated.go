@@ -719,8 +719,6 @@ var CRDsValidation map[string]string = map[string]string{
                 completionTimeoutPerGiB:
                   format: int64
                   type: integer
-                dedicatedMigrationNetwork:
-                  type: string
                 disableTLS:
                   type: boolean
                 nodeDrainTaintKey:
@@ -748,6 +746,20 @@ var CRDsValidation map[string]string = map[string]string{
                   type: boolean
                 permitSlirpInterface:
                   type: boolean
+                roles:
+                  items:
+                    description: NetworkRole give network-attachment-definitions specific
+                      roles in KubeVirt
+                    properties:
+                      networkAttachmentDefinition:
+                        type: string
+                      role:
+                        type: string
+                    required:
+                    - networkAttachmentDefinition
+                    - role
+                    type: object
+                  type: array
               type: object
             obsoleteCPUModels:
               additionalProperties:

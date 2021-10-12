@@ -687,6 +687,12 @@ func (MediatedDevicesConfiguration) SwaggerDoc() map[string]string {
 	}
 }
 
+func (NetworkRole) SwaggerDoc() map[string]string {
+	return map[string]string{
+		"": "NetworkRole give network-attachment-definitions specific roles in KubeVirt\n+k8s:openapi-gen=true",
+	}
+}
+
 func (NetworkConfiguration) SwaggerDoc() map[string]string {
 	return map[string]string{
 		"": "NetworkConfiguration holds network options\n+k8s:openapi-gen=true",

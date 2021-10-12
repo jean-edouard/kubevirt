@@ -152,9 +152,13 @@ func GetTargetConfigFromKV(kv *v1.KubeVirt) *KubeVirtDeploymentConfig {
 	if len(kv.Spec.WorkloadUpdateStrategy.WorkloadUpdateMethods) > 0 {
 		additionalProperties[AdditionalPropertiesWorkloadUpdatesEnabled] = ""
 	}
-	if kv.Spec.Configuration.MigrationConfiguration != nil &&
-		kv.Spec.Configuration.MigrationConfiguration.DedicatedMigrationNetwork != nil {
-		additionalProperties[AdditionalPropertiesMigrationNetwork] = *kv.Spec.Configuration.MigrationConfiguration.DedicatedMigrationNetwork
+	if kv.Spec.Configuration.NetworkConfiguration != nil {
+		for _, role := range kv.Spec.Configuration.NetworkConfiguration.Roles {
+			if role.Role == "migration" {
+				additionalProperties[AdditionalPropertiesMigrationNetwork] = role.NetworkAttachmentDefinition
+				break
+			}
+		}
 	}
 	// don't use status.target* here, as that is always set, but we need to know if it was set by the spec and with that
 	// overriding shasums from env vars

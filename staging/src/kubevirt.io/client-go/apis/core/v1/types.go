@@ -2040,7 +2040,6 @@ type MigrationConfiguration struct {
 	UnsafeMigrationOverride           *bool              `json:"unsafeMigrationOverride,omitempty"`
 	AllowPostCopy                     *bool              `json:"allowPostCopy,omitempty"`
 	DisableTLS                        *bool              `json:"disableTLS,omitempty"`
-	DedicatedMigrationNetwork         *string            `json:"dedicatedMigrationNetwork,omitempty"`
 }
 
 // DiskVerification holds container disks verification limits
@@ -2120,12 +2119,24 @@ type MediatedDevicesConfiguration struct {
 	MediatedDevicesTypes []string `json:"mediatedDevicesTypes,omitempty"`
 }
 
+// NetworkRole give network-attachment-definitions specific roles in KubeVirt
+// +k8s:openapi-gen=true
+type NetworkRole struct {
+	Role                        string `json:"role"`
+	NetworkAttachmentDefinition string `json:"networkAttachmentDefinition"`
+}
+
+//
+// +k8s:openapi-gen=true
+type NetworkRoles []NetworkRole
+
 // NetworkConfiguration holds network options
 // +k8s:openapi-gen=true
 type NetworkConfiguration struct {
-	NetworkInterface                  string `json:"defaultNetworkInterface,omitempty"`
-	PermitSlirpInterface              *bool  `json:"permitSlirpInterface,omitempty"`
-	PermitBridgeInterfaceOnPodNetwork *bool  `json:"permitBridgeInterfaceOnPodNetwork,omitempty"`
+	NetworkInterface                  string       `json:"defaultNetworkInterface,omitempty"`
+	PermitSlirpInterface              *bool        `json:"permitSlirpInterface,omitempty"`
+	PermitBridgeInterfaceOnPodNetwork *bool        `json:"permitBridgeInterfaceOnPodNetwork,omitempty"`
+	Roles                             NetworkRoles `json:"roles,omitempty"`
 }
 
 // GuestAgentPing configures the guest-agent based ping probe

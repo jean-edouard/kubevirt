@@ -12706,9 +12706,6 @@
       "type": "integer",
       "format": "int64"
      },
-     "dedicatedMigrationNetwork": {
-      "type": "string"
-     },
      "disableTLS": {
       "type": "boolean"
      },
@@ -12793,6 +12790,28 @@
      },
      "permitSlirpInterface": {
       "type": "boolean"
+     },
+     "roles": {
+      "type": "array",
+      "items": {
+       "$ref": "#/definitions/v1.NetworkRole"
+      }
+     }
+    }
+   },
+   "v1.NetworkRole": {
+    "description": "NetworkRole give network-attachment-definitions specific roles in KubeVirt",
+    "type": "object",
+    "required": [
+     "role",
+     "networkAttachmentDefinition"
+    ],
+    "properties": {
+     "networkAttachmentDefinition": {
+      "type": "string"
+     },
+     "role": {
+      "type": "string"
      }
     }
    },

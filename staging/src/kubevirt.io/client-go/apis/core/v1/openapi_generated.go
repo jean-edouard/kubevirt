@@ -487,6 +487,7 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"kubevirt.io/client-go/apis/core/v1.NUMAGuestMappingPassthrough":                           schema_client_go_apis_core_v1_NUMAGuestMappingPassthrough(ref),
 		"kubevirt.io/client-go/apis/core/v1.Network":                                               schema_client_go_apis_core_v1_Network(ref),
 		"kubevirt.io/client-go/apis/core/v1.NetworkConfiguration":                                  schema_client_go_apis_core_v1_NetworkConfiguration(ref),
+		"kubevirt.io/client-go/apis/core/v1.NetworkRole":                                           schema_client_go_apis_core_v1_NetworkRole(ref),
 		"kubevirt.io/client-go/apis/core/v1.NetworkSource":                                         schema_client_go_apis_core_v1_NetworkSource(ref),
 		"kubevirt.io/client-go/apis/core/v1.NodePlacement":                                         schema_client_go_apis_core_v1_NodePlacement(ref),
 		"kubevirt.io/client-go/apis/core/v1.PITTimer":                                              schema_client_go_apis_core_v1_PITTimer(ref),
@@ -22334,12 +22335,6 @@ func schema_client_go_apis_core_v1_MigrationConfiguration(ref common.ReferenceCa
 							Format: "",
 						},
 					},
-					"dedicatedMigrationNetwork": {
-						SchemaProps: spec.SchemaProps{
-							Type:   []string{"string"},
-							Format: "",
-						},
-					},
 				},
 			},
 		},
@@ -22465,7 +22460,47 @@ func schema_client_go_apis_core_v1_NetworkConfiguration(ref common.ReferenceCall
 							Format: "",
 						},
 					},
+					"roles": {
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Ref: ref("kubevirt.io/client-go/apis/core/v1.NetworkRole"),
+									},
+								},
+							},
+						},
+					},
 				},
+			},
+		},
+		Dependencies: []string{
+			"kubevirt.io/client-go/apis/core/v1.NetworkRole"},
+	}
+}
+
+func schema_client_go_apis_core_v1_NetworkRole(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "NetworkRole give network-attachment-definitions specific roles in KubeVirt",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"role": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"networkAttachmentDefinition": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+				},
+				Required: []string{"role", "networkAttachmentDefinition"},
 			},
 		},
 	}
