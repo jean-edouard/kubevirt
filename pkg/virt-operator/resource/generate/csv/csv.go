@@ -48,6 +48,7 @@ type NewClusterServiceVersionData struct {
 	VirtHandlerSha       string
 	VirtLauncherSha      string
 	GsSha                string
+	VirtReplicas         string
 	Replicas             int
 	IconBase64           string
 	ReplacesCsvVersion   string
@@ -152,7 +153,9 @@ func NewClusterServiceVersion(data *NewClusterServiceVersionData) (*csvv1.Cluste
 		data.VirtControllerSha,
 		data.VirtHandlerSha,
 		data.VirtLauncherSha,
-		data.GsSha)
+		data.GsSha,
+		data.VirtReplicas,
+	)
 	if err != nil {
 		return nil, err
 	}

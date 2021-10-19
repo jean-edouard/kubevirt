@@ -114,7 +114,7 @@ var _ = Describe("Apply Apps", func() {
 			clientset.EXPECT().PolicyV1beta1().Return(pdbClient.PolicyV1beta1()).AnyTimes()
 			kv = &v1.KubeVirt{}
 
-			deployment, err = components.NewApiServerDeployment(Namespace, Registry, "", Version, "", "", corev1.PullIfNotPresent, "verbosity", map[string]string{})
+			deployment, err = components.NewApiServerDeployment(Namespace, Registry, "", Version, "", "", 2, corev1.PullIfNotPresent, "verbosity", map[string]string{})
 			Expect(err).ToNot(HaveOccurred())
 
 			cachedPodDisruptionBudget = components.NewPodDisruptionBudgetForDeployment(deployment)

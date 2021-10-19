@@ -65,6 +65,7 @@ type templateData struct {
 	VirtHandlerSha         string
 	VirtLauncherSha        string
 	GsSha                  string
+	VirtReplicas           string
 	PriorityClassSpec      string
 	FeatureGates           []string
 	GeneratedManifests     map[string]string
@@ -94,6 +95,7 @@ func main() {
 	virtHandlerSha := flag.String("virt-handler-sha", "", "")
 	virtLauncherSha := flag.String("virt-launcher-sha", "", "")
 	gsSha := flag.String("gs-sha", "", "")
+	virtReplicas := flag.String("virt-replicas", "", "")
 	featureGates := flag.String("feature-gates", "", "")
 
 	pflag.CommandLine.AddGoFlagSet(flag.CommandLine)
@@ -135,6 +137,7 @@ func main() {
 		data.VirtHandlerSha = *virtHandlerSha
 		data.VirtLauncherSha = *virtLauncherSha
 		data.GsSha = *gsSha
+		data.VirtReplicas = *virtReplicas
 		data.OperatorRules = getOperatorRules()
 		data.KubeVirtLogo = getKubeVirtLogo(*kubeVirtLogoPath)
 		data.PackageName = *packageName
@@ -183,6 +186,7 @@ func main() {
 		data.VirtControllerSha = "{{.VirtControllerSha}}"
 		data.VirtHandlerSha = "{{.VirtHandlerSha}}"
 		data.VirtLauncherSha = "{{.VirtLauncherSha}}"
+		data.VirtReplicas = "{{.VirtReplicas}}"
 		data.ReplacesCsvVersion = "{{.ReplacesCsvVersion}}"
 		data.OperatorDeploymentSpec = "{{.OperatorDeploymentSpec}}"
 		data.OperatorCsv = "{{.OperatorCsv}}"
@@ -257,7 +261,9 @@ func getOperatorDeploymentSpec(data templateData, indentation int) string {
 		data.VirtControllerSha,
 		data.VirtHandlerSha,
 		data.VirtLauncherSha,
-		data.GsSha)
+		data.GsSha,
+		data.VirtReplicas,
+	)
 	if err != nil {
 		panic(err)
 	}

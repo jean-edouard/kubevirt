@@ -41,6 +41,7 @@ func main() {
 	handlerSha := flag.String("handlerSha", "", "virt-handler image sha")
 	launcherSha := flag.String("launcherSha", "", "virt-launcher image sha")
 	gsSha := flag.String("gsSha", "", "libguestfs-tools image sha")
+	virtReplicas := flag.String("replicas", "", "number of replicas to create per virt-{api|controller} pod")
 	kubeVirtLogo := flag.String("kubevirtLogo", "", "kubevirt logo data in base64")
 	csvVersion := flag.String("csvVersion", "", "the CSV version being generated")
 	replacesCsvVersion := flag.String("replacesCsvVersion", "", "the CSV version being replaced by this generated CSV")
@@ -63,6 +64,7 @@ func main() {
 		VirtHandlerSha:       *handlerSha,
 		VirtLauncherSha:      *launcherSha,
 		GsSha:                *gsSha,
+		VirtReplicas:         *virtReplicas,
 		ReplacesCsvVersion:   *replacesCsvVersion,
 		IconBase64:           *kubeVirtLogo,
 		Replicas:             2,
