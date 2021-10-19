@@ -15,6 +15,7 @@ kubevirtci_git_hash="2110131039-6703e85"
 conn_check_ipv4_address=${CONN_CHECK_IPV4_ADDRESS:-""}
 conn_check_ipv6_address=${CONN_CHECK_IPV6_ADDRESS:-""}
 conn_check_dns=${CONN_CHECK_DNS:-""}
+virt_replicas=${VIRT_REPLICAS:-2}
 
 # try to derive csv_version from docker tag. But it must start with x.y.z, without leading v
 default_csv_version="${docker_tag/latest/0.0.0}"

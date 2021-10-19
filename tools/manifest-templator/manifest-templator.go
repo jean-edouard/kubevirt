@@ -64,6 +64,7 @@ type templateData struct {
 	VirtControllerSha      string
 	VirtHandlerSha         string
 	VirtLauncherSha        string
+	VirtReplicas           string
 	GsSha                  string
 	PriorityClassSpec      string
 	FeatureGates           []string
@@ -93,6 +94,7 @@ func main() {
 	virtControllerSha := flag.String("virt-controller-sha", "", "")
 	virtHandlerSha := flag.String("virt-handler-sha", "", "")
 	virtLauncherSha := flag.String("virt-launcher-sha", "", "")
+	virtReplicas := flag.String("virt-replicas", "", "")
 	gsSha := flag.String("gs-sha", "", "")
 	featureGates := flag.String("feature-gates", "", "")
 
@@ -134,6 +136,7 @@ func main() {
 		data.VirtControllerSha = *virtControllerSha
 		data.VirtHandlerSha = *virtHandlerSha
 		data.VirtLauncherSha = *virtLauncherSha
+		data.VirtReplicas = *virtReplicas
 		data.GsSha = *gsSha
 		data.OperatorRules = getOperatorRules()
 		data.KubeVirtLogo = getKubeVirtLogo(*kubeVirtLogoPath)
@@ -183,6 +186,7 @@ func main() {
 		data.VirtControllerSha = "{{.VirtControllerSha}}"
 		data.VirtHandlerSha = "{{.VirtHandlerSha}}"
 		data.VirtLauncherSha = "{{.VirtLauncherSha}}"
+		data.VirtReplicas = "{{.VirtReplicas}}"
 		data.ReplacesCsvVersion = "{{.ReplacesCsvVersion}}"
 		data.OperatorDeploymentSpec = "{{.OperatorDeploymentSpec}}"
 		data.OperatorCsv = "{{.OperatorCsv}}"
@@ -257,6 +261,7 @@ func getOperatorDeploymentSpec(data templateData, indentation int) string {
 		data.VirtControllerSha,
 		data.VirtHandlerSha,
 		data.VirtLauncherSha,
+		data.VirtReplicas,
 		data.GsSha)
 	if err != nil {
 		panic(err)

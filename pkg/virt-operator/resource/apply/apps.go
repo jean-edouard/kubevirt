@@ -159,6 +159,10 @@ func (r *Reconciler) syncPodDisruptionBudgetForDeployment(deployment *appsv1.Dep
 	kv := r.kv
 	podDisruptionBudget := components.NewPodDisruptionBudgetForDeployment(deployment)
 
+	if podDisruptionBudget == nil {
+		return nil
+	}
+
 	imageTag, imageRegistry, id := getTargetVersionRegistryID(kv)
 	injectOperatorMetadata(kv, &podDisruptionBudget.ObjectMeta, imageTag, imageRegistry, id, true)
 

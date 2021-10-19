@@ -47,8 +47,8 @@ type NewClusterServiceVersionData struct {
 	VirtControllerSha    string
 	VirtHandlerSha       string
 	VirtLauncherSha      string
+	VirtReplicas         string
 	GsSha                string
-	Replicas             int
 	IconBase64           string
 	ReplacesCsvVersion   string
 	CreatedAtTimestamp   string
@@ -152,17 +152,13 @@ func NewClusterServiceVersion(data *NewClusterServiceVersionData) (*csvv1.Cluste
 		data.VirtControllerSha,
 		data.VirtHandlerSha,
 		data.VirtLauncherSha,
+		data.VirtReplicas,
 		data.GsSha)
 	if err != nil {
 		return nil, err
 	}
 
 	imageVersion := components.AddVersionSeparatorPrefix(data.OperatorImageVersion)
-
-	if data.Replicas > 0 && *deployment.Spec.Replicas != int32(data.Replicas) {
-		replicas := int32(data.Replicas)
-		deployment.Spec.Replicas = &replicas
-	}
 
 	clusterRules := rbac.NewOperatorClusterRole().Rules
 	rules := rbac.NewOperatorRole(data.Namespace).Rules
