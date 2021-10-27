@@ -3,6 +3,8 @@ package apply
 import (
 	"encoding/json"
 
+	"k8s.io/utils/pointer"
+
 	jsonpatch "github.com/evanphx/json-patch"
 	"github.com/golang/mock/gomock"
 	. "github.com/onsi/ginkgo"
@@ -148,6 +150,12 @@ var _ = Describe("Apply PDBs", func() {
 			// Fail if patch did not occur
 			Expect(patchedOccurred).To(BeTrue())
 		})
-	})
 
+		Context("with a replica count of 1", func() {
+			It("should not create PDBs", func() {
+				deployment.Spec.Replicas = pointer.Int32Ptr(1)
+				Expect(components.NewPodDisruptionBudgetForDeployment(deployment)).To(BeNil())
+			})
+		})
+	})
 })
