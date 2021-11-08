@@ -300,6 +300,8 @@ spec:
                         type: integer
                       disableTLS:
                         type: boolean
+                      network:
+                        type: string
                       nodeDrainTaintKey:
                         type: string
                       parallelMigrationsPerCluster:
@@ -2346,6 +2348,8 @@ spec:
                         type: integer
                       disableTLS:
                         type: boolean
+                      network:
+                        type: string
                       nodeDrainTaintKey:
                         type: string
                       parallelMigrationsPerCluster:

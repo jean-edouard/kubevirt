@@ -311,6 +311,7 @@ type migrationConfiguration struct {
 	UnsafeMigrationOverride           *bool              `json:"unsafeMigrationOverride,string,omitempty"`
 	AllowPostCopy                     *bool              `json:"allowPostCopy,string,omitempty"`
 	DisableTLS                        *bool              `json:"disableTLS,omitempty"`
+	Network                           *string            `json:"network,omitempty"`
 }
 
 // setConfigFromConfigMap parses the provided config map and updates the provided config.
