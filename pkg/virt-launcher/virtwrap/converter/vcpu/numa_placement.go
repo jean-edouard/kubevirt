@@ -1,9 +1,13 @@
-package converter
+package vcpu
 
 import (
 	"fmt"
 	"strconv"
 	"strings"
+
+	k8sv1 "k8s.io/api/core/v1"
+
+	"kubevirt.io/client-go/log"
 
 	"k8s.io/apimachinery/pkg/api/resource"
 
@@ -11,6 +15,141 @@ import (
 	cmdv1 "kubevirt.io/kubevirt/pkg/handler-launcher-com/cmd/v1"
 	"kubevirt.io/kubevirt/pkg/virt-launcher/virtwrap/api"
 )
+
+func QuantityToByte(quantity resource.Quantity) (api.Memory, error) {
+	memorySize, int := quantity.AsInt64()
+	if !int {
+		memorySize = quantity.Value() - 1
+	}
+
+	if memorySize < 0 {
+		return api.Memory{Unit: "b"}, fmt.Errorf("Memory size '%s' must be greater than or equal to 0", quantity.String())
+	}
+	return api.Memory{
+		Value: uint64(memorySize),
+		Unit:  "b",
+	}, nil
+}
+
+func QuantityToMebiByte(quantity resource.Quantity) (uint64, error) {
+	bytes, err := QuantityToByte(quantity)
+	if err != nil {
+		return 0, err
+	}
+	if bytes.Value == 0 {
+		return 0, nil
+	} else if bytes.Value < 1048576 {
+		return 1, nil
+	}
+	return uint64(float64(bytes.Value)/1048576 + 0.5), nil
+}
+
+func isNumaPassthrough(vmi *v1.VirtualMachineInstance) bool {
+	return vmi.Spec.Domain.CPU.NUMA != nil && vmi.Spec.Domain.CPU.NUMA.GuestMappingPassthrough != nil
+}
+
+func appendDomainEmulatorThreadPin(domain *api.Domain, allocatedCpu uint32) {
+	emulatorThread := api.CPUEmulatorPin{
+		CPUSet: strconv.Itoa(int(allocatedCpu)),
+	}
+	domain.Spec.CPUTune.EmulatorPin = &emulatorThread
+}
+
+func appendDomainIOThreadPin(domain *api.Domain, thread uint32, cpuset string) {
+	iothreadPin := api.CPUTuneIOThreadPin{}
+	iothreadPin.IOThread = thread
+	iothreadPin.CPUSet = cpuset
+	domain.Spec.CPUTune.IOThreadPin = append(domain.Spec.CPUTune.IOThreadPin, iothreadPin)
+}
+
+func formatDomainIOThreadPin(vmi *v1.VirtualMachineInstance, domain *api.Domain, emulatorThread uint32, cpuset []int) error {
+	iothreads := int(domain.Spec.IOThreads.IOThreads)
+	vcpus := int(CalculateRequestedVCPUs(domain.Spec.CPU.Topology))
+
+	if vmi.IsCPUDedicated() && vmi.Spec.Domain.CPU.IsolateEmulatorThread {
+		// pin the IOThread on the same pCPU as the emulator thread
+		cpuset := strconv.Itoa(int(emulatorThread))
+		appendDomainIOThreadPin(domain, uint32(1), cpuset)
+	} else if iothreads >= vcpus {
+		// pin an IOThread on a CPU
+		for thread := 1; thread <= iothreads; thread++ {
+			cpuset := fmt.Sprintf("%d", cpuset[thread%vcpus])
+			appendDomainIOThreadPin(domain, uint32(thread), cpuset)
+		}
+	} else {
+		// the following will pin IOThreads to a set of cpus of a balanced size
+		// for example, for 3 threads and 8 cpus the output will look like:
+		// thread cpus
+		//   1    0,1,2
+		//   2    3,4,5
+		//   3    6,7
+		series := vcpus % iothreads
+		curr := 0
+		for thread := 1; thread <= iothreads; thread++ {
+			remainder := vcpus/iothreads - 1
+			if thread <= series {
+				remainder += 1
+			}
+			end := curr + remainder
+			slice := strings.Trim(strings.Join(strings.Fields(fmt.Sprint(cpuset[curr:end+1])), ","), "[]")
+			appendDomainIOThreadPin(domain, uint32(thread), slice)
+			curr = end + 1
+		}
+	}
+	return nil
+}
+
+func AdjustDomainForTopologyAndCPUSet(domain *api.Domain, vmi *v1.VirtualMachineInstance, topology *cmdv1.Topology, cpuset []int, useIOThreads bool) error {
+	var cpuPool VCPUPool
+	if isNumaPassthrough(vmi) {
+		cpuPool = NewStrictCPUPool(domain.Spec.CPU.Topology, topology, cpuset)
+	} else {
+		cpuPool = NewRelaxedCPUPool(domain.Spec.CPU.Topology, topology, cpuset)
+	}
+	cpuTune, err := cpuPool.FitCores()
+	if err != nil {
+		log.Log.Reason(err).Error("failed to format domain cputune.")
+		return err
+	}
+	domain.Spec.CPUTune = cpuTune
+
+	var emulatorThread uint32
+	if vmi.Spec.Domain.CPU.IsolateEmulatorThread {
+		emulatorThread, err = cpuPool.FitThread()
+		if err != nil {
+			e := fmt.Errorf("no CPU allocated for the emulation thread: %v", err)
+			log.Log.Reason(e).Error("failed to format emulation thread pin")
+			return e
+		}
+		appendDomainEmulatorThreadPin(domain, emulatorThread)
+	}
+	if useIOThreads {
+		if err := formatDomainIOThreadPin(vmi, domain, emulatorThread, cpuset); err != nil {
+			log.Log.Reason(err).Error("failed to format domain iothread pinning.")
+			return err
+		}
+	}
+	if vmi.IsRealtimeEnabled() {
+		// RT settings
+		// To be configured by manifest
+		// - CPU Model: Host Passthrough
+		// - VCPU (placement type and number)
+		// - VCPU Pin (DedicatedCPUPlacement)
+		// - USB controller should be disabled if no input type usb is found
+		// - Memballoning can be disabled when setting 'autoattachMemBalloon' to false
+		formatVCPUScheduler(domain, vmi)
+		domain.Spec.Features.PMU = &api.FeatureState{State: "off"}
+	}
+
+	if isNumaPassthrough(vmi) {
+		if err := numaMapping(vmi, &domain.Spec, topology); err != nil {
+			log.Log.Reason(err).Error("failed to calculate passed through NUMA topology.")
+			return err
+		}
+	}
+
+	return nil
+}
 
 func cpuToCell(topology *cmdv1.Topology) map[uint32]*cmdv1.Cell {
 	cpumap := map[uint32]*cmdv1.Cell{}
@@ -35,6 +174,22 @@ func involvedCells(cpumap map[uint32]*cmdv1.Cell, cpuTune *api.CPUTune) (map[uin
 		numamap[cpumap[uint32(cpu)].Id] = append(numamap[cpumap[uint32(cpu)].Id], tune.VCPU)
 	}
 	return numamap, nil
+}
+
+func GetVirtualMemory(vmi *v1.VirtualMachineInstance) *resource.Quantity {
+	// In case that guest memory is explicitly set, return it
+	if vmi.Spec.Domain.Memory != nil && vmi.Spec.Domain.Memory.Guest != nil {
+		return vmi.Spec.Domain.Memory.Guest
+	}
+
+	// Otherwise, take memory from the memory-limit, if set
+	if v, ok := vmi.Spec.Domain.Resources.Limits[k8sv1.ResourceMemory]; ok {
+		return &v
+	}
+
+	// Otherwise, take memory from the requested memory
+	v, _ := vmi.Spec.Domain.Resources.Requests[k8sv1.ResourceMemory]
+	return &v
 }
 
 // numaMapping maps numa nodes based on already applied VCPU pinning. The sort result is stable compared to the order
@@ -74,7 +229,7 @@ func numaMapping(vmi *v1.VirtualMachineInstance, domain *api.DomainSpec, topolog
 	}
 	domain.MemoryBacking.Allocation = &api.MemoryAllocation{Mode: api.MemoryAllocationModeImmediate}
 
-	memory, err := QuantityToByte(*getVirtualMemory(vmi))
+	memory, err := QuantityToByte(*GetVirtualMemory(vmi))
 	memoryBytes := memory.Value
 	if err != nil {
 		return fmt.Errorf("could not convert VMI memory to quantity: %v", err)
