@@ -21,10 +21,10 @@ package virtwrap
 
 import (
 	"bytes"
+	"encoding/json"
 	"encoding/xml"
 	"fmt"
 	"io"
-	"strconv"
 	"strings"
 	"time"
 
@@ -36,6 +36,7 @@ import (
 
 	v1 "kubevirt.io/client-go/apis/core/v1"
 	"kubevirt.io/client-go/log"
+	cmdv1 "kubevirt.io/kubevirt/pkg/handler-launcher-com/cmd/v1"
 	virtutil "kubevirt.io/kubevirt/pkg/util"
 	cmdclient "kubevirt.io/kubevirt/pkg/virt-handler/cmd-client"
 	migrationproxy "kubevirt.io/kubevirt/pkg/virt-handler/migration-proxy"
@@ -117,9 +118,108 @@ func hotUnplugHostDevices(virConn cli.Connection, dom cli.VirDomain) error {
 	return nil
 }
 
+func generateDomainForTargetCPUSetAndTopology(vmi *v1.VirtualMachineInstance) (domain *api.Domain, err error) {
+	var targetTopology cmdv1.Topology
+	targetNodeCPUSet := vmi.Status.MigrationState.TargetNodeCPUSet
+	err = json.Unmarshal([]byte(vmi.Status.MigrationState.TargetTopology), &targetTopology)
+	if err != nil {
+		return nil, err
+	}
+
+	useIOThreads := false
+	for _, diskDevice := range vmi.Spec.Domain.Devices.Disks {
+		if diskDevice.DedicatedIOThread != nil && *diskDevice.DedicatedIOThread {
+			useIOThreads = true
+			break
+		}
+	}
+	domain = api.NewMinimalDomain(vmi.Name)
+	cpuTopology := vcpu.GetCPUTopology(vmi)
+	cpuCount := vcpu.CalculateRequestedVCPUs(cpuTopology)
+	domain.Spec.CPU.Topology = cpuTopology
+	domain.Spec.VCPU = &api.VCPU{
+		Placement: "static",
+		CPUs:      cpuCount,
+	}
+	vcpu.AdjustDomainForTopologyAndCPUSet(domain, vmi, &targetTopology, targetNodeCPUSet, useIOThreads)
+
+	return domain, nil
+}
+
+func injectNewCPUTune(encoder *xml.Encoder, domain *api.Domain, logger *log.FilteredLogger) error {
+	// Marshalling the whole domain, even if we just need the cputune section, for indentation purposes
+	xmlstr, err := xml.MarshalIndent(domain.Spec, "", "\t")
+	if err != nil {
+		logger.Reason(err).Error("Live migration failed. Failed to get XML.")
+		return err
+	}
+	decoder := xml.NewDecoder(bytes.NewReader(xmlstr))
+	var location = make([]string, 0)
+	var newLocation []string = nil
+	injecting := false
+	for {
+		if newLocation != nil {
+			// Postpone popping end elements from `location` to ensure their removal
+			location = newLocation
+			newLocation = nil
+		}
+		token, err := decoder.RawToken()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			logger.Errorf("error getting token: %v\n", err)
+			return err
+		}
+
+		switch v := token.(type) {
+		case xml.StartElement:
+			location = append(location, v.Name.Local)
+
+		case xml.EndElement:
+			newLocation = location[:len(location)-1]
+		}
+
+		if len(location) >= 2 &&
+			location[0] == "domain" &&
+			location[1] == "cputune" {
+			injecting = true
+		} else {
+			if injecting == true {
+				// We just left the cputune block, we're done
+				break
+			} else {
+				// We're not in the cputune block yet, skipping elements
+				continue
+			}
+		}
+
+		if injecting {
+			if err := encoder.EncodeToken(xml.CopyToken(token)); err != nil {
+				logger.Reason(err).Errorf("Failed to encode token %v", token)
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
 // This returns domain xml without the migration metadata section, as it is only relevant to the source domain
 // Note: Unfortunately we can't just use UnMarshall + Marshall here, as that leads to unwanted XML alterations
 func migratableDomXML(dom cli.VirDomain, vmi *v1.VirtualMachineInstance) (string, error) {
+	var domain *api.Domain
+	var err error
+
+	if vmi.IsCPUDedicated() {
+		// If the VMI has dedicated CPUs, we need to replace the old CPUs that were
+		// assigned in the source node with the new CPUs assigned in the target node
+		domain, err = generateDomainForTargetCPUSetAndTopology(vmi)
+		if err != nil {
+			return "", err
+		}
+	}
+
 	xmlstr, err := dom.GetXMLDesc(libvirt.DOMAIN_XML_MIGRATABLE)
 	if err != nil {
 		log.Log.Object(vmi).Reason(err).Error("Live migration failed. Failed to get XML.")
@@ -131,34 +231,6 @@ func migratableDomXML(dom cli.VirDomain, vmi *v1.VirtualMachineInstance) (string
 
 	var location = make([]string, 0)
 	var newLocation []string = nil
-
-	// If the VMI has dedicated CPUs, we need to replace the old CPUs that were
-	// assigned in the source node with the new CPUs assigned in the target node
-	var (
-		targetNodeCPUSet []int
-		cpuPinFields     []string
-		cpuSetMapping    map[int]int
-	)
-
-	if vmi.IsCPUDedicated() {
-		targetNodeCPUSet = vmi.Status.MigrationState.TargetNodeCPUSet
-		cpuPinFields = []string{"vcpupin", "emulatorpin", "iothreadpin"}
-		cpuSetMapping = map[int]int{}
-
-		if targetNodeCPUSet == nil || len(targetNodeCPUSet) == 0 {
-			return "", fmt.Errorf("target node CPU set is missing for migrating VMI %s/%s", vmi.GetNamespace(), vmi.GetName())
-		}
-
-		sourceNodeCPUSet, err := util.GetPodCPUSet()
-		if err != nil {
-			return "", err
-		}
-
-		// sourceCPUSet and tagetCPUSet are of the same length
-		for i := range sourceNodeCPUSet {
-			cpuSetMapping[sourceNodeCPUSet[i]] = targetNodeCPUSet[i]
-		}
-	}
 
 	for {
 		if newLocation != nil {
@@ -181,14 +253,13 @@ func migratableDomXML(dom cli.VirDomain, vmi *v1.VirtualMachineInstance) (string
 
 			// If the VMI requires dedicated CPUs, we need to patch the domain with
 			// the new CPU set in the target node prior to migration
-			if vmi.IsCPUDedicated() {
-				for _, field := range cpuPinFields {
-					if v.Name.Local == field {
-						err = updateCPUSetAttributeForXMLElement(&v, cpuSetMapping)
-						if err != nil {
-							return "", err
-						}
-					}
+			if vmi.IsCPUDedicated() &&
+				len(location) >= 2 &&
+				location[0] == "domain" &&
+				location[1] == "cputune" {
+				if len(location) == 2 {
+					// We're at the start of the cputune block, inject the target one instead
+					injectNewCPUTune(encoder, domain, log.Log.Object(vmi))
 				}
 			}
 		case xml.EndElement:
@@ -201,54 +272,25 @@ func migratableDomXML(dom cli.VirDomain, vmi *v1.VirtualMachineInstance) (string
 			location[3] == "migration" {
 			continue // We're inside domain/metadata/kubevirt/migration, continue will skip elements
 		}
+		if vmi.IsCPUDedicated() &&
+			len(location) >= 2 &&
+			location[0] == "domain" &&
+			location[1] == "cputune" {
+			continue
+		}
 
 		if err := encoder.EncodeToken(xml.CopyToken(token)); err != nil {
-			log.Log.Object(vmi).Reason(err)
+			log.Log.Object(vmi).Reason(err).Errorf("Failed to encode token %v", token)
 			return "", err
 		}
 	}
 
 	if err := encoder.Flush(); err != nil {
-		log.Log.Object(vmi).Reason(err)
+		log.Log.Object(vmi).Reason(err).Error("Failed to flush XML encoder")
 		return "", err
 	}
 
 	return string(buf.Bytes()), nil
-}
-
-func updateCPUSetAttributeForXMLElement(v *xml.StartElement, cpuSetMapping map[int]int) error {
-	for i := 0; i < len(v.Attr); i++ {
-		if v.Attr[i].Name.Local == "cpuset" {
-			currentCPUsStr := v.Attr[i].Value
-
-			// if a collection of CPUs is defined, replace all CPUs
-			if strings.Contains(currentCPUsStr, ",") {
-				strCPUs := strings.Split(currentCPUsStr, ",")
-				var newCPUs []int
-
-				for _, strCPU := range strCPUs {
-					cpu, err := strconv.Atoi(strCPU)
-					if err != nil {
-						return err
-					}
-
-					newCPUs = append(newCPUs, cpuSetMapping[cpu])
-				}
-
-				v.Attr[i].Value = strings.Trim(strings.Join(strings.Fields(fmt.Sprint(newCPUs)), ","), "[]")
-			} else {
-				// a single CPU is defined
-				currentCPU, err := strconv.Atoi(v.Attr[i].Value)
-				if err != nil {
-					return err
-				}
-
-				v.Attr[i].Value = strconv.Itoa(cpuSetMapping[currentCPU])
-			}
-		}
-	}
-
-	return nil
 }
 
 func (d *migrationDisks) isSharedVolume(name string) bool {

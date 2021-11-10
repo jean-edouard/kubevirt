@@ -21,6 +21,7 @@ package virthandler
 
 import (
 	"context"
+	"encoding/json"
 	goerror "errors"
 	"fmt"
 	"io"
@@ -738,6 +739,10 @@ func (d *VirtualMachineController) migrationTargetUpdateVMIStatus(vmi *v1.Virtua
 		// via the VMI migration status in order to patch the domain pre migration
 		if vmi.IsCPUDedicated() {
 			err := d.reportDedicatedCPUSetForMigratingVMI(vmiCopy)
+			if err != nil {
+				return err
+			}
+			err = d.reportTargetTopologyForMigratingVMI(vmiCopy)
 			if err != nil {
 				return err
 			}
@@ -2993,6 +2998,17 @@ func (d *VirtualMachineController) reportDedicatedCPUSetForMigratingVMI(vmi *v1.
 	}
 
 	vmi.Status.MigrationState.TargetNodeCPUSet = cpuSet
+
+	return nil
+}
+
+func (d *VirtualMachineController) reportTargetTopologyForMigratingVMI(vmi *v1.VirtualMachineInstance) error {
+	options := virtualMachineOptions(nil, 0, nil, d.capabilities, map[string]*containerdisk.DiskInfo{}, d.clusterConfig.ExpandDisksEnabled())
+	topology, err := json.Marshal(options.Topology)
+	if err != nil {
+		return err
+	}
+	vmi.Status.MigrationState.TargetTopology = string(topology)
 
 	return nil
 }

@@ -171,6 +171,7 @@ func (VirtualMachineInstanceMigrationState) SwaggerDoc() map[string]string {
 		"migrationUid":                   "The VirtualMachineInstanceMigration object associated with this migration",
 		"mode":                           "Lets us know if the vmi is currently running pre or post copy migration",
 		"targetNodeCPUSet":               "If the VMI requires dedicated CPUs, this field will\nhold the dedicated CPU set on the target node\n+listType=atomic",
+		"targetTopology":                 "If the VMI requires dedicated CPUs, this field will\nhold the numa topology on the target node",
 	}
 }
 
