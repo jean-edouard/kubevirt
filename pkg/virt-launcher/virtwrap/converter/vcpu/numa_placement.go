@@ -114,6 +114,9 @@ func AdjustDomainForTopologyAndCPUSet(domain *api.Domain, vmi *v1.VirtualMachine
 	domain.Spec.CPUTune = cpuTune
 
 	// always add the hint-dedicated feature when dedicatedCPUs are requested.
+	if domain.Spec.Features == nil {
+		domain.Spec.Features = &api.Features{}
+	}
 	if domain.Spec.Features.KVM == nil {
 		domain.Spec.Features.KVM = &api.FeatureKVM{}
 	}
