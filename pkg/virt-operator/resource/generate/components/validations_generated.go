@@ -720,6 +720,12 @@ var CRDsValidation map[string]string = map[string]string{
                   description: NodeSelectors allows restricting VMI creation to nodes
                     that match a set of labels. Defaults to none
                   type: object
+                overrideVirtLauncherFiles:
+                  additionalProperties:
+                    type: string
+                  description: Map of path->URL of files to override in virt-launcher
+                    before starting libvirtd
+                  type: object
                 pvcTolerateLessSpaceUpToPercent:
                   description: LessPVCSpaceToleration determines how much smaller,
                     in percentage, disk PVCs are allowed to be compared to the requested
