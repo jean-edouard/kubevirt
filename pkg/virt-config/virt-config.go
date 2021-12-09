@@ -324,3 +324,8 @@ func (c *ClusterConfig) GetClusterCPUArch() string {
 func (c *ClusterConfig) GetVMStateStorageClass() string {
 	return c.GetConfig().VMStateStorageClass
 }
+
+//GetVirtLauncherOverrides returns the file->URL map of files to override in virt-launcher
+func (c *ClusterConfig) GetVirtLauncherOverrides() map[string]string {
+	return c.GetConfig().DeveloperConfiguration.OverrideVirtLauncherFiles
+}
