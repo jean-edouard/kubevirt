@@ -1822,6 +1822,19 @@ func Convert_v1_VirtualMachineInstance_To_api_Domain(vmi *v1.VirtualMachineInsta
 			api.Arg{Value: "isa-debugcon,iobase=0x402,chardev=firmwarelog"})
 	}
 
+	_, tpmLabelPresent := vmi.Labels["TPM"]
+	if tpmLabelPresent {
+		domain.Spec.Devices.TPMs = []api.TPM{
+			{
+				Model: "tpm-tis",
+				Backend: api.TPMBackend{
+					Type:    "emulator",
+					Version: "2.0",
+				},
+			},
+		}
+	}
+
 	return nil
 }
 
