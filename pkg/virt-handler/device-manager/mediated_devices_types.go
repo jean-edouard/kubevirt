@@ -82,7 +82,7 @@ func (m *MDEVTypesManager) discoverConfigurableMDEVTypes(desiredTypesMap map[str
 	// initialize unconfigured parents map
 	m.unconfiguredParentsMap = make(map[string]struct{})
 
-	files, err := filepath.Glob(mdevClassBusPath + "/**/mdev_supported_types/*")
+	files, err := filepath.Glob(filepath.Join(mdevClassBusPath, "/**/mdev_supported_types/*"))
 	if err != nil {
 		return err
 	}

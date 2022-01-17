@@ -483,7 +483,7 @@ func (vca *VirtControllerApp) initCommon() {
 		golog.Fatal(err)
 	}
 
-	containerdisk.SetLocalDirectory(vca.ephemeralDiskDir + "/container-disk-data")
+	containerdisk.SetLocalDirectory(filepath.Join(vca.ephemeralDiskDir, "/container-disk-data"))
 	vca.templateService = services.NewTemplateService(vca.launcherImage,
 		vca.launcherQemuTimeout,
 		vca.virtShareDir,

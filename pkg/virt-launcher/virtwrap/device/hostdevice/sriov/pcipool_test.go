@@ -21,6 +21,7 @@ package sriov_test
 
 import (
 	"os"
+	"path"
 	"strings"
 
 	. "github.com/onsi/ginkgo"
@@ -162,7 +163,7 @@ func newNetworkData(netName string, resource resourceData) networkData {
 		Name: netName,
 		ResourceEnv: envData{
 			"KUBEVIRT_RESOURCE_NAME_" + netName,
-			"intel.com/" + resource.Name + "_pool",
+			path.Join("intel.com", resource.Name+"_pool"),
 		},
 		DeviceEnv: envData{
 			"PCIDEVICE_INTEL_COM_" + strings.ToUpper(resource.Name) + "_POOL",

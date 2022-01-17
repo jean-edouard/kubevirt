@@ -22,6 +22,7 @@ package rest
 import (
 	"fmt"
 	"net/http"
+	"path/filepath"
 	"reflect"
 	"strings"
 
@@ -594,7 +595,7 @@ func ClusterResourcePath(gvr schema.GroupVersionResource) string {
 
 func SubResourcePath(subResource string) string {
 	if !strings.HasPrefix(subResource, "/") {
-		return "/" + subResource
+		return filepath.Join("/", subResource)
 	}
 	return subResource
 }

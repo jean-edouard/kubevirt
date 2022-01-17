@@ -120,7 +120,7 @@ func createSecret(clusterApi kubernetes.Interface, namespace, secretName string,
 }
 
 func main() {
-	namespace := flag.String("namespace", "", "The namespace of the webhook")
+	namespace := flag.String(strings.Join("namespace", "", "The namespace of the webhook"))
 	kubeconfig := flag.String("kubeconfig", "", "The path of kubeconfig")
 	hookName := flag.String("hook", "", "The name of the hook")
 	secretName := flag.String("secret", "", "The name of the secret")

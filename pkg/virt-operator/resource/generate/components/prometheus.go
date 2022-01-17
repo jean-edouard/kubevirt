@@ -2,6 +2,7 @@ package components
 
 import (
 	"fmt"
+	"path"
 
 	"github.com/coreos/prometheus-operator/pkg/apis/monitoring"
 	v1 "github.com/coreos/prometheus-operator/pkg/apis/monitoring/v1"
@@ -106,7 +107,7 @@ func NewPrometheusRuleSpec(ns string, workloadUpdatesEnabled bool) *v1.Prometheu
 						For:   "10m",
 						Annotations: map[string]string{
 							"summary":     "All virt-api servers are down.",
-							"runbook_url": runbookUrlBasePath + "VirtAPIDown",
+							"runbook_url": path.Join(runbookUrlBasePath, "VirtAPIDown"),
 						},
 						Labels: map[string]string{
 							severityAlertLabelKey: "critical",
@@ -122,7 +123,7 @@ func NewPrometheusRuleSpec(ns string, workloadUpdatesEnabled bool) *v1.Prometheu
 						For:   "60m",
 						Annotations: map[string]string{
 							"summary":     "More than one virt-api should be running if more than one worker nodes exist.",
-							"runbook_url": runbookUrlBasePath + "LowVirtAPICount",
+							"runbook_url": path.Join(runbookUrlBasePath, "LowVirtAPICount"),
 						},
 						Labels: map[string]string{
 							severityAlertLabelKey: "warning",
@@ -139,7 +140,7 @@ func NewPrometheusRuleSpec(ns string, workloadUpdatesEnabled bool) *v1.Prometheu
 						Annotations: map[string]string{
 							"description": "Low number of nodes with KVM resource available.",
 							"summary":     "At least two nodes with kvm resource required for VM live migration.",
-							"runbook_url": runbookUrlBasePath + "LowKVMNodesCount",
+							"runbook_url": path.Join(runbookUrlBasePath, "LowKVMNodesCount"),
 						},
 						Labels: map[string]string{
 							severityAlertLabelKey: "warning",
@@ -163,7 +164,7 @@ func NewPrometheusRuleSpec(ns string, workloadUpdatesEnabled bool) *v1.Prometheu
 						For:   "10m",
 						Annotations: map[string]string{
 							"summary":     "Some virt controllers are running but not ready.",
-							"runbook_url": runbookUrlBasePath + "LowReadyVirtControllersCount",
+							"runbook_url": path.Join(runbookUrlBasePath, "LowReadyVirtControllersCount"),
 						},
 						Labels: map[string]string{
 							severityAlertLabelKey: "warning",
@@ -175,7 +176,7 @@ func NewPrometheusRuleSpec(ns string, workloadUpdatesEnabled bool) *v1.Prometheu
 						For:   "10m",
 						Annotations: map[string]string{
 							"summary":     "No ready virt-controller was detected for the last 10 min.",
-							"runbook_url": runbookUrlBasePath + "NoReadyVirtController",
+							"runbook_url": path.Join(runbookUrlBasePath, "NoReadyVirtController"),
 						},
 						Labels: map[string]string{
 							severityAlertLabelKey: "critical",
@@ -187,7 +188,7 @@ func NewPrometheusRuleSpec(ns string, workloadUpdatesEnabled bool) *v1.Prometheu
 						For:   "10m",
 						Annotations: map[string]string{
 							"summary":     "No running virt-controller was detected for the last 10 min.",
-							"runbook_url": runbookUrlBasePath + "VirtControllerDown",
+							"runbook_url": path.Join(runbookUrlBasePath, "VirtControllerDown"),
 						},
 						Labels: map[string]string{
 							severityAlertLabelKey: "critical",
@@ -199,7 +200,7 @@ func NewPrometheusRuleSpec(ns string, workloadUpdatesEnabled bool) *v1.Prometheu
 						For:   "10m",
 						Annotations: map[string]string{
 							"summary":     "More than one virt-controller should be ready if more than one worker node.",
-							"runbook_url": runbookUrlBasePath + "LowVirtControllersCount",
+							"runbook_url": path.Join(runbookUrlBasePath, "LowVirtControllersCount"),
 						},
 						Labels: map[string]string{
 							severityAlertLabelKey: "warning",
@@ -210,7 +211,7 @@ func NewPrometheusRuleSpec(ns string, workloadUpdatesEnabled bool) *v1.Prometheu
 						Expr:  intstr.FromString(getErrorRatio(ns, "virt-controller", "(4|5)[0-9][0-9]", 60) + " >= 0.05"),
 						Annotations: map[string]string{
 							"summary":     getRestCallsFailedWarning(5, "virt-controller", "hour"),
-							"runbook_url": runbookUrlBasePath + "VirtControllerRESTErrorsHigh",
+							"runbook_url": path.Join(runbookUrlBasePath, "VirtControllerRESTErrorsHigh"),
 						},
 						Labels: map[string]string{
 							severityAlertLabelKey: "warning",
@@ -222,7 +223,7 @@ func NewPrometheusRuleSpec(ns string, workloadUpdatesEnabled bool) *v1.Prometheu
 						For:   "5m",
 						Annotations: map[string]string{
 							"summary":     getRestCallsFailedWarning(80, "virt-controller", durationFiveMinutes),
-							"runbook_url": runbookUrlBasePath + "VirtControllerRESTErrorsBurst",
+							"runbook_url": path.Join(runbookUrlBasePath, "VirtControllerRESTErrorsBurst"),
 						},
 						Labels: map[string]string{
 							severityAlertLabelKey: "critical",
@@ -240,7 +241,7 @@ func NewPrometheusRuleSpec(ns string, workloadUpdatesEnabled bool) *v1.Prometheu
 						For:   "10m",
 						Annotations: map[string]string{
 							"summary":     "All virt-operator servers are down.",
-							"runbook_url": runbookUrlBasePath + "VirtOperatorDown",
+							"runbook_url": path.Join(runbookUrlBasePath, "VirtOperatorDown"),
 						},
 						Labels: map[string]string{
 							severityAlertLabelKey: "critical",
@@ -252,7 +253,7 @@ func NewPrometheusRuleSpec(ns string, workloadUpdatesEnabled bool) *v1.Prometheu
 						For:   "60m",
 						Annotations: map[string]string{
 							"summary":     "More than one virt-operator should be running if more than one worker nodes exist.",
-							"runbook_url": runbookUrlBasePath + "LowVirtOperatorCount",
+							"runbook_url": path.Join(runbookUrlBasePath, "LowVirtOperatorCount"),
 						},
 						Labels: map[string]string{
 							severityAlertLabelKey: "warning",
@@ -263,7 +264,7 @@ func NewPrometheusRuleSpec(ns string, workloadUpdatesEnabled bool) *v1.Prometheu
 						Expr:  intstr.FromString(getErrorRatio(ns, "virt-operator", "(4|5)[0-9][0-9]", 60) + " >= 0.05"),
 						Annotations: map[string]string{
 							"summary":     getRestCallsFailedWarning(5, "virt-operator", "hour"),
-							"runbook_url": runbookUrlBasePath + "VirtOperatorRESTErrorsHigh",
+							"runbook_url": path.Join(runbookUrlBasePath, "VirtOperatorRESTErrorsHigh"),
 						},
 						Labels: map[string]string{
 							severityAlertLabelKey: "warning",
@@ -275,7 +276,7 @@ func NewPrometheusRuleSpec(ns string, workloadUpdatesEnabled bool) *v1.Prometheu
 						For:   "5m",
 						Annotations: map[string]string{
 							"summary":     getRestCallsFailedWarning(80, "virt-operator", durationFiveMinutes),
-							"runbook_url": runbookUrlBasePath + "VirtOperatorRESTErrorsBurst",
+							"runbook_url": path.Join(runbookUrlBasePath, "VirtOperatorRESTErrorsBurst"),
 						},
 						Labels: map[string]string{
 							severityAlertLabelKey: "critical",
@@ -299,7 +300,7 @@ func NewPrometheusRuleSpec(ns string, workloadUpdatesEnabled bool) *v1.Prometheu
 						For:   "10m",
 						Annotations: map[string]string{
 							"summary":     "Some virt-operators are running but not ready.",
-							"runbook_url": runbookUrlBasePath + "LowReadyVirtOperatorsCount",
+							"runbook_url": path.Join(runbookUrlBasePath, "LowReadyVirtOperatorsCount"),
 						},
 						Labels: map[string]string{
 							severityAlertLabelKey: "warning",
@@ -311,7 +312,7 @@ func NewPrometheusRuleSpec(ns string, workloadUpdatesEnabled bool) *v1.Prometheu
 						For:   "10m",
 						Annotations: map[string]string{
 							"summary":     "No ready virt-operator was detected for the last 10 min.",
-							"runbook_url": runbookUrlBasePath + "NoReadyVirtOperator",
+							"runbook_url": path.Join(runbookUrlBasePath, "NoReadyVirtOperator"),
 						},
 						Labels: map[string]string{
 							severityAlertLabelKey: "critical",
@@ -323,7 +324,7 @@ func NewPrometheusRuleSpec(ns string, workloadUpdatesEnabled bool) *v1.Prometheu
 						For:   "10m",
 						Annotations: map[string]string{
 							"summary":     "No leading virt-operator was detected for the last 10 min.",
-							"runbook_url": runbookUrlBasePath + "NoLeadingVirtOperator",
+							"runbook_url": path.Join(runbookUrlBasePath, "NoLeadingVirtOperator"),
 						},
 						Labels: map[string]string{
 							severityAlertLabelKey: "critical",
@@ -342,7 +343,7 @@ func NewPrometheusRuleSpec(ns string, workloadUpdatesEnabled bool) *v1.Prometheu
 						For: "15m",
 						Annotations: map[string]string{
 							"summary":     "Some virt-handlers failed to roll out",
-							"runbook_url": runbookUrlBasePath + "VirtHandlerDaemonSetRolloutFailing",
+							"runbook_url": path.Join(runbookUrlBasePath, "VirtHandlerDaemonSetRolloutFailing"),
 						},
 						Labels: map[string]string{
 							severityAlertLabelKey: "warning",
@@ -353,7 +354,7 @@ func NewPrometheusRuleSpec(ns string, workloadUpdatesEnabled bool) *v1.Prometheu
 						Expr:  intstr.FromString(getErrorRatio(ns, "virt-handler", "(4|5)[0-9][0-9]", 60) + " >= 0.05"),
 						Annotations: map[string]string{
 							"summary":     getRestCallsFailedWarning(5, "virt-handler", "hour"),
-							"runbook_url": runbookUrlBasePath + "VirtHandlerRESTErrorsHigh",
+							"runbook_url": path.Join(runbookUrlBasePath, "VirtHandlerRESTErrorsHigh"),
 						},
 						Labels: map[string]string{
 							severityAlertLabelKey: "warning",
@@ -365,7 +366,7 @@ func NewPrometheusRuleSpec(ns string, workloadUpdatesEnabled bool) *v1.Prometheu
 						For:   "5m",
 						Annotations: map[string]string{
 							"summary":     getRestCallsFailedWarning(80, "virt-handler", durationFiveMinutes),
-							"runbook_url": runbookUrlBasePath + "VirtHandlerRESTErrorsBurst",
+							"runbook_url": path.Join(runbookUrlBasePath, "VirtHandlerRESTErrorsBurst"),
 						},
 						Labels: map[string]string{
 							severityAlertLabelKey: "critical",
@@ -407,7 +408,7 @@ func NewPrometheusRuleSpec(ns string, workloadUpdatesEnabled bool) *v1.Prometheu
 						Annotations: map[string]string{
 							"description": "Container {{ $labels.container }} in pod {{ $labels.pod }} free memory is less than 20 MB and it is close to memory limit",
 							"summary":     "VM is at risk of being terminated by the runtime.",
-							"runbook_url": runbookUrlBasePath + "KubevirtVmHighMemoryUsage",
+							"runbook_url": path.Join(runbookUrlBasePath, "KubevirtVmHighMemoryUsage"),
 						},
 						Labels: map[string]string{
 							severityAlertLabelKey: "warning",
@@ -423,7 +424,7 @@ func NewPrometheusRuleSpec(ns string, workloadUpdatesEnabled bool) *v1.Prometheu
 						For:   "60m",
 						Annotations: map[string]string{
 							"summary":     "No virt-handler pod detected on node {{ $labels.node }} with running vmis for more than an hour",
-							"runbook_url": runbookUrlBasePath + "OrphanedVirtualMachineInstances",
+							"runbook_url": path.Join(runbookUrlBasePath, "OrphanedVirtualMachineInstances"),
 						},
 						Labels: map[string]string{
 							severityAlertLabelKey: "warning",
@@ -436,7 +437,7 @@ func NewPrometheusRuleSpec(ns string, workloadUpdatesEnabled bool) *v1.Prometheu
 						Annotations: map[string]string{
 							"description": "Eviction policy for {{ $labels.name }} (on node {{ $labels.node }}) is set to Live Migration but the VM is not migratable",
 							"summary":     "The VM's eviction strategy is set to Live Migration but the VM is not migratable",
-							"runbook_url": runbookUrlBasePath + "VMCannotBeEvicted",
+							"runbook_url": path.Join(runbookUrlBasePath, "VMCannotBeEvicted"),
 						},
 						Labels: map[string]string{
 							severityAlertLabelKey: "warning",
@@ -449,7 +450,7 @@ func NewPrometheusRuleSpec(ns string, workloadUpdatesEnabled bool) *v1.Prometheu
 						Annotations: map[string]string{
 							"description": "Container {{ $labels.container }} in pod {{ $labels.pod }} memory usage exceeds the memory requested",
 							"summary":     "The container is using more memory than what is defined in the containers resource requests",
-							"runbook_url": runbookUrlBasePath + "KubeVirtComponentExceedsRequestedMemory",
+							"runbook_url": path.Join(runbookUrlBasePath, "KubeVirtComponentExceedsRequestedMemory"),
 						},
 						Labels: map[string]string{
 							severityAlertLabelKey: "warning",
@@ -464,7 +465,7 @@ func NewPrometheusRuleSpec(ns string, workloadUpdatesEnabled bool) *v1.Prometheu
 						Annotations: map[string]string{
 							"description": "Container {{ $labels.container }} in pod {{ $labels.pod }} cpu usage exceeds the CPU requested",
 							"summary":     "The container is using more CPU than what is defined in the containers resource requests",
-							"runbook_url": runbookUrlBasePath + "KubeVirtComponentExceedsRequestedCPU",
+							"runbook_url": path.Join(runbookUrlBasePath, "KubeVirtComponentExceedsRequestedCPU"),
 						},
 						Labels: map[string]string{
 							severityAlertLabelKey: "warning",
@@ -483,7 +484,7 @@ func NewPrometheusRuleSpec(ns string, workloadUpdatesEnabled bool) *v1.Prometheu
 			For:   "1440m",
 			Annotations: map[string]string{
 				"summary":     "Some running VMIs are still active in outdated pods after KubeVirt control plane update has completed.",
-				"runbook_url": runbookUrlBasePath + "OutdatedVirtualMachineInstanceWorkloads",
+				"runbook_url": path.Join(runbookUrlBasePath, "OutdatedVirtualMachineInstanceWorkloads"),
 			},
 			Labels: map[string]string{
 				severityAlertLabelKey: "warning",
