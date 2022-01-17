@@ -93,6 +93,7 @@ launcherbase_extra="
   findutils
   iptables
   nftables
+  nss_nis
   procps-ng
   selinux-policy
   selinux-policy-targeted
@@ -109,6 +110,7 @@ handlerbase_extra="
   iproute
   iptables
   nftables
+  nss_nis
   procps-ng
   selinux-policy
   selinux-policy-targeted

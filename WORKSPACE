@@ -3762,6 +3762,24 @@ rpm(
 )
 
 rpm(
+    name = "nss_nis-0__3.0-8.el8.aarch64",
+    sha256 = "86348ab1eb454b7a595dedb33d090ef1b7763d8113563cb52b87af5674fcc2b0",
+    urls = [
+        "http://mirror.centos.org/centos/8-stream/BaseOS/aarch64/os/Packages/nss_nis-3.0-8.el8.aarch64.rpm",
+        "https://storage.googleapis.com/builddeps/86348ab1eb454b7a595dedb33d090ef1b7763d8113563cb52b87af5674fcc2b0",
+    ],
+)
+
+rpm(
+    name = "nss_nis-0__3.0-8.el8.x86_64",
+    sha256 = "0568970eb2d12a42f540a67792a058c7af9ddc4b1107db9c41a707eb12a2496d",
+    urls = [
+        "http://mirror.centos.org/centos/8-stream/BaseOS/x86_64/os/Packages/nss_nis-3.0-8.el8.x86_64.rpm",
+        "https://storage.googleapis.com/builddeps/0568970eb2d12a42f540a67792a058c7af9ddc4b1107db9c41a707eb12a2496d",
+    ],
+)
+
+rpm(
     name = "numactl-libs-0__2.0.12-13.el8.aarch64",
     sha256 = "5f2d7a8db99ad318df35e60d43e5e7f462294c00ffa3d7c24207c16bfd3a6619",
     urls = [

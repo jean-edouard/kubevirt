@@ -4,6 +4,7 @@ kind: VirtualMachineInstance
 metadata:
   labels:
     special: vmi-fedora
+    TPM: please
   name: vmi-fedora
 spec:
   domain:

@@ -420,6 +420,19 @@ func main() {
 		panic(err)
 	}
 
+	// This is needed for swtpm_setup, when running as the qemu user (swtpm_user = "qemu" in qemu.conf)
+	//os.Chmod("/var/lib/swtpm-localca", 0777)
+	//os.Chown("/var/lib/swtpm-localca", 107, 107)
+
+	// Manually start a swtpm daemon, even if TPM was not requested, can't hurt.
+	// TODO: add an option to only do it when TPM was requested?
+	os.MkdirAll("/tmp/tpm", 0777)
+	os.Chown("/tmp/tpm", 107,107)
+	cmd := exec.Command("/usr/bin/swtpm", "socket", "--tpmstate", "dir=/tmp/tpm", "--ctrl", "type=unixio,path=/tmp/tpm/swtpm-sock", "--tpm2", "--log", "level=20", "--daemon")
+	cmd.SysProcAttr = &syscall.SysProcAttr{}
+	cmd.SysProcAttr.Credential = &syscall.Credential{Uid: 107, Gid: 107}
+	cmd.Run()
+
 	l.StartLibvirt(stopChan)
 	// only single domain should be present
 	domainName := api.VMINamespaceKeyFunc(vmi)

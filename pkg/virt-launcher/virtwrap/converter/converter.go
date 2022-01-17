@@ -1824,15 +1824,27 @@ func Convert_v1_VirtualMachineInstance_To_api_Domain(vmi *v1.VirtualMachineInsta
 
 	_, tpmLabelPresent := vmi.Labels["TPM"]
 	if tpmLabelPresent {
-		domain.Spec.Devices.TPMs = []api.TPM{
-			{
-				Model: "tpm-tis",
-				Backend: api.TPMBackend{
-					Type:    "emulator",
-					Version: "2.0",
-				},
-			},
-		}
+		// Tell libvirt to do TPM, it's the proper way but it won't work for some reason
+		//domain.Spec.Devices.TPMs = []api.TPM{
+		//	{
+		//		Model: "tpm-tis",
+		//		Backend: api.TPMBackend{
+		//			Type:    "emulator",
+		//			Version: "2.0",
+		//		},
+		//	},
+		//}
+
+		// Tell qemu directly about our TPM socket (created by cmd/virt-launcher)
+		// This is aweful but it works...
+		initializeQEMUCmdAndQEMUArg(domain)
+		domain.Spec.QEMUCmd.QEMUArg = append(domain.Spec.QEMUCmd.QEMUArg,
+			api.Arg{Value: "-chardev"},
+			api.Arg{Value: "socket,id=chrtpm,path=/tmp/tpm/swtpm-sock"},
+			api.Arg{Value: "-tpmdev"},
+			api.Arg{Value: "emulator,id=tpm0,chardev=chrtpm"},
+			api.Arg{Value: "-device"},
+			api.Arg{Value: "tpm-tis,tpmdev=tpm0"})
 	}
 
 	return nil
