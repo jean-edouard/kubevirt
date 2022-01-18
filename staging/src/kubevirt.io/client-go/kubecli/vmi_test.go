@@ -45,7 +45,7 @@ var _ = Describe("Kubevirt VirtualMachineInstance Client", func() {
 	var server *ghttp.Server
 	var client KubevirtClient
 	basePath := "/apis/kubevirt.io/v1alpha3/namespaces/default/virtualmachineinstances"
-	vmiPath := path.Join(basePath, "/testvm")
+	vmiPath := path.Join(basePath, "testvm")
 	subVMPath := "/apis/subresources.kubevirt.io/v1alpha3/namespaces/default/virtualmachineinstances/testvm"
 
 	BeforeEach(func() {
@@ -161,7 +161,7 @@ var _ = Describe("Kubevirt VirtualMachineInstance Client", func() {
 	})
 
 	It("should exchange data with the VM", func() {
-		vncPath := path.Join(subVMPath, "/vnc")
+		vncPath := path.Join(subVMPath, "vnc")
 
 		server.AppendHandlers(ghttp.CombineHandlers(
 			ghttp.VerifyRequest("GET", vncPath),
@@ -224,7 +224,7 @@ var _ = Describe("Kubevirt VirtualMachineInstance Client", func() {
 
 	It("should pause a VirtualMachineInstance", func() {
 		server.AppendHandlers(ghttp.CombineHandlers(
-			ghttp.VerifyRequest("PUT", path.Join(subVMPath, "/pause")),
+			ghttp.VerifyRequest("PUT", path.Join(subVMPath, "pause")),
 			ghttp.RespondWithJSONEncoded(http.StatusOK, nil),
 		))
 		err := client.VirtualMachineInstance(k8sv1.NamespaceDefault).Pause("testvm", &v1.PauseOptions{})
@@ -235,7 +235,7 @@ var _ = Describe("Kubevirt VirtualMachineInstance Client", func() {
 
 	It("should unpause a VirtualMachineInstance", func() {
 		server.AppendHandlers(ghttp.CombineHandlers(
-			ghttp.VerifyRequest("PUT", path.Join(subVMPath, "/unpause")),
+			ghttp.VerifyRequest("PUT", path.Join(subVMPath, "unpause")),
 			ghttp.RespondWithJSONEncoded(http.StatusOK, nil),
 		))
 		err := client.VirtualMachineInstance(k8sv1.NamespaceDefault).Unpause("testvm", &v1.UnpauseOptions{})
@@ -246,7 +246,7 @@ var _ = Describe("Kubevirt VirtualMachineInstance Client", func() {
 
 	It("should freeze a VirtualMachineInstance", func() {
 		server.AppendHandlers(ghttp.CombineHandlers(
-			ghttp.VerifyRequest("PUT", path.Join(subVMPath, "/freeze")),
+			ghttp.VerifyRequest("PUT", path.Join(subVMPath, "freeze")),
 			ghttp.RespondWithJSONEncoded(http.StatusOK, nil),
 		))
 		err := client.VirtualMachineInstance(k8sv1.NamespaceDefault).Freeze("testvm", 0*time.Second)
@@ -257,7 +257,7 @@ var _ = Describe("Kubevirt VirtualMachineInstance Client", func() {
 
 	It("should unfreeze a VirtualMachineInstance", func() {
 		server.AppendHandlers(ghttp.CombineHandlers(
-			ghttp.VerifyRequest("PUT", path.Join(subVMPath, "/unfreeze")),
+			ghttp.VerifyRequest("PUT", path.Join(subVMPath, "unfreeze")),
 			ghttp.RespondWithJSONEncoded(http.StatusOK, nil),
 		))
 		err := client.VirtualMachineInstance(k8sv1.NamespaceDefault).Unfreeze("testvm")
@@ -268,7 +268,7 @@ var _ = Describe("Kubevirt VirtualMachineInstance Client", func() {
 
 	It("should soft reboot a VirtualMachineInstance", func() {
 		server.AppendHandlers(ghttp.CombineHandlers(
-			ghttp.VerifyRequest("PUT", path.Join(subVMPath, "/softreboot")),
+			ghttp.VerifyRequest("PUT", path.Join(subVMPath, "softreboot")),
 			ghttp.RespondWithJSONEncoded(http.StatusOK, nil),
 		))
 		err := client.VirtualMachineInstance(k8sv1.NamespaceDefault).SoftReboot("testvm")
@@ -283,7 +283,7 @@ var _ = Describe("Kubevirt VirtualMachineInstance Client", func() {
 		}
 
 		server.AppendHandlers(ghttp.CombineHandlers(
-			ghttp.VerifyRequest("GET", path.Join(subVMPath, "/guestosinfo")),
+			ghttp.VerifyRequest("GET", path.Join(subVMPath, "guestosinfo")),
 			ghttp.RespondWithJSONEncoded(http.StatusOK, osInfo),
 		))
 		fetchedInfo, err := client.VirtualMachineInstance(k8sv1.NamespaceDefault).GuestOsInfo("testvm")
@@ -299,7 +299,7 @@ var _ = Describe("Kubevirt VirtualMachineInstance Client", func() {
 			},
 		}
 		server.AppendHandlers(ghttp.CombineHandlers(
-			ghttp.VerifyRequest("GET", path.Join(subVMPath, "/userlist")),
+			ghttp.VerifyRequest("GET", path.Join(subVMPath, "userlist")),
 			ghttp.RespondWithJSONEncoded(http.StatusOK, userList),
 		))
 		fetchedInfo, err := client.VirtualMachineInstance(k8sv1.NamespaceDefault).UserList("testvm")
@@ -319,7 +319,7 @@ var _ = Describe("Kubevirt VirtualMachineInstance Client", func() {
 		}
 
 		server.AppendHandlers(ghttp.CombineHandlers(
-			ghttp.VerifyRequest("GET", path.Join(subVMPath, "/filesystemlist")),
+			ghttp.VerifyRequest("GET", path.Join(subVMPath, "filesystemlist")),
 			ghttp.RespondWithJSONEncoded(http.StatusOK, fileSystemList),
 		))
 		fetchedInfo, err := client.VirtualMachineInstance(k8sv1.NamespaceDefault).FilesystemList("testvm")

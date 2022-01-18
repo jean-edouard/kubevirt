@@ -21,7 +21,6 @@ package csv
 import (
 	"encoding/json"
 	"fmt"
-	"path"
 
 	"github.com/coreos/go-semver/semver"
 	csvv1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
@@ -225,7 +224,7 @@ func NewClusterServiceVersion(data *NewClusterServiceVersionData) (*csvv1.Cluste
 
 				"capabilities":   "Seamless Upgrades",
 				"categories":     "OpenShift Optional",
-				"containerImage": path.Join(data.DockerPrefix, "/virt-operator"+imageVersion),
+				"containerImage": data.DockerPrefix + "/virt-operator" + imageVersion,
 				"createdAt":      data.CreatedAtTimestamp,
 				"repository":     "https://github.com/kubevirt/kubevirt",
 				"certified":      "false",

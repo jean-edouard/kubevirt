@@ -38,7 +38,7 @@ var _ = Describe("Kubevirt Client", func() {
 	var server *ghttp.Server
 	var client KubevirtClient
 	basePath := "/apis/kubevirt.io/v1alpha3/namespaces/default/kubevirts"
-	kubevirtPath := path.Join(basePath, "/testkubevirt")
+	kubevirtPath := path.Join(basePath, "testkubevirt")
 
 	BeforeEach(func() {
 		var err error

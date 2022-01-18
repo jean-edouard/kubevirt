@@ -80,7 +80,7 @@ var _ = Describe("[sig-compute]CloudInitHookSidecars", func() {
 	}
 
 	CheckCloudInitFile := func(vmi *v1.VirtualMachineInstance, testFile, testData string) {
-		cmdCheck := "cat " + filepath.Join("/mnt/", testFile) + "\n"
+		cmdCheck := "cat " + filepath.Join("/mnt", testFile) + "\n"
 		err := console.SafeExpectBatch(vmi, []expect.Batcher{
 			&expect.BSnd{S: "sudo su -\n"},
 			&expect.BExp{R: console.PromptExpression},

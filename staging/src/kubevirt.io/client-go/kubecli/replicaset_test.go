@@ -38,7 +38,7 @@ var _ = Describe("Kubevirt VirtualMachineInstanceReplicaSet Client", func() {
 	var server *ghttp.Server
 	var client KubevirtClient
 	basePath := "/apis/kubevirt.io/v1alpha3/namespaces/default/virtualmachineinstancereplicasets"
-	rsPath := path.Join(basePath, "/testrs")
+	rsPath := path.Join(basePath, "testrs")
 
 	BeforeEach(func() {
 		var err error
@@ -116,7 +116,7 @@ var _ = Describe("Kubevirt VirtualMachineInstanceReplicaSet Client", func() {
 		rs := NewMinimalVirtualMachineInstanceReplicaSet("testrs")
 		scale := &v1.Scale{Spec: v1.ScaleSpec{Replicas: 3}}
 		server.AppendHandlers(ghttp.CombineHandlers(
-			ghttp.VerifyRequest("PUT", path.Join(rsPath, "/scale")),
+			ghttp.VerifyRequest("PUT", path.Join(rsPath, "scale")),
 			ghttp.RespondWithJSONEncoded(http.StatusOK, scale),
 		))
 		scaleResponse, err := client.ReplicaSet(k8sv1.NamespaceDefault).UpdateScale(rs.Name, scale)
@@ -130,7 +130,7 @@ var _ = Describe("Kubevirt VirtualMachineInstanceReplicaSet Client", func() {
 		rs := NewMinimalVirtualMachineInstanceReplicaSet("testrs")
 		scale := &v1.Scale{Spec: v1.ScaleSpec{Replicas: 3}}
 		server.AppendHandlers(ghttp.CombineHandlers(
-			ghttp.VerifyRequest("GET", path.Join(rsPath, "/scale")),
+			ghttp.VerifyRequest("GET", path.Join(rsPath, "scale")),
 			ghttp.RespondWithJSONEncoded(http.StatusOK, scale),
 		))
 		scaleResponse, err := client.ReplicaSet(k8sv1.NamespaceDefault).GetScale(rs.Name, k8smetav1.GetOptions{})
