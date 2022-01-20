@@ -16,10 +16,8 @@ const (
 	VirtLibDir                                = "/var/lib/kubevirt"
 	KubeletPodsDir                            = "/var/lib/kubelet/pods"
 	HostRootMount                             = "/proc/1/root/"
-	CPUManagerOS3Path                         = HostRootMount +
-		"var/lib/origin/openshift.local.volumes/cpu_manager_state"
-	CPUManagerPath = HostRootMount +
-		"var/lib/kubelet/cpu_manager_state"
+	CPUManagerOS3Path                         = HostRootMount + "var/lib/origin/openshift.local.volumes/cpu_manager_state"
+	CPUManagerPath                            = HostRootMount + "var/lib/kubelet/cpu_manager_state"
 )
 
 const NonRootUID = 107

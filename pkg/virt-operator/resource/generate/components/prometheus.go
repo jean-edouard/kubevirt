@@ -14,7 +14,7 @@ const (
 	KUBEVIRT_PROMETHEUS_RULE_NAME = "prometheus-kubevirt-rules"
 	prometheusLabelKey            = "prometheus.kubevirt.io"
 	prometheusLabelValue          = "true"
-	runbookUrlBasePath            = "https://kubevirt.io/monitoring/runbooks/"
+	runbookUrlBasePath            = "https://kubevirt.io/monitoring/runbooks"
 	severityAlertLabelKey         = "severity"
 	partOfAlertLabelKey           = "kubernetes_operator_part_of"
 	partOfAlertLabelValue         = "kubevirt"
