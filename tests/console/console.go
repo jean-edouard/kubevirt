@@ -245,15 +245,21 @@ func ExpectBatchWithValidatedSend(expecter expect.Expecter, batch []expect.Batch
 			}
 			expectFlag = true
 			sendFlag = false
-			if _, ok := batch[i].(*expect.BExp); !ok {
-				return nil, fmt.Errorf("ExpectBatchWithValidatedSend support only expect of type BExp")
+			var r *string
+			bExp, isExp := batch[i].(*expect.BExp)
+			bExpT, isExpT := batch[i].(*expect.BExpT)
+			if isExp {
+				r = &bExp.R
+			} else if isExpT {
+				r = &bExpT.R
+			} else {
+				return nil, fmt.Errorf("ExpectBatchWithValidatedSend support only expect of type BExp or BExpT")
 			}
-			bExp, _ := batch[i].(*expect.BExp)
 			previousSend := regexp.QuoteMeta(previousSend)
 
 			// Remove the \n since it is translated by the console to \r\n.
 			previousSend = strings.TrimSuffix(previousSend, "\n")
-			bExp.R = fmt.Sprintf("%s%s%s", previousSend, "((?s).*)", bExp.R)
+			*r = fmt.Sprintf("%s%s%s", previousSend, "((?s).*)", *r)
 		case expect.BatchSend:
 			if sendFlag == true {
 				return nil, fmt.Errorf("Two sequential expect.BSend are not allowed")
