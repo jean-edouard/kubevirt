@@ -548,7 +548,7 @@ func CleanNodes() {
 		}
 
 		found := false
-		taints := []k8sv1.Taint{}
+		var taints []k8sv1.Taint
 		for _, taint := range node.Spec.Taints {
 
 			if taint.Key == clusterDrainKey && taint.Effect == k8sv1.TaintEffectNoSchedule {
@@ -3204,7 +3204,7 @@ func renderPrivilegedContainerSpec(imgPath string, name string, cmd []string, ar
 }
 
 func NewVirtctlCommand(args ...string) *cobra.Command {
-	commandline := []string{}
+	var commandline []string
 	master := flag.Lookup("master").Value
 	if master != nil && master.String() != "" {
 		commandline = append(commandline, ServerName, master.String())
@@ -3596,7 +3596,7 @@ func RunCommandPipe(commands ...[]string) (string, string, error) {
 
 func RunCommandPipeWithNS(namespace string, commands ...[]string) (string, string, error) {
 	commandPipeString := func() string {
-		commandStrings := []string{}
+		var commandStrings []string
 		for _, command := range commands {
 			commandStrings = append(commandStrings, strings.Join(command, " "))
 		}
@@ -4151,7 +4151,7 @@ func DisableFeatureGate(feature string) {
 		}
 	}
 
-	newArray := []string{}
+	var newArray []string
 	featureGates := kv.Spec.Configuration.DeveloperConfiguration.FeatureGates
 	for _, fg := range featureGates {
 		if fg == feature {
