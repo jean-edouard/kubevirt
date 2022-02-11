@@ -542,9 +542,9 @@ func CleanNodes() {
 
 		k8sClient := GetK8sCmdClient()
 		if k8sClient == "oc" {
-			RunCommandWithNS("", k8sClient, "adm", "uncordon", node.Name)
+			_, _, _ = RunCommandWithNS("", k8sClient, "adm", "uncordon", node.Name)
 		} else {
-			RunCommandWithNS("", k8sClient, "uncordon", node.Name)
+			_, _, _ = RunCommandWithNS("", k8sClient, "uncordon", node.Name)
 		}
 
 		found := false
@@ -1074,7 +1074,7 @@ func DeleteAllSeparateDeviceHostPathPvs() {
 	for _, pv := range pvList.Items {
 		if pv.Spec.StorageClassName == StorageClassHostPathSeparateDevice {
 			// ignore error we want to attempt to delete them all.
-			virtClient.CoreV1().PersistentVolumes().Delete(context.Background(), pv.Name, metav1.DeleteOptions{})
+			_ = virtClient.CoreV1().PersistentVolumes().Delete(context.Background(), pv.Name, metav1.DeleteOptions{})
 		}
 	}
 
