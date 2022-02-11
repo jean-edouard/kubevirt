@@ -1001,7 +1001,7 @@ func CreatePVC(os, size, storageClass string, recycledPV bool) *k8sv1.Persistent
 	virtCli, err := kubecli.GetKubevirtClient()
 	util2.PanicOnError(err)
 
-	pvc, err := virtCli.CoreV1().PersistentVolumeClaims((util2.NamespaceTestDefault)).Create(context.Background(), newPVC(os, size, storageClass, recycledPV), metav1.CreateOptions{})
+	pvc, err := virtCli.CoreV1().PersistentVolumeClaims(util2.NamespaceTestDefault).Create(context.Background(), newPVC(os, size, storageClass, recycledPV), metav1.CreateOptions{})
 	if !errors.IsAlreadyExists(err) {
 		util2.PanicOnError(err)
 	}
@@ -1565,7 +1565,7 @@ func DeletePVC(os string) {
 	util2.PanicOnError(err)
 
 	name := fmt.Sprintf("disk-%s", os)
-	err = virtCli.CoreV1().PersistentVolumeClaims((util2.NamespaceTestDefault)).Delete(context.Background(), name, metav1.DeleteOptions{})
+	err = virtCli.CoreV1().PersistentVolumeClaims(util2.NamespaceTestDefault).Delete(context.Background(), name, metav1.DeleteOptions{})
 	if !errors.IsNotFound(err) {
 		util2.PanicOnError(err)
 	}
@@ -2621,7 +2621,7 @@ func DeletePvAndPvc(name string) {
 		util2.PanicOnError(err)
 	}
 
-	err = virtCli.CoreV1().PersistentVolumeClaims((util2.NamespaceTestDefault)).Delete(context.Background(), name, metav1.DeleteOptions{})
+	err = virtCli.CoreV1().PersistentVolumeClaims(util2.NamespaceTestDefault).Delete(context.Background(), name, metav1.DeleteOptions{})
 	if !errors.IsNotFound(err) {
 		util2.PanicOnError(err)
 	}
@@ -3801,7 +3801,7 @@ func CreateNFSPvAndPvc(name string, namespace string, size string, nfsTargetIP s
 		util2.PanicOnError(err)
 	}
 
-	_, err = virtCli.CoreV1().PersistentVolumeClaims((namespace)).Create(context.Background(), newNFSPVC(name, namespace, size, os), metav1.CreateOptions{})
+	_, err = virtCli.CoreV1().PersistentVolumeClaims(namespace).Create(context.Background(), newNFSPVC(name, namespace, size, os), metav1.CreateOptions{})
 	if !errors.IsAlreadyExists(err) {
 		util2.PanicOnError(err)
 	}
@@ -4661,11 +4661,11 @@ func GenerateRandomMac() (net.HardwareAddr, error) {
 	if err != nil {
 		return nil, err
 	}
-	return net.HardwareAddr(append(prefix, suffix...)), nil
+	return append(prefix, suffix...), nil
 }
 
 func getCert(pod *k8sv1.Pod, port string) []byte {
-	randPort := strconv.Itoa(int(4321 + rand.Intn(6000)))
+	randPort := strconv.Itoa(4321 + rand.Intn(6000))
 	var rawCert []byte
 	mutex := &sync.Mutex{}
 	conf := &tls.Config{
@@ -4700,7 +4700,7 @@ func getCert(pod *k8sv1.Pod, port string) []byte {
 }
 
 func CallUrlOnPod(pod *k8sv1.Pod, port string, url string) ([]byte, error) {
-	randPort := strconv.Itoa(int(4321 + rand.Intn(6000)))
+	randPort := strconv.Itoa(4321 + rand.Intn(6000))
 	stopChan := make(chan struct{})
 	defer close(stopChan)
 	err := ForwardPorts(pod, []string{fmt.Sprintf("%s:%s", randPort, port)}, stopChan, 10*time.Second)
