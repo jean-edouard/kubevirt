@@ -374,7 +374,7 @@ func (w *ObjectEventWatcher) Watch(ctx context.Context, processFunc ProcessFunc,
 	} else {
 		f = func(event *k8sv1.Event) bool {
 			if event.Type == string(WarningEvent) {
-				log.Log.ObjectRef(&event.InvolvedObject).Reason(fmt.Errorf("Warning event received")).Error(event.Message)
+				log.Log.ObjectRef(&event.InvolvedObject).Reason(fmt.Errorf("warning event received")).Error(event.Message)
 			} else {
 				log.Log.ObjectRef(&event.InvolvedObject).Infof(event.Message)
 			}
@@ -1987,10 +1987,10 @@ func detectInstallNamespace() {
 	kvs, err := virtCli.KubeVirt("").List(&metav1.ListOptions{})
 	util2.PanicOnError(err)
 	if len(kvs.Items) == 0 {
-		util2.PanicOnError(fmt.Errorf("Could not detect a kubevirt installation"))
+		util2.PanicOnError(fmt.Errorf("could not detect a kubevirt installation"))
 	}
 	if len(kvs.Items) > 1 {
-		util2.PanicOnError(fmt.Errorf("Invalid kubevirt installation, more than one KubeVirt resource found"))
+		util2.PanicOnError(fmt.Errorf("invalid kubevirt installation, more than one KubeVirt resource found"))
 	}
 	flags.KubeVirtInstallNamespace = kvs.Items[0].Namespace
 }
@@ -2874,7 +2874,7 @@ func AddExplicitPodNetworkInterface(vmi *v1.VirtualMachineInstance) {
 	vmi.Spec.Networks = []v1.Network{*v1.DefaultPodNetwork()}
 }
 
-// Block until the specified VirtualMachineInstance reached either Failed or Running states
+// WaitForVMIStartOrFailed blocks until the specified VirtualMachineInstance reached either Failed or Running states
 func WaitForVMIStartOrFailed(obj runtime.Object, seconds int, wp WarningsPolicy) (nodeName string) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -3322,7 +3322,7 @@ func GetRunningVirtualMachineInstanceDomainXML(virtClient kubecli.KubevirtClient
 	// get current vmi
 	freshVMI, err := virtClient.VirtualMachineInstance(vmi.Namespace).Get(vmi.Name, &metav1.GetOptions{})
 	if err != nil {
-		return "", fmt.Errorf("Failed to get vmi, %s", err)
+		return "", fmt.Errorf("failed to get vmi, %s", err)
 	}
 
 	command := []string{"virsh"}
@@ -4933,7 +4933,7 @@ func DetectLatestUpstreamOfficialTag() (string, error) {
 	}
 
 	if len(vs) == 0 {
-		return "", fmt.Errorf("No kubevirt releases found")
+		return "", fmt.Errorf("no kubevirt releases found")
 	}
 
 	// decending order from most recent.
