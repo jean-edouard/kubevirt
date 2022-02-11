@@ -3416,7 +3416,7 @@ func BeforeAll(fn func()) {
 	})
 }
 
-func SkipIfNonRoot(virtClient kubecli.KubevirtClient, feature string) {
+func SkipIfNonRoot(feature string) {
 	if checks.HasFeature(virtconfig.NonRoot) {
 		Skip(fmt.Sprintf("NonRoot implementation doesn't support %s", feature))
 	}

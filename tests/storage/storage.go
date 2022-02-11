@@ -395,7 +395,7 @@ var _ = SIGDescribe("Storage", func() {
 
 			BeforeEach(func() {
 				checks.SkipTestIfNoFeatureGate(virtconfig.VirtIOFSGate)
-				tests.SkipIfNonRoot(virtClient, "VirtioFS")
+				tests.SkipIfNonRoot("VirtioFS")
 				tests.CreateHostPathPv(pvc, filepath.Join(tests.HostPathBase, pvc))
 				tests.CreateHostPathPVC(pvc, "1G")
 			}, 120)
@@ -446,7 +446,7 @@ var _ = SIGDescribe("Storage", func() {
 			var dataVolume *cdiv1.DataVolume
 			BeforeEach(func() {
 				checks.SkipTestIfNoFeatureGate(virtconfig.VirtIOFSGate)
-				tests.SkipIfNonRoot(virtClient, "VirtioFS")
+				tests.SkipIfNonRoot("VirtioFS")
 				if !tests.HasCDI() {
 					Skip("Skip DataVolume tests when CDI is not present")
 				}
