@@ -5,12 +5,11 @@ ifeq (${TIMESTAMP}, 1)
   SHELL = ./hack/timestamps.sh
 endif
 
-all:
-	hack/dockerized "export BUILD_ARCH=${BUILD_ARCH} && DOCKER_PREFIX=${DOCKER_PREFIX} DOCKER_TAG=${DOCKER_TAG} IMAGE_PULL_POLICY=${IMAGE_PULL_POLICY} VERBOSITY=${VERBOSITY} ./hack/build-manifests.sh && \
-	    hack/bazel-fmt.sh && hack/bazel-build.sh"
+all: manifests format
+	hack/dockerized "export BUILD_ARCH=${BUILD_ARCH} && hack/bazel-build.sh"
 
-go-all:
-	hack/dockerized "export KUBEVIRT_NO_BAZEL=true && KUBEVIRT_VERSION=${KUBEVIRT_VERSION} ./hack/build-go.sh install ${WHAT} && ./hack/build-copy-artifacts.sh ${WHAT} && DOCKER_PREFIX=${DOCKER_PREFIX} DOCKER_TAG=${DOCKER_TAG} IMAGE_PULL_POLICY=${IMAGE_PULL_POLICY} VERBOSITY=${VERBOSITY} ./hack/build-manifests.sh"
+go-all: manifests-no-bazel
+	hack/dockerized "export KUBEVIRT_NO_BAZEL=true && KUBEVIRT_VERSION=${KUBEVIRT_VERSION} ./hack/build-go.sh install ${WHAT} && ./hack/build-copy-artifacts.sh ${WHAT}"
 
 bazel-generate:
 	SYNC_VENDOR=true hack/dockerized "./hack/bazel-generate.sh"
@@ -129,10 +128,10 @@ build-verify:
 	hack/build-verify.sh
 
 manifests:
-	hack/dockerized "CSV_VERSION=${CSV_VERSION} QUAY_REPOSITORY=${QUAY_REPOSITORY} \
-	  DOCKER_PREFIX=${DOCKER_PREFIX} DOCKER_TAG=${DOCKER_TAG} KUBEVIRT_PROVIDER=${KUBEVIRT_PROVIDER} KUBEVIRT_ONLY_USE_TAGS=${KUBEVIRT_ONLY_USE_TAGS} \
-	  IMAGE_PULL_POLICY=${IMAGE_PULL_POLICY} VERBOSITY=${VERBOSITY} PACKAGE_NAME=${PACKAGE_NAME} \
-	  KUBEVIRT_INSTALLED_NAMESPACE=${KUBEVIRT_INSTALLED_NAMESPACE} ./hack/build-manifests.sh"
+	hack/manifests.sh
+
+manifests-no-bazel:
+	KUBEVIRT_NO_BAZEL=true hack/manifests.sh
 
 cluster-up:
 	./hack/cluster-up.sh
@@ -140,7 +139,7 @@ cluster-up:
 cluster-down:
 	./cluster-up/down.sh
 
-cluster-build:
+cluster-build: manifests
 	./hack/cluster-build.sh
 
 cluster-clean:
@@ -152,7 +151,7 @@ cluster-deploy: cluster-clean
 cluster-sync:
 	./hack/cluster-sync.sh
 
-builder-build:
+builder-build: manifests
 	./hack/builder/build.sh
 
 builder-publish:

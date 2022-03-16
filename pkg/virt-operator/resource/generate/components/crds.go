@@ -612,7 +612,7 @@ func NewMigrationPolicyCrd() (*extv1.CustomResourceDefinition, error) {
 }
 
 // Used by manifest generation
-func NewKubeVirtCR(namespace string, pullPolicy corev1.PullPolicy, featureGates string) *virtv1.KubeVirt {
+func NewKubeVirtCR(namespace string, pullPolicy corev1.PullPolicy, featureGates string, infraReplicas uint8) *virtv1.KubeVirt {
 	cr := &virtv1.KubeVirt{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: virtv1.GroupVersion.String(),
@@ -632,6 +632,12 @@ func NewKubeVirtCR(namespace string, pullPolicy corev1.PullPolicy, featureGates 
 			DeveloperConfiguration: &virtv1.DeveloperConfiguration{
 				FeatureGates: strings.Split(featureGates, ","),
 			},
+		}
+	}
+
+	if infraReplicas != 2 {
+		cr.Spec.Infra = &virtv1.ComponentConfig{
+			Replicas: &infraReplicas,
 		}
 	}
 
