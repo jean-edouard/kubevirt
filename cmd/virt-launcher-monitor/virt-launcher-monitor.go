@@ -100,7 +100,8 @@ func RunAndMonitor(containerDiskDir string) (int, error) {
 	defer cleanupContainerDiskDirectory(containerDiskDir)
 	defer terminateIstioProxy()
 	args := removeArg(os.Args[1:], "--keep-after-failure")
-	cmd := exec.Command("/usr/bin/virt-launcher", args...)
+	args = append([]string{"--log-file=/tmp/valgrind", "--vgdb=no", "/usr/bin/virt-launcher"}, args...)
+	cmd := exec.Command("/usr/bin/valgrind", args...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 

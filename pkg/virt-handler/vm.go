@@ -2582,7 +2582,10 @@ func (d *VirtualMachineController) vmUpdateHelperDefault(origVMI *v1.VirtualMach
 
 	options := virtualMachineOptions(smbios, period, preallocatedVolumes, d.capabilities, disksInfo, d.clusterConfig.ExpandDisksEnabled())
 
+	//for i := 1; i < 1000; i++ {
 	err = client.SyncVirtualMachine(vmi, options)
+	//	time.Sleep(time.Millisecond)
+	//}
 	if err != nil {
 		isSecbootError := strings.Contains(err.Error(), "EFI OVMF rom missing")
 		if isSecbootError {

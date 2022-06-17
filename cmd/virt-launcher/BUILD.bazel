@@ -66,12 +66,6 @@ pkg_tar(
 
 xattrs(
     name = "setcaps",
-    capabilities = {
-        "/usr/bin/virt-launcher": [
-            "cap_net_bind_service",
-            "cap_sys_ptrace",
-        ],
-    },
     selinux_labels = {
         "/usr/bin/virt-launcher": "system_u:object_r:container_file_t:s0",
     },

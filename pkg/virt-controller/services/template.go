@@ -478,7 +478,7 @@ func (t *templateService) renderLaunchManifest(vmi *v1.VirtualMachineInstance, i
 	var imagePullSecrets []k8sv1.LocalObjectReference
 
 	var userId int64 = util.RootUser
-	var privileged bool = false
+	var privileged bool = true
 
 	nonRoot := util.IsNonRootVMI(vmi)
 	if nonRoot {
@@ -1055,6 +1055,7 @@ func (t *templateService) renderLaunchManifest(vmi *v1.VirtualMachineInstance, i
 			"echo", "bound PVCs"}
 	} else {
 		command = []string{"/usr/bin/virt-launcher-monitor",
+//			command = []string{"/usr/bin/valgrind", "--log-file=/tmp/valgrind", "--vgdb=no", "/usr/bin/virt-launcher",
 			"--qemu-timeout", generateQemuTimeoutWithJitter(t.launcherQemuTimeout),
 			"--name", domain,
 			"--uid", string(vmi.UID),
@@ -1148,7 +1149,6 @@ func (t *templateService) renderLaunchManifest(vmi *v1.VirtualMachineInstance, i
 			Privileged: &privileged,
 			Capabilities: &k8sv1.Capabilities{
 				Add:  getRequiredCapabilities(vmi),
-				Drop: []k8sv1.Capability{CAP_NET_RAW},
 			},
 		},
 		Command:       command,
@@ -1578,7 +1578,6 @@ func (t *templateService) RenderHotplugAttachmentPodTemplate(volumes []*v1.Volum
 					SecurityContext: &k8sv1.SecurityContext{
 						SELinuxOptions: &k8sv1.SELinuxOptions{
 							Level: "s0",
-							Type:  t.clusterConfig.GetSELinuxLauncherType(),
 						},
 					},
 					VolumeMounts: []k8sv1.VolumeMount{
@@ -1718,7 +1717,6 @@ func (t *templateService) RenderHotplugAttachmentTriggerPodTemplate(volume *v1.V
 					SecurityContext: &k8sv1.SecurityContext{
 						SELinuxOptions: &k8sv1.SELinuxOptions{
 							Level: "s0",
-							Type:  t.clusterConfig.GetSELinuxLauncherType(),
 						},
 					},
 					VolumeMounts: []k8sv1.VolumeMount{
@@ -1796,23 +1794,7 @@ func getVirtiofsCapabilities() []k8sv1.Capability {
 }
 
 func getRequiredCapabilities(vmi *v1.VirtualMachineInstance) []k8sv1.Capability {
-	// These capabilies are always required because we set them on virt-launcher binary
-	// add CAP_SYS_PTRACE capability needed by libvirt + swtpm
-	// TODO: drop SYS_PTRACE after updating libvirt to a release containing:
-	// https://github.com/libvirt/libvirt/commit/a9c500d2b50c5c041a1bb6ae9724402cf1cec8fe
-	capabilities := []k8sv1.Capability{CAP_NET_BIND_SERVICE, CAP_SYS_PTRACE}
-
-	if !util.IsNonRootVMI(vmi) {
-		// add a CAP_SYS_NICE capability to allow setting cpu affinity
-		capabilities = append(capabilities, CAP_SYS_NICE)
-		// add CAP_SYS_ADMIN capability to allow virtiofs
-		if util.IsVMIVirtiofsEnabled(vmi) {
-			capabilities = append(capabilities, CAP_SYS_ADMIN)
-			capabilities = append(capabilities, getVirtiofsCapabilities()...)
-		}
-	}
-
-	return capabilities
+	return []k8sv1.Capability{}
 }
 
 func getRequiredResources(vmi *v1.VirtualMachineInstance, allowEmulation bool) k8sv1.ResourceList {
@@ -2148,7 +2130,6 @@ func wrapExecProbeWithVirtProbe(vmi *v1.VirtualMachineInstance, probe *k8sv1.Pro
 }
 
 func alignPodMultiCategorySecurity(pod *k8sv1.Pod, selinuxType string) {
-	pod.Spec.SecurityContext.SELinuxOptions = &k8sv1.SELinuxOptions{Type: selinuxType}
 	// more info on https://github.com/kubernetes/kubernetes/issues/90759
 	// Since the compute container needs to be able to communicate with the
 	// rest of the pod, we loop over all the containers and remove their SELinux
@@ -2168,7 +2149,6 @@ func generateContainerSecurityContext(selinuxType string, container *k8sv1.Conta
 	if container.SecurityContext.SELinuxOptions == nil {
 		container.SecurityContext.SELinuxOptions = &k8sv1.SELinuxOptions{}
 	}
-	container.SecurityContext.SELinuxOptions.Type = selinuxType
 	container.SecurityContext.SELinuxOptions.Level = "s0"
 }
 

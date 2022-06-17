@@ -99,6 +99,7 @@ launcherbase_extra="
   selinux-policy
   selinux-policy-targeted
   tar
+  valgrind
   xorriso
 "
 
