@@ -62,8 +62,8 @@ func (r *Reconciler) syncDeployment(origDeployment *appsv1.Deployment) (*appsv1.
 			r.recorder.Eventf(deployment, corev1.EventTypeWarning, "AdvancedFeatureUse", "applying custom number of infra replica. this is an advanced feature that prevents "+
 				"auto-scaling for core kubevirt components. Please use with caution!")
 		}
-	} else if deployment.Name == components.VirtAPIName {
-		replicas, err := getDesiredApiReplicas(r.clientset)
+	} else if deployment.Name == components.VirtAPIName || deployment.Name == components.VirtControllerName {
+		replicas, err := getDesiredReplicas(r.clientset)
 		if err != nil {
 			log.Log.Object(deployment).Warningf(err.Error())
 		} else {
@@ -163,7 +163,7 @@ func (r *Reconciler) patchDaemonSet(oldDs, newDs *appsv1.DaemonSet) (*appsv1.Dae
 }
 
 func (r *Reconciler) getCanaryPods(daemonSet *appsv1.DaemonSet) []*corev1.Pod {
-	canaryPods := []*corev1.Pod{}
+	var canaryPods []*corev1.Pod
 
 	for _, obj := range r.stores.InfrastructurePodCache.List() {
 		pod := obj.(*corev1.Pod)
@@ -402,7 +402,7 @@ func (r *Reconciler) syncPodDisruptionBudgetForDeployment(deployment *appsv1.Dep
 	return nil
 }
 
-func getDesiredApiReplicas(clientset kubecli.KubevirtClient) (replicas int32, err error) {
+func getDesiredReplicas(clientset kubecli.KubevirtClient) (replicas int32, err error) {
 	nodeList, err := clientset.CoreV1().Nodes().List(context.Background(), metav1.ListOptions{})
 	if err != nil {
 		return 0, fmt.Errorf("failed to get number of nodes to determine virt-api replicas: %v", err)
