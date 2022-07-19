@@ -26,7 +26,8 @@ import (
 
 	"k8s.io/apimachinery/pkg/types"
 
-	diskutils "kubevirt.io/kubevirt/pkg/ephemeral-disk-utils"
+	"kubevirt.io/kubevirt/pkg/safepath"
+
 	"kubevirt.io/kubevirt/pkg/util"
 )
 
@@ -41,32 +42,22 @@ var (
 )
 
 // GetHotplugTargetPodPathOnHost retrieves the target pod (virt-launcher) path on the host.
-func GetHotplugTargetPodPathOnHost(virtlauncherPodUID types.UID) (string, error) {
-	podpath := targetPodBasePath(virtlauncherPodUID)
-	exists, _ := diskutils.FileExists(filepath.Join(podsBaseDir, podpath))
-	if exists {
-		return filepath.Join(podsBaseDir, podpath), nil
-	}
-
-	return "", fmt.Errorf("Unable to locate target path")
+func GetHotplugTargetPodPathOnHost(virtlauncherPodUID types.UID) (*safepath.Path, error) {
+	podpath := TargetPodBasePath(h.podsBaseDir, virtlauncherPodUID)
+	return safepath.JoinAndResolveWithRelativeRoot("/", podpath)
 }
 
 // GetFileSystemDiskTargetPathFromHostView gets the disk image file in the target pod (virt-launcher) on the host.
-func GetFileSystemDiskTargetPathFromHostView(virtlauncherPodUID types.UID, volumeName string, create bool) (string, error) {
-	targetPath, err := GetHotplugTargetPodPathOnHost(virtlauncherPodUID)
+func GetFileSystemDiskTargetPathFromHostView(virtlauncherPodUID types.UID, volumeName string, create bool) (*safepath.Path, error) {
+	targetPath, err := h.GetHotplugTargetPodPathOnHost(virtlauncherPodUID)
 	if err != nil {
 		return targetPath, err
 	}
-	diskPath := filepath.Join(targetPath, volumeName)
-	exists, _ := diskutils.FileExists(diskPath)
-	if !exists && create {
-		err = os.Mkdir(diskPath, 0750)
-		if err != nil {
-			return diskPath, err
-		}
+	diskName := fmt.Sprintf("%s.img", volumeName)
+	if err := safepath.TouchAtNoFollow(targetPath, diskName, 0666); err != nil && !os.IsExist(err) {
+		return nil, err
 	}
-	diskFile := filepath.Join(targetPath, volumeName)
-	return diskFile, err
+	return safepath.JoinNoFollow(targetPath, diskName)
 }
 
 // SetLocalDirectory sets the base directory where disk images will be mounted when hotplugged. File system volumes will be in
