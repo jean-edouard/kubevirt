@@ -36,6 +36,7 @@ import (
 	"time"
 
 	"kubevirt.io/kubevirt/pkg/config"
+	"kubevirt.io/kubevirt/pkg/safepath"
 
 	"github.com/opencontainers/runc/libcontainer/cgroups"
 
@@ -371,18 +372,22 @@ func (d *VirtualMachineController) startDomainNotifyPipe(domainPipeStopChan chan
 	}
 
 	// inject the domain-notify.sock into the VMI pod.
-	socketPath := filepath.Join(res.MountRoot(), d.virtShareDir, "domain-notify-pipe.sock")
-
-	os.RemoveAll(socketPath)
-	err = util.MkdirAllWithNosec(filepath.Dir(socketPath))
+	root, err := res.MountRoot()
 	if err != nil {
-		log.Log.Reason(err).Error("unable to create directory for unix socket")
+		return err
+	}
+	socketDir, err := root.AppendAndResolveWithRelativeRoot(d.virtShareDir)
+	if err != nil {
 		return err
 	}
 
-	listener, err := net.Listen("unix", socketPath)
+	listener, err := safepath.ListenUnixNoFollow(socketDir, "domain-notify-pipe.sock")
 	if err != nil {
 		log.Log.Reason(err).Error("failed to create unix socket for proxy service")
+		return err
+	}
+	socketPath, err := safepath.JoinNoFollow(socketDir, "domain-notify-pipe.sock")
+	if err != nil {
 		return err
 	}
 
