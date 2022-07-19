@@ -2170,6 +2170,10 @@ type KubeVirtConfiguration struct {
 	WebhookConfiguration           *ReloadableComponentConfiguration `json:"webhookConfiguration,omitempty"`
 	ControllerConfiguration        *ReloadableComponentConfiguration `json:"controllerConfiguration,omitempty"`
 	HandlerConfiguration           *ReloadableComponentConfiguration `json:"handlerConfiguration,omitempty"`
+
+	// BackendStorageClass is the name of the storage class to use for the PVCs created to preserve VM state, like TPM.
+	// The storage class must support RWX in filesystem mode.
+	BackendStorageClass string `json:"backendStorageClass,omitempty"`
 }
 
 type SMBiosConfiguration struct {
