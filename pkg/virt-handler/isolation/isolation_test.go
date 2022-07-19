@@ -7,6 +7,8 @@ import (
 	"os"
 	"path/filepath"
 
+	"kubevirt.io/kubevirt/pkg/safepath"
+
 	"github.com/golang/mock/gomock"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -142,10 +144,14 @@ var _ = Describe("Isolation", func() {
 					return filepath.Join(base, fmt.Sprintf("%s_launcher", testCase))
 				}
 
-				mounted, err := NodeIsolationResult().IsMounted("/")
+				root, err := safepath.NewPathNoFollow("/")
+				Expect(err).ToNot(HaveOccurred())
+				mounted, err := NodeIsolationResult().IsMounted(root)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(mounted).To(BeTrue())
-				mounted, err = NodeIsolationResult().IsMounted("???")
+				curious, err := safepath.NewPathNoFollow("???")
+				Expect(err).ToNot(HaveOccurred())
+				mounted, err = NodeIsolationResult().IsMounted(curious)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(mounted).To(BeFalse())
 
