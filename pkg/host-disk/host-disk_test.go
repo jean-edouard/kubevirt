@@ -37,6 +37,8 @@ import (
 	"k8s.io/client-go/kubernetes/fake"
 
 	v1 "kubevirt.io/client-go/api/v1"
+	"kubevirt.io/kubevirt/pkg/safepath"
+
 	"kubevirt.io/client-go/kubecli"
 )
 

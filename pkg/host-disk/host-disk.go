@@ -28,6 +28,8 @@ import (
 
 	"kubevirt.io/client-go/log"
 	ephemeraldiskutils "kubevirt.io/kubevirt/pkg/ephemeral-disk-utils"
+	"kubevirt.io/kubevirt/pkg/safepath"
+	"kubevirt.io/kubevirt/pkg/unsafepath"
 
 	k8sv1 "k8s.io/api/core/v1"
 
@@ -170,8 +172,8 @@ func shouldMountHostDisk(hostDisk *v1.HostDisk) bool {
 }
 
 func (hdc *DiskImgCreator) mountHostDiskAndSetOwnership(vmi *v1.VirtualMachineInstance, volumeName string, hostDisk *v1.HostDisk) error {
-	diskPath := GetMountedHostDiskPath(volumeName, hostDisk.Path)
-	diskDir := GetMountedHostDiskDir(volumeName)
+	diskPath := GetMountedHostDiskPath(unsafepath.UnsafeAbsolute(hdc.mountRoot.Raw()), volumeName, hostDisk.Path)
+	diskDir := GetMountedHostDiskDir(unsafepath.UnsafeAbsolute(hdc.mountRoot.Raw()), volumeName)
 	fileExists, err := ephemeraldiskutils.FileExists(diskPath)
 	if err != nil {
 		return err
@@ -182,7 +184,7 @@ func (hdc *DiskImgCreator) mountHostDiskAndSetOwnership(vmi *v1.VirtualMachineIn
 		}
 	}
 	// Change file ownership to the qemu user.
-	if err := ephemeraldiskutils.DefaultOwnershipManager.SetFileOwnership(diskPath); err != nil {
+	if err := ephemeraldiskutils.DefaultOwnershipManager.UnsafeSetFileOwnership(diskPath); err != nil {
 		log.Log.Reason(err).Errorf("Couldn't set Ownership on %s: %v", diskPath, err)
 		return err
 	}
