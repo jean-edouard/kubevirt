@@ -33,6 +33,9 @@ import (
 	"syscall"
 	"time"
 
+	"kubevirt.io/kubevirt/pkg/safepath"
+	"kubevirt.io/kubevirt/pkg/unsafepath"
+
 	"github.com/emicklei/go-restful"
 	"github.com/golang/glog"
 	flag "github.com/spf13/pflag"
@@ -341,7 +344,17 @@ func (app *virtHandlerApp) Run() {
 
 		// relabel tun device
 		unprivilegedContainerSELinuxLabel := "system_u:object_r:container_file_t:s0"
-		err = relabelFiles(unprivilegedContainerSELinuxLabel, "/dev/net/tun", "/dev/null")
+
+		devTun, err := safepath.JoinAndResolveWithRelativeRoot("/", "/dev/net/tun")
+		if err != nil {
+			panic(err)
+		}
+		devNull, err := safepath.JoinAndResolveWithRelativeRoot("/", "/dev/null")
+		if err != nil {
+			panic(err)
+		}
+
+		err = relabelFiles(unprivilegedContainerSELinuxLabel, devTun, devNull)
 		if err != nil {
 			panic(fmt.Errorf("error relabeling required files: %v", err))
 		}
@@ -572,10 +585,13 @@ func copy(sourceFile string, targetFile string) error {
 	return nil
 }
 
-func relabelFiles(newLabel string, files ...string) error {
-	relabelArgs := []string{"selinux", "relabel", newLabel}
+func relabelFiles(newLabel string, files ...*safepath.Path) error {
+	// Note: not sure why but `--mount /proc/1/ns/mnt` is needed for our k8s 1.19 lane
+	// Maybe because docker handles /proc in a way that prevents /proc/self/fd/x to translate right from a privileged
+	// container to the host. `--mount /proc/1/ns/mnt` resolves this by running the operation in the host namespace.
+	relabelArgs := []string{"--mount", "/proc/1/ns/mnt", "selinux", "relabel", newLabel}
 	for _, file := range files {
-		cmd := exec.Command("virt-chroot", append(relabelArgs, file)...)
+		cmd := exec.Command("virt-chroot", append(relabelArgs, "--root", unsafepath.UnsafeRoot(file.Raw()), unsafepath.UnsafeRelative(file.Raw()))...)
 		err := cmd.Run()
 		if err != nil {
 			return fmt.Errorf("error relabeling file %s with label %s. Reason: %v", file, newLabel, err)
