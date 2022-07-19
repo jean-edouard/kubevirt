@@ -17,6 +17,7 @@ go_library(
     importpath = "kubevirt.io/kubevirt/pkg/virt-controller/watch",
     visibility = ["//visibility:public"],
     deps = [
+        "//pkg/backend-storage:go_default_library",
         "//pkg/certificates/bootstrap:go_default_library",
         "//pkg/container-disk:go_default_library",
         "//pkg/controller:go_default_library",

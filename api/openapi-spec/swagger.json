@@ -16432,6 +16432,10 @@
      "apiConfiguration": {
       "$ref": "#/definitions/v1.ReloadableComponentConfiguration"
      },
+     "backendStorageClass": {
+      "description": "BackendStorageClass is the name of the storage class to use for the PVCs created to preserve VM state, like TPM. The storage class must support RWX in filesystem mode.",
+      "type": "string"
+     },
      "controllerConfiguration": {
       "$ref": "#/definitions/v1.ReloadableComponentConfiguration"
      },
@@ -17604,7 +17608,13 @@
     }
    },
    "v1.TPMDevice": {
-    "type": "object"
+    "type": "object",
+    "properties": {
+     "persistent": {
+      "description": "Persistent indicates the state of the TPM device should be kept accross reboots Defaults to false",
+      "type": "boolean"
+     }
+    }
    },
    "v1.Timer": {
     "description": "Represents all available timers in a vmi.",

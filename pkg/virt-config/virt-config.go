@@ -320,3 +320,7 @@ func (c *ClusterConfig) GetObsoleteCPUModels() map[string]bool {
 func (c *ClusterConfig) GetClusterCPUArch() string {
 	return c.cpuArch
 }
+
+func (c *ClusterConfig) GetBackendStorageClass() string {
+	return c.GetConfig().BackendStorageClass
+}

@@ -1027,6 +1027,7 @@ func (t *templateService) newVolumeRenderer(vmi *v1.VirtualMachineInstance, name
 	volumeOpts := []VolumeRendererOption{
 		withVMIVolumes(t.persistentVolumeClaimStore, vmi.Spec.Volumes, vmi.Status.VolumeStatus),
 		withAccessCredentials(vmi.Spec.AccessCredentials),
+		withTPM(vmi.Spec.Domain.Devices.TPM, vmi.Name),
 	}
 	if len(requestedHookSidecarList) != 0 {
 		volumeOpts = append(volumeOpts, withSidecarVolumes(requestedHookSidecarList))
