@@ -2223,6 +2223,10 @@ type KubeVirtConfiguration struct {
 	ControllerConfiguration        *ReloadableComponentConfiguration `json:"controllerConfiguration,omitempty"`
 	HandlerConfiguration           *ReloadableComponentConfiguration `json:"handlerConfiguration,omitempty"`
 	TLSConfiguration               *TLSConfiguration                 `json:"tlsConfiguration,omitempty"`
+
+	// VMStateStorageClass is the name of the storage class to use for the PVCs created to preserve VM state, like TPM.
+	// The storage class must support RWX in filesystem mode.
+	VMStateStorageClass string `json:"vmStateStorageClass,omitempty"`
 }
 
 type SMBiosConfiguration struct {

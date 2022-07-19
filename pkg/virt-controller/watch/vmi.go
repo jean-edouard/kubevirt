@@ -28,6 +28,9 @@ import (
 	"time"
 
 	networkv1 "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1"
+
+	backendstorage "kubevirt.io/kubevirt/pkg/backend-storage"
+
 	k8sv1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
@@ -124,6 +127,9 @@ const (
 	// WarningPostCopyNotAllowed is added in an event when PostCopy is enabled for a migration
 	// but the namespace in which the VM is running is not privileged
 	WarningPostCopyNotAllowed = "PostCopyNotAllowed"
+	// FailedBackendStorageCreateReason is added in an event when posting a dynamically
+	// generated dataVolume to the cluster fails.
+	FailedBackendStorageCreateReason = "FailedBackendStorageCreate"
 )
 
 const failedToRenderLaunchManifestErrFormat = "failed to render launch manifest: %v"
@@ -1037,6 +1043,14 @@ func (c *VMIController) sync(vmi *virtv1.VirtualMachineInstance, pod *k8sv1.Pod,
 		return syncErr
 	}
 
+	backendStorageReady, err := backendstorage.CreateIfNeeded(vmi, c.clusterConfig, c.clientset)
+	if err != nil {
+		return &syncErrorImpl{
+			err:    err,
+			reason: FailedBackendStorageCreateReason,
+		}
+	}
+
 	if !podExists(pod) {
 		// If we came ever that far to detect that we already created a pod, we don't create it again
 		if !vmi.IsUnprocessed() {
@@ -1051,6 +1065,12 @@ func (c *VMIController) sync(vmi *virtv1.VirtualMachineInstance, pod *k8sv1.Pod,
 		// ensure that all dataVolumes associated with the VMI are ready before creating the pod
 		if !dataVolumesReady {
 			log.Log.V(3).Object(vmi).Infof("Delaying pod creation while DataVolume populates")
+			return nil
+		}
+
+		// ensure that the backend storage associated with the VMI is ready before creating the pod
+		if !backendStorageReady {
+			log.Log.V(3).Object(vmi).Infof("Delaying pod creation while backend storage gets created")
 			return nil
 		}
 		var templatePod *k8sv1.Pod

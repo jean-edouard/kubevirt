@@ -359,3 +359,7 @@ func (c *ClusterConfig) GetObsoleteCPUModels() map[string]bool {
 func (c *ClusterConfig) GetClusterCPUArch() string {
 	return c.cpuArch
 }
+
+func (c *ClusterConfig) GetVMStateStorageClass() string {
+	return c.GetConfig().VMStateStorageClass
+}
