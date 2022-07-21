@@ -20,8 +20,18 @@ const (
 	PVCSize   = "10Mi"
 )
 
-func isBackendStorageNeeded(vmi *corev1.VirtualMachineInstance) bool {
+func HasPersistentTPMDevice(vmi *corev1.VirtualMachineInstance) bool {
+	if vmi.Spec.Domain.Devices.TPM != nil &&
+		vmi.Spec.Domain.Devices.TPM.Persistent != nil &&
+		*vmi.Spec.Domain.Devices.TPM.Persistent {
+		return true
+	}
+
 	return false
+}
+
+func isBackendStorageNeeded(vmi *corev1.VirtualMachineInstance) bool {
+	return HasPersistentTPMDevice(vmi)
 }
 
 func CreateIfNeeded(vmi *corev1.VirtualMachineInstance, clusterConfig *virtconfig.ClusterConfig, client kubecli.KubevirtClient) (bool, error) {

@@ -5241,6 +5241,12 @@ var CRDsValidation map[string]string = map[string]string{
                           type: object
                         tpm:
                           description: Whether to emulate a TPM device.
+                          properties:
+                            persistent:
+                              description: Persistent indicates the state of the TPM
+                                device should be kept accross reboots Defaults to
+                                false
+                              type: boolean
                           type: object
                         useVirtioTransitional:
                           description: Fall back to legacy virtio 0.9 support if virtio
@@ -7300,6 +7306,11 @@ var CRDsValidation map[string]string = map[string]string{
             preferredTPM:
               description: PreferredTPM optionally defines the preferred TPM device
                 to be used.
+              properties:
+                persistent:
+                  description: Persistent indicates the state of the TPM device should
+                    be kept accross reboots Defaults to false
+                  type: boolean
               type: object
             preferredUseVirtioTransitional:
               description: PreferredUseVirtioTransitional optionally defines the preferred
@@ -9260,6 +9271,11 @@ var CRDsValidation map[string]string = map[string]string{
                   type: object
                 tpm:
                   description: Whether to emulate a TPM device.
+                  properties:
+                    persistent:
+                      description: Persistent indicates the state of the TPM device
+                        should be kept accross reboots Defaults to false
+                      type: boolean
                   type: object
                 useVirtioTransitional:
                   description: Fall back to legacy virtio 0.9 support if virtio bus
@@ -11444,6 +11460,11 @@ var CRDsValidation map[string]string = map[string]string{
                   type: object
                 tpm:
                   description: Whether to emulate a TPM device.
+                  properties:
+                    persistent:
+                      description: Persistent indicates the state of the TPM device
+                        should be kept accross reboots Defaults to false
+                      type: boolean
                   type: object
                 useVirtioTransitional:
                   description: Fall back to legacy virtio 0.9 support if virtio bus
@@ -13530,6 +13551,12 @@ var CRDsValidation map[string]string = map[string]string{
                           type: object
                         tpm:
                           description: Whether to emulate a TPM device.
+                          properties:
+                            persistent:
+                              description: Persistent indicates the state of the TPM
+                                device should be kept accross reboots Defaults to
+                                false
+                              type: boolean
                           type: object
                         useVirtioTransitional:
                           description: Fall back to legacy virtio 0.9 support if virtio
@@ -17378,6 +17405,12 @@ var CRDsValidation map[string]string = map[string]string{
                                   type: object
                                 tpm:
                                   description: Whether to emulate a TPM device.
+                                  properties:
+                                    persistent:
+                                      description: Persistent indicates the state
+                                        of the TPM device should be kept accross reboots
+                                        Defaults to false
+                                      type: boolean
                                   type: object
                                 useVirtioTransitional:
                                   description: Fall back to legacy virtio 0.9 support
@@ -18901,6 +18934,11 @@ var CRDsValidation map[string]string = map[string]string{
             preferredTPM:
               description: PreferredTPM optionally defines the preferred TPM device
                 to be used.
+              properties:
+                persistent:
+                  description: Persistent indicates the state of the TPM device should
+                    be kept accross reboots Defaults to false
+                  type: boolean
               type: object
             preferredUseVirtioTransitional:
               description: PreferredUseVirtioTransitional optionally defines the preferred
@@ -21909,6 +21947,12 @@ var CRDsValidation map[string]string = map[string]string{
                                       type: object
                                     tpm:
                                       description: Whether to emulate a TPM device.
+                                      properties:
+                                        persistent:
+                                          description: Persistent indicates the state
+                                            of the TPM device should be kept accross
+                                            reboots Defaults to false
+                                          type: boolean
                                       type: object
                                     useVirtioTransitional:
                                       description: Fall back to legacy virtio 0.9
