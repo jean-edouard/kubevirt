@@ -1008,12 +1008,16 @@ func (c *VMIController) sync(vmi *virtv1.VirtualMachineInstance, pod *k8sv1.Pod,
 		return syncErr
 	}
 
-	backendStorageReady, err := backendstorage.CreateIfNeeded(vmi, c.clusterConfig, c.clientset)
-	if err != nil {
-		return &syncErrorImpl{
-			err:    err,
-			reason: FailedBackendStorageCreateReason,
+	if c.templateService.GetBackendStoragePVC() == "" {
+		backendStorageName, err := backendstorage.CreateIfNeeded(vmi, c.clusterConfig, c.clientset, !backendstorage.IsMigration)
+		if err != nil {
+			return &syncErrorImpl{
+				err:    err,
+				reason: FailedBackendStorageCreateReason,
+			}
 		}
+
+		c.templateService.SetBackendStoragePVC(backendStorageName)
 	}
 
 	if !podExists(pod) {
@@ -1033,11 +1037,6 @@ func (c *VMIController) sync(vmi *virtv1.VirtualMachineInstance, pod *k8sv1.Pod,
 			return nil
 		}
 
-		// ensure that the backend storage associated with the VMI is ready before creating the pod
-		if !backendStorageReady {
-			log.Log.V(3).Object(vmi).Infof("Delaying pod creation while backend storage gets created")
-			return nil
-		}
 		var templatePod *k8sv1.Pod
 		var err error
 		if isWaitForFirstConsumer {

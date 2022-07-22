@@ -29,6 +29,8 @@ import (
 	"sync"
 	"time"
 
+	backendstorage "kubevirt.io/kubevirt/pkg/backend-storage"
+
 	"kubevirt.io/api/migrations/v1alpha1"
 
 	k8sv1 "k8s.io/api/core/v1"
@@ -105,6 +107,8 @@ type MigrationController struct {
 
 	unschedulablePendingTimeoutSeconds int64
 	catchAllPendingTimeoutSeconds      int64
+
+	backendStoragePVCName string
 }
 
 func NewMigrationController(templateService services.TemplateService,
@@ -1088,6 +1092,18 @@ func (c *MigrationController) sync(key string, migration *virtv1.VirtualMachineI
 				}
 			}
 
+			if c.backendStoragePVCName == "" {
+				backendStorageName, err := backendstorage.CreateIfNeeded(vmi, c.clusterConfig, c.clientset, backendstorage.IsMigration)
+				if err != nil {
+					return &syncErrorImpl{
+						err:    err,
+						reason: FailedBackendStorageCreateReason,
+					}
+				}
+				c.backendStoragePVCName = backendStorageName
+				c.templateService.SetBackendStoragePVC(backendStorageName)
+			}
+
 			return c.handleTargetPodCreation(key, migration, vmi, sourcePod)
 		} else if isPodReady(pod) {
 			if controller.VMIHasHotplugVolumes(vmi) {
@@ -1115,6 +1131,9 @@ func (c *MigrationController) sync(key string, migration *virtv1.VirtualMachineI
 			return c.handleTargetPodHandoff(migration, vmi, pod)
 		}
 	case virtv1.MigrationPreparingTarget, virtv1.MigrationTargetReady, virtv1.MigrationFailed:
+		if migration.Status.Phase == virtv1.MigrationFailed {
+			backendstorage.RemovePVCFor(pod, c.clientset)
+		}
 		if (!targetPodExists || podIsDown(pod)) &&
 			vmi.Status.MigrationState != nil &&
 			len(vmi.Status.MigrationState.TargetDirectMigrationNodePorts) == 0 &&
@@ -1129,6 +1148,8 @@ func (c *MigrationController) sync(key string, migration *virtv1.VirtualMachineI
 		if migration.DeletionTimestamp != nil && vmi.Status.MigrationState != nil {
 			return c.handleSignalMigrationAbort(migration, vmi)
 		}
+	case virtv1.MigrationSucceeded:
+		backendstorage.RemoveOldPVCFor(vmi.Name, pod, c.clientset)
 	}
 
 	return nil

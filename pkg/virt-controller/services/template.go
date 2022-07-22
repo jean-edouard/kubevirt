@@ -137,6 +137,8 @@ type TemplateService interface {
 	RenderLaunchManifestNoVm(*v1.VirtualMachineInstance) (*k8sv1.Pod, error)
 	RenderExporterManifest(vmExport *exportv1.VirtualMachineExport, namePrefix string) *k8sv1.Pod
 	GetLauncherImage() string
+	GetBackendStoragePVC() string
+	SetBackendStoragePVC(string)
 	IsPPC64() bool
 	IsARM64() bool
 }
@@ -155,6 +157,7 @@ type templateService struct {
 	virtClient                 kubecli.KubevirtClient
 	clusterConfig              *virtconfig.ClusterConfig
 	launcherSubGid             int64
+	backendStoragePVC          string
 }
 
 type PvcNotFoundError struct {
@@ -409,6 +412,14 @@ func requestResource(resources *k8sv1.ResourceRequirements, resourceName string)
 
 func (t *templateService) GetLauncherImage() string {
 	return t.launcherImage
+}
+
+func (t *templateService) SetBackendStoragePVC(name string) {
+	t.backendStoragePVC = name
+}
+
+func (t *templateService) GetBackendStoragePVC() string {
+	return t.backendStoragePVC
 }
 
 func (t *templateService) RenderLaunchManifestNoVm(vmi *v1.VirtualMachineInstance) (*k8sv1.Pod, error) {
@@ -1027,7 +1038,7 @@ func (t *templateService) newVolumeRenderer(vmi *v1.VirtualMachineInstance, name
 	volumeOpts := []VolumeRendererOption{
 		withVMIVolumes(t.persistentVolumeClaimStore, vmi.Spec.Volumes, vmi.Status.VolumeStatus),
 		withAccessCredentials(vmi.Spec.AccessCredentials),
-		withTPM(vmi),
+		withTPM(vmi, t.backendStoragePVC),
 	}
 	if len(requestedHookSidecarList) != 0 {
 		volumeOpts = append(volumeOpts, withSidecarVolumes(requestedHookSidecarList))

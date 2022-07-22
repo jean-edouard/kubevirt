@@ -100,7 +100,7 @@ var _ = Describe("[sig-storage]vTPM", func() {
 	})
 
 	Context("with persistent TPM VM option enabled", func() {
-		It("should persist TPM secrets across restarts", func() {
+		It("should persist TPM secrets across migrations and restarts", func() {
 			By("Setting nfs-csi as the backend storage class")
 			kv := util.GetCurrentKv(virtClient)
 			kv.Spec.Configuration.BackendStorageClass = "nfs-csi"
@@ -142,6 +142,17 @@ var _ = Describe("[sig-storage]vTPM", func() {
 				&expect.BSnd{S: "tpm2_unseal -Q --object-context=0x81010002\n"},
 				&expect.BExp{R: "MYSECRET"},
 			}, 300)).To(Succeed(), "failed to store secret into the TPM")
+
+			By("Migrating the VMI")
+			checks.SkipIfMigrationIsNotPossible()
+			migration := tests.NewRandomMigration(vmi.Name, vmi.Namespace)
+			tests.RunMigrationAndExpectCompletion(virtClient, migration, tests.MigrationWaitTime)
+
+			By("Ensuring the TPM is still functional and its state carried over")
+			Expect(console.SafeExpectBatch(vmi, []expect.Batcher{
+				&expect.BSnd{S: "tpm2_unseal -Q --object-context=0x81010002\n"},
+				&expect.BExp{R: "MYSECRET"},
+			}, 300)).To(Succeed(), "the state of the TPM did not persist")
 
 			By("Stopping the VM")
 			err = virtClient.VirtualMachine(vm.Namespace).Stop(vm.Name, &v1.StopOptions{})

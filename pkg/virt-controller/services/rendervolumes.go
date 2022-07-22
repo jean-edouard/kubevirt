@@ -283,11 +283,10 @@ func withAccessCredentials(accessCredentials []v1.AccessCredential) VolumeRender
 	}
 }
 
-func withTPM(vmi *v1.VirtualMachineInstance) VolumeRendererOption {
+func withTPM(vmi *v1.VirtualMachineInstance, pvcName string) VolumeRendererOption {
 	return func(renderer *VolumeRenderer) error {
 		if backendstorage.HasPersistentTPMDevice(vmi) {
 			volumeName := vmi.Name + "-tpm"
-			pvcName := backendstorage.PVCPrefix + vmi.Name
 			renderer.podVolumes = append(renderer.podVolumes, k8sv1.Volume{
 				Name: volumeName,
 				VolumeSource: k8sv1.VolumeSource{
