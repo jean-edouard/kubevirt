@@ -25,6 +25,7 @@ import (
 	"strconv"
 	"strings"
 
+	backendstorage "kubevirt.io/kubevirt/pkg/backend-storage"
 	"kubevirt.io/kubevirt/pkg/virt-controller/watch/topology"
 
 	"k8s.io/kubectl/pkg/cmd/util/podcmd"
@@ -504,8 +505,14 @@ func (t *templateService) renderLaunchManifest(vmi *v1.VirtualMachineInstance, i
 		}
 	}
 
+	if util.IsNonRootVMI(vmi) && backendstorage.HasPersistentTPMDevice(vmi) {
+		tpmDirInitContainer := containerdisk.GenerateTpmDirInitContainer(vmi, t.launcherImage)
+		initContainers = append(initContainers, *tpmDirInitContainer)
+	}
+
 	hostName := dns.SanitizeHostname(vmi)
 	enableServiceLinks := false
+
 	pod := k8sv1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			GenerateName: "virt-launcher-" + domain + "-",
