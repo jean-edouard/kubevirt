@@ -276,6 +276,8 @@ func Execute() {
 
 	log.InitializeLogging("virt-controller")
 
+	log.Log.Warning(`/!\ /!\    JED WAS HERE!     (╯°□°)╯︵ ┻━┻     /!\ /!\`)
+
 	app.reloadableRateLimiter = ratelimiter.NewReloadableRateLimiter(flowcontrol.NewTokenBucketRateLimiter(virtconfig.DefaultVirtControllerQPS, virtconfig.DefaultVirtControllerBurst))
 	clientConfig, err := kubecli.GetKubevirtClientConfig()
 	if err != nil {
