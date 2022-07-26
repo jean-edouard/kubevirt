@@ -306,12 +306,12 @@ func withTPM(vmi *v1.VirtualMachineInstance) VolumeRendererOption {
 			renderer.podVolumeMounts = append(renderer.podVolumeMounts, k8sv1.VolumeMount{
 				Name:      volumeName,
 				ReadOnly:  false,
-				MountPath: swtpmPath,
+				MountPath: "/var/lib/libvirt/swtpm",
 				SubPath:   "swtpm",
 			}, k8sv1.VolumeMount{
 				Name:      volumeName,
 				ReadOnly:  false,
-				MountPath: localCaPath,
+				MountPath: "/var/lib/swtpm-localca",
 				SubPath:   "swtpm-localca",
 			})
 		}

@@ -1,0 +1,31 @@
+--- pkg/virt-controller/services/rendervolumes.go
++++ pkg/virt-controller/services/rendervolumes.go
+@@ -283,11 +283,26 @@ func withAccessCredentials(accessCredentials []v1.AccessCredential) VolumeRender
+ 	}
+ }
+ 
+-func withTPM(vmi *v1.VirtualMachineInstance) VolumeRendererOption {
++func withTPM(vmi *v1.VirtualMachineInstance, pvcName string) VolumeRendererOption {
+ 	return func(renderer *VolumeRenderer) error {
+ 		if backendstorage.HasPersistentTPMDevice(vmi) {
+ 			volumeName := vmi.Name + "-tpm"
+-			pvcName := backendstorage.PVCPrefix + vmi.Name
++			swtpmPath := "/var/lib/libvirt/swtpm"
++			localCaPath := "/var/lib/swtpm-localca"
++			if util.IsNonRootVMI(vmi) {
++				additionalMounts := []k8sv1.VolumeMount{
++					mountPath("private-libvirt", filepath.Join(util.VirtPrivateDir, "libvirt")),
++					mountPath("private-libvirt-qemu", filepath.Join(util.VirtPrivateDir, "libvirt", "qemu")),
++				}
++				additionalVolumes := []k8sv1.Volume{
++					emptyDirVolume("private-libvirt"),
++					emptyDirVolume("private-libvirt-qemu"),
++				}
++				renderer.podVolumes = append(renderer.podVolumes, additionalVolumes...)
++				renderer.podVolumeMounts = append(renderer.podVolumeMounts, additionalMounts...)
++				swtpmPath = filepath.Join(util.VirtPrivateDir, "libvirt", "qemu", "swtpm")
++				localCaPath = filepath.Join(util.VirtPrivateDir, "var", "lib", "swtpm-localca")
++			}
+ 			renderer.podVolumes = append(renderer.podVolumes, k8sv1.Volume{
+ 				Name: volumeName,
+ 				VolumeSource: k8sv1.VolumeSource{
