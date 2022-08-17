@@ -48,6 +48,7 @@ const (
 	NonRoot                    = "NonRoot"
 	ClusterProfiler            = "ClusterProfiler"
 	WorkloadEncryptionSEV      = "WorkloadEncryptionSEV"
+	DockerSELinuxMCSWorkaround = "DockerSELinuxMCSWorkaround"
 )
 
 var deprecatedFeatureGates = [...]string{
@@ -165,4 +166,8 @@ func (config *ClusterConfig) ClusterProfilerEnabled() bool {
 
 func (config *ClusterConfig) WorkloadEncryptionSEVEnabled() bool {
 	return config.isFeatureGateEnabled(WorkloadEncryptionSEV)
+}
+
+func (config *ClusterConfig) DockerSELinuxMCSWorkaroundEnabled() bool {
+	return config.isFeatureGateEnabled(DockerSELinuxMCSWorkaround)
 }
