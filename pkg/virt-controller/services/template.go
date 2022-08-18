@@ -151,6 +151,7 @@ type templateService struct {
 	virtClient                 kubecli.KubevirtClient
 	clusterConfig              *virtconfig.ClusterConfig
 	launcherSubGid             int64
+	clusterIncludesDocker      bool
 }
 
 type PvcNotFoundError struct {
@@ -648,7 +649,7 @@ func (t *templateService) renderLaunchManifest(vmi *v1.VirtualMachineInstance, i
 	// If an SELinux type was specified, use that--otherwise don't set an SELinux type
 	selinuxType := t.clusterConfig.GetSELinuxLauncherType()
 	if selinuxType != "" {
-		alignPodMultiCategorySecurity(&pod, selinuxType)
+		alignPodMultiCategorySecurity(&pod, selinuxType, t.clusterIncludesDocker)
 	}
 
 	// If we have a runtime class specified, use it, otherwise don't set a runtimeClassName
@@ -852,8 +853,7 @@ func (t *templateService) RenderHotplugAttachmentPodTemplate(volumes []*v1.Volum
 					},
 					SecurityContext: &k8sv1.SecurityContext{
 						SELinuxOptions: &k8sv1.SELinuxOptions{
-							Level: "s0",
-							Type:  t.clusterConfig.GetSELinuxLauncherType(),
+							Type: t.clusterConfig.GetSELinuxLauncherType(),
 						},
 					},
 					VolumeMounts: []k8sv1.VolumeMount{
@@ -885,6 +885,10 @@ func (t *templateService) RenderHotplugAttachmentPodTemplate(volumes []*v1.Volum
 			Volumes:                       []k8sv1.Volume{emptyDirVolume(hotplugDisks)},
 			TerminationGracePeriodSeconds: &zero,
 		},
+	}
+
+	if t.clusterIncludesDocker {
+		pod.Spec.Containers[0].SecurityContext.SELinuxOptions.Level = "s0"
 	}
 
 	hotplugVolumeStatusMap := make(map[string]v1.VolumePhase)
@@ -985,8 +989,7 @@ func (t *templateService) RenderHotplugAttachmentTriggerPodTemplate(volume *v1.V
 					},
 					SecurityContext: &k8sv1.SecurityContext{
 						SELinuxOptions: &k8sv1.SELinuxOptions{
-							Level: "s0",
-							Type:  t.clusterConfig.GetSELinuxLauncherType(),
+							Type: t.clusterConfig.GetSELinuxLauncherType(),
 						},
 					},
 					VolumeMounts: []k8sv1.VolumeMount{
@@ -1024,6 +1027,10 @@ func (t *templateService) RenderHotplugAttachmentTriggerPodTemplate(volume *v1.V
 			},
 			TerminationGracePeriodSeconds: &zero,
 		},
+	}
+
+	if t.clusterIncludesDocker {
+		pod.Spec.Containers[0].SecurityContext.SELinuxOptions.Level = "s0"
 	}
 
 	if isBlock {
@@ -1183,7 +1190,8 @@ func NewTemplateService(launcherImage string,
 	virtClient kubecli.KubevirtClient,
 	clusterConfig *virtconfig.ClusterConfig,
 	launcherSubGid int64,
-	exporterImage string) TemplateService {
+	exporterImage string,
+	clusterIncludesDocker bool) TemplateService {
 
 	precond.MustNotBeEmpty(launcherImage)
 	log.Log.V(1).Infof("Exporter Image: %s", exporterImage)
@@ -1201,6 +1209,7 @@ func NewTemplateService(launcherImage string,
 		clusterConfig:              clusterConfig,
 		launcherSubGid:             launcherSubGid,
 		exporterImage:              exporterImage,
+		clusterIncludesDocker:      clusterIncludesDocker,
 	}
 	return &svc
 }
@@ -1236,7 +1245,7 @@ func wrapGuestAgentPingWithVirtProbe(vmi *v1.VirtualMachineInstance, probe *k8sv
 	return
 }
 
-func alignPodMultiCategorySecurity(pod *k8sv1.Pod, selinuxType string) {
+func alignPodMultiCategorySecurity(pod *k8sv1.Pod, selinuxType string, dockerPresent bool) {
 	pod.Spec.SecurityContext.SELinuxOptions = &k8sv1.SELinuxOptions{Type: selinuxType}
 	// more info on https://github.com/kubernetes/kubernetes/issues/90759
 	// Since the compute container needs to be able to communicate with the
@@ -1245,12 +1254,12 @@ func alignPodMultiCategorySecurity(pod *k8sv1.Pod, selinuxType string) {
 	for i := range pod.Spec.Containers {
 		container := &pod.Spec.Containers[i]
 		if container.Name != "compute" {
-			generateContainerSecurityContext(selinuxType, container)
+			generateContainerSecurityContext(selinuxType, container, dockerPresent)
 		}
 	}
 }
 
-func generateContainerSecurityContext(selinuxType string, container *k8sv1.Container) {
+func generateContainerSecurityContext(selinuxType string, container *k8sv1.Container, forceLevel bool) {
 	if container.SecurityContext == nil {
 		container.SecurityContext = &k8sv1.SecurityContext{}
 	}
@@ -1258,7 +1267,9 @@ func generateContainerSecurityContext(selinuxType string, container *k8sv1.Conta
 		container.SecurityContext.SELinuxOptions = &k8sv1.SELinuxOptions{}
 	}
 	container.SecurityContext.SELinuxOptions.Type = selinuxType
-	container.SecurityContext.SELinuxOptions.Level = "s0"
+	if forceLevel {
+		container.SecurityContext.SELinuxOptions.Level = "s0"
+	}
 }
 
 func generatePodAnnotations(vmi *v1.VirtualMachineInstance) (map[string]string, error) {

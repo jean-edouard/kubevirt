@@ -26,7 +26,10 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"time"
+
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"kubevirt.io/kubevirt/pkg/monitoring/migration"
 
@@ -524,10 +527,34 @@ func (vca *VirtControllerApp) newRecorder(namespace string, componentName string
 	return eventBroadcaster.NewRecorder(scheme.Scheme, k8sv1.EventSource{Component: componentName})
 }
 
+func detectDockerNodes(virtClient kubecli.KubevirtClient) (bool, error) {
+	nodes, err := virtClient.CoreV1().Nodes().List(context.Background(), metav1.ListOptions{})
+	if err != nil {
+		return false, err
+	}
+	for _, node := range nodes.Items {
+		criVersion := node.Status.NodeInfo.ContainerRuntimeVersion
+		criInfo := strings.Split(criVersion, "://")
+		if len(criInfo) < 1 {
+			return false, err
+		}
+		if criInfo[0] == "docker" {
+			return true, nil
+		}
+	}
+
+	return false, nil
+}
+
 func (vca *VirtControllerApp) initCommon() {
 	var err error
 
 	virtClient, err := kubecli.GetKubevirtClient()
+	if err != nil {
+		golog.Fatal(err)
+	}
+
+	clusterIncludesDocker, err := detectDockerNodes(virtClient)
 	if err != nil {
 		golog.Fatal(err)
 	}
@@ -546,6 +573,7 @@ func (vca *VirtControllerApp) initCommon() {
 		vca.clusterConfig,
 		vca.launcherSubGid,
 		vca.exporterImage,
+		clusterIncludesDocker,
 	)
 
 	topologyHinter := topology.NewTopologyHinter(vca.nodeInformer.GetStore(), vca.vmiInformer.GetStore(), runtime.GOARCH, vca.clusterConfig)
