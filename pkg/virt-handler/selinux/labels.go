@@ -8,8 +8,12 @@ import (
 	"path/filepath"
 	"strings"
 
+	v1 "kubevirt.io/api/core/v1"
+
 	"kubevirt.io/kubevirt/pkg/safepath"
 	"kubevirt.io/kubevirt/pkg/unsafepath"
+	"kubevirt.io/kubevirt/pkg/util"
+	"kubevirt.io/kubevirt/pkg/virt-handler/isolation"
 	virt_chroot "kubevirt.io/kubevirt/pkg/virt-handler/virt-chroot"
 
 	"kubevirt.io/client-go/log"
@@ -164,6 +168,7 @@ type SELinux interface {
 	InstallPolicy(dir string) (err error)
 	Mode() string
 	IsPermissive() bool
+	GetVirtLauncherLevel(vmi *v1.VirtualMachineInstance) (string, error)
 }
 
 func RelabelFiles(newLabel string, continueOnError bool, files ...*safepath.Path) error {
@@ -183,4 +188,42 @@ func RelabelFiles(newLabel string, continueOnError bool, files ...*safepath.Path
 		}
 	}
 	return nil
+}
+
+func getVirtLauncherContext(vmi *v1.VirtualMachineInstance) (string, error) {
+	detector := isolation.NewSocketBasedIsolationDetector(util.VirtShareDir)
+	isolationRes, err := detector.Detect(vmi)
+	if err != nil {
+		return "", err
+	}
+	virtLauncherRoot, err := isolationRes.MountRoot()
+	if err != nil {
+		return "", err
+	}
+	context, err := safepath.GetxattrNoFollow(virtLauncherRoot, "security.selinux")
+	if err != nil {
+		return "", err
+	}
+
+	return string(context), err
+}
+
+func (se *SELinuxImpl) GetVirtLauncherLevel(vmi *v1.VirtualMachineInstance) (string, error) {
+	context, err := getVirtLauncherContext(vmi)
+	if err != nil {
+		return "", err
+	}
+	ctxbits := strings.Split(context, ":")
+	ctxlen := len(ctxbits)
+	if ctxlen < 3 {
+		return "", fmt.Errorf("invalid SELinux context: %s", context)
+	}
+	if ctxlen == 4 {
+		return ctxbits[3], nil
+	}
+	if ctxlen == 5 {
+		return fmt.Sprintf("%s:%s", ctxbits[3], ctxbits[4]), nil
+	}
+
+	return "", fmt.Errorf("invalid SELinux context: %s", context)
 }

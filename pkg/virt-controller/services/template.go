@@ -27,6 +27,9 @@ import (
 
 	"k8s.io/kubectl/pkg/cmd/util/podcmd"
 
+	"kubevirt.io/kubevirt/pkg/util/overhead"
+	"kubevirt.io/kubevirt/pkg/virt-handler/selinux"
+
 	k8sv1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -117,18 +120,10 @@ const EXT_LOG_VERBOSITY_THRESHOLD = 5
 
 const ephemeralStorageOverheadSize = "50M"
 
-const (
-	VirtLauncherMonitorOverhead = "25Mi"  // The `ps` RSS for virt-launcher-monitor
-	VirtLauncherOverhead        = "100Mi" // The `ps` RSS for the virt-launcher process
-	VirtlogdOverhead            = "17Mi"  // The `ps` RSS for virtlogd
-	LibvirtdOverhead            = "33Mi"  // The `ps` RSS for libvirtd
-	QemuOverhead                = "30Mi"  // The `ps` RSS for qemu, minus the RAM of its (stressed) guest, minus the virtual page table
-)
-
 type TemplateService interface {
 	RenderMigrationManifest(vmi *v1.VirtualMachineInstance, sourcePod *k8sv1.Pod) (*k8sv1.Pod, error)
 	RenderLaunchManifest(vmi *v1.VirtualMachineInstance) (*k8sv1.Pod, error)
-	RenderHotplugAttachmentPodTemplate(volume []*v1.Volume, ownerPod *k8sv1.Pod, vmi *v1.VirtualMachineInstance, claimMap map[string]*k8sv1.PersistentVolumeClaim, tempPod bool) (*k8sv1.Pod, error)
+	RenderHotplugAttachmentPodTemplate(volume []*v1.Volume, ownerPod *k8sv1.Pod, vmi *v1.VirtualMachineInstance, claimMap map[string]*k8sv1.PersistentVolumeClaim) (*k8sv1.Pod, error)
 	RenderHotplugAttachmentTriggerPodTemplate(volume *v1.Volume, ownerPod *k8sv1.Pod, vmi *v1.VirtualMachineInstance, pvcName string, isBlock bool, tempPod bool) (*k8sv1.Pod, error)
 	RenderLaunchManifestNoVm(*v1.VirtualMachineInstance) (*k8sv1.Pod, error)
 	RenderExporterManifest(vmExport *exportv1.VirtualMachineExport, namePrefix string) *k8sv1.Pod
@@ -816,7 +811,7 @@ func sidecarContainerName(i int) string {
 	return fmt.Sprintf("hook-sidecar-%d", i)
 }
 
-func (t *templateService) RenderHotplugAttachmentPodTemplate(volumes []*v1.Volume, ownerPod *k8sv1.Pod, vmi *v1.VirtualMachineInstance, claimMap map[string]*k8sv1.PersistentVolumeClaim, tempPod bool) (*k8sv1.Pod, error) {
+func (t *templateService) RenderHotplugAttachmentPodTemplate(volumes []*v1.Volume, ownerPod *k8sv1.Pod, vmi *v1.VirtualMachineInstance, claimMap map[string]*k8sv1.PersistentVolumeClaim) (*k8sv1.Pod, error) {
 	zero := int64(0)
 	sharedMount := k8sv1.MountPropagationHostToContainer
 	command := []string{"/bin/sh", "-c", "/usr/bin/container-disk --copy-path /path/hp"}
@@ -854,6 +849,16 @@ func (t *templateService) RenderHotplugAttachmentPodTemplate(volumes []*v1.Volum
 					SecurityContext: &k8sv1.SecurityContext{
 						SELinuxOptions: &k8sv1.SELinuxOptions{
 							Type: t.clusterConfig.GetSELinuxLauncherType(),
+							// FIXME (example below): Forcing an SELinux level without categories is a security risk
+							// This pod will contain a disk image shared with a virt-launcher pod.
+							// If we didn't force a level here, one would be auto-generated with a set of categories
+							// different from the one of its companion virt-launcher. Therefore, SELinux would prevent
+							// virt-launcher('s compute container) from accessing the disk image.
+							// The proper fix here is to force the level of this pod to the one of the virt-launcher
+							// pod. Unfortunately, pods MCS levels are not exposed by the API. Therefore, we'd have to
+							// enter the mount namespace of virt-launcher and check the level of any file/directory.
+							// We need a way to ask virt-handler to do that
+							Level: "s0",
 						},
 					},
 					VolumeMounts: []k8sv1.VolumeMount{
@@ -887,8 +892,17 @@ func (t *templateService) RenderHotplugAttachmentPodTemplate(volumes []*v1.Volum
 		},
 	}
 
-	if t.clusterConfig.DockerSELinuxMCSWorkaroundEnabled() {
-		pod.Spec.Containers[0].SecurityContext.SELinuxOptions.Level = "s0"
+	// If this was virt-handler, that's what we'd do
+	se, present, err := selinux.NewSELinux()
+	if err != nil {
+		return nil, err
+	}
+	if present {
+		level, err := se.GetVirtLauncherLevel(vmi)
+		if err != nil {
+			return nil, err
+		}
+		pod.Spec.SecurityContext.SELinuxOptions.Level = level
 	}
 
 	hotplugVolumeStatusMap := make(map[string]v1.VolumePhase)
@@ -1114,32 +1128,6 @@ func appendUniqueImagePullSecret(secrets []k8sv1.LocalObjectReference, newsecret
 	return append(secrets, newsecret)
 }
 
-// We need to add this overhead due to potential issues when using exec probes.
-// In certain situations depending on things like node size and kernel versions
-// the exec probe can cause a significant memory overhead that results in the pod getting OOM killed.
-// To prevent this, we add this overhead until we have a better way of doing exec probes.
-// The virtProbeTotalAdditionalOverhead is added for the virt-probe binary we use for probing and
-// only added once, while the virtProbeOverhead is the general memory consumption of virt-probe
-// that we add per added probe.
-var virtProbeTotalAdditionalOverhead = resource.MustParse("100Mi")
-var virtProbeOverhead = resource.MustParse("10Mi")
-
-func addProbeOverheads(vmi *v1.VirtualMachineInstance, to *resource.Quantity) {
-	hasLiveness := addProbeOverhead(vmi.Spec.LivenessProbe, to)
-	hasReadiness := addProbeOverhead(vmi.Spec.ReadinessProbe, to)
-	if hasLiveness || hasReadiness {
-		to.Add(virtProbeTotalAdditionalOverhead)
-	}
-}
-
-func addProbeOverhead(probe *v1.Probe, to *resource.Quantity) bool {
-	if probe != nil && probe.Exec != nil {
-		to.Add(virtProbeOverhead)
-		return true
-	}
-	return false
-}
-
 func HaveMasqueradeInterface(interfaces []v1.Interface) bool {
 	for _, iface := range interfaces {
 		if iface.Masquerade != nil {
@@ -1351,7 +1339,7 @@ func checkForKeepLauncherAfterFailure(vmi *v1.VirtualMachineInstance) bool {
 }
 
 func (t *templateService) VMIResourcePredicates(vmi *v1.VirtualMachineInstance, networkToResourceMap map[string]string) VMIResourcePredicates {
-	memoryOverhead := GetMemoryOverhead(vmi, t.clusterConfig.GetClusterCPUArch())
+	memoryOverhead := overhead.GetMemoryOverhead(vmi, t.clusterConfig.GetClusterCPUArch())
 	return VMIResourcePredicates{
 		vmi: vmi,
 		resourceRules: []VMIResourceRule{

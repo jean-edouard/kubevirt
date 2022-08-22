@@ -17,6 +17,7 @@ import (
 
 const (
 	namespace = "kubevirt"
+	qemuGid   = 107
 )
 
 func NewFakeClusterConfigUsingKV(kv *KVv1.KubeVirt) (*virtconfig.ClusterConfig, cache.SharedIndexInformer, cache.SharedIndexInformer) {

@@ -30,7 +30,7 @@ import (
 	"time"
 	"unicode"
 
-	"kubevirt.io/kubevirt/pkg/virt-controller/services"
+	"kubevirt.io/kubevirt/pkg/util/overhead"
 
 	expect "github.com/google/goexpect"
 	. "github.com/onsi/ginkgo/v2"
@@ -3014,11 +3014,11 @@ var _ = Describe("[sig-compute]Configurations", func() {
 			}
 
 			By("Ensuring no process is using too much ram")
-			doesntExceedMemoryUsage(&processRss, "virt-launcher-monitor", resource.MustParse(services.VirtLauncherMonitorOverhead))
-			doesntExceedMemoryUsage(&processRss, "virt-launcher", resource.MustParse(services.VirtLauncherOverhead))
-			doesntExceedMemoryUsage(&processRss, "virtlogd", resource.MustParse(services.VirtlogdOverhead))
-			doesntExceedMemoryUsage(&processRss, "libvirtd", resource.MustParse(services.LibvirtdOverhead))
-			qemuExpected := resource.MustParse(services.QemuOverhead)
+			doesntExceedMemoryUsage(&processRss, "virt-launcher-monitor", resource.MustParse(overhead.VirtLauncherMonitorOverhead))
+			doesntExceedMemoryUsage(&processRss, "virt-launcher", resource.MustParse(overhead.VirtLauncherOverhead))
+			doesntExceedMemoryUsage(&processRss, "virtlogd", resource.MustParse(overhead.VirtlogdOverhead))
+			doesntExceedMemoryUsage(&processRss, "libvirtd", resource.MustParse(overhead.LibvirtdOverhead))
+			qemuExpected := resource.MustParse(overhead.QemuOverhead)
 			qemuExpected.Add(vmi.Spec.Domain.Resources.Requests[k8sv1.ResourceMemory])
 			doesntExceedMemoryUsage(&processRss, "qemu", qemuExpected)
 		})

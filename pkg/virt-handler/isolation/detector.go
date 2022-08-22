@@ -29,6 +29,8 @@ import (
 	"time"
 	"unsafe"
 
+	"kubevirt.io/kubevirt/pkg/util/overhead"
+
 	ps "github.com/mitchellh/go-ps"
 	"golang.org/x/sys/unix"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -37,7 +39,6 @@ import (
 	"kubevirt.io/client-go/log"
 
 	"kubevirt.io/kubevirt/pkg/util"
-	"kubevirt.io/kubevirt/pkg/virt-controller/services"
 	cmdclient "kubevirt.io/kubevirt/pkg/virt-handler/cmd-client"
 )
 
@@ -137,7 +138,7 @@ func (s *socketBasedIsolationDetector) AdjustResources(vm *v1.VirtualMachineInst
 		}
 
 		// make the best estimate for memory required by libvirt
-		memlockSize := services.GetMemoryOverhead(vm, runtime.GOARCH)
+		memlockSize := overhead.GetMemoryOverhead(vm, runtime.GOARCH)
 		// Add base memory requested for the VM
 		vmiMemoryReq := vm.Spec.Domain.Resources.Requests.Memory()
 		memlockSize.Add(*resource.NewScaledQuantity(vmiMemoryReq.ScaledValue(resource.Kilo), resource.Kilo))
@@ -176,7 +177,7 @@ func AdjustQemuProcessMemoryLimits(podIsoDetector PodIsolationDetector, vmi *v1.
 	qemuProcessPid := qemuProcess.Pid()
 
 	// make the best estimate for memory required by libvirt
-	memlockSize := services.GetMemoryOverhead(vmi, runtime.GOARCH)
+	memlockSize := overhead.GetMemoryOverhead(vmi, runtime.GOARCH)
 	// Add base memory requested for the VM
 	vmiMemoryReq := vmi.Spec.Domain.Resources.Requests.Memory()
 	memlockSize.Add(*resource.NewScaledQuantity(vmiMemoryReq.ScaledValue(resource.Kilo), resource.Kilo))
