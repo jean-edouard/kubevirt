@@ -2232,38 +2232,3 @@ func validateDisks(field *k8sfield.Path, disks []v1.Disk) []metav1.StatusCause {
 
 	return causes
 }
-
-// Rejects kernel boot defined with initrd/kernel path but without an image
-func validateKernelBoot(field *k8sfield.Path, kernelBoot *v1.KernelBoot) (causes []metav1.StatusCause) {
-	if kernelBoot == nil || kernelBoot.Container == nil {
-		return
-	}
-
-	container := kernelBoot.Container
-	containerField := field.Child("container")
-
-	if container.Image == "" {
-		causes = append(causes, metav1.StatusCause{
-			Type:    metav1.CauseTypeFieldValueRequired,
-			Message: fmt.Sprintf("%s must be defined with an image", containerField),
-			Field:   containerField.Child("image").String(),
-		})
-	}
-
-	if container.InitrdPath == "" && container.KernelPath == "" {
-		causes = append(causes, metav1.StatusCause{
-			Type:    metav1.CauseTypeFieldValueRequired,
-			Message: fmt.Sprintf("%s must be defined with at least one of the following: kernelPath, initrdPath", containerField),
-			Field:   containerField.String(),
-		})
-	}
-
-	if container.KernelPath != "" {
-		causes = append(causes, validatePath(containerField.Child("kernelPath"), container.KernelPath)...)
-	}
-	if container.InitrdPath != "" {
-		causes = append(causes, validatePath(containerField.Child("initrdPath"), container.InitrdPath)...)
-	}
-
-	return
-}

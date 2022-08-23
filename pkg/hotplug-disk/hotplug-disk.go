@@ -43,13 +43,13 @@ var (
 
 // GetHotplugTargetPodPathOnHost retrieves the target pod (virt-launcher) path on the host.
 func GetHotplugTargetPodPathOnHost(virtlauncherPodUID types.UID) (*safepath.Path, error) {
-	podpath := TargetPodBasePath(h.podsBaseDir, virtlauncherPodUID)
-	return safepath.JoinAndResolveWithRelativeRoot("/", podpath)
+	podpath := targetPodBasePath(virtlauncherPodUID)
+	return safepath.JoinAndResolveWithRelativeRoot("/", filepath.Join(podsBaseDir, podpath))
 }
 
 // GetFileSystemDiskTargetPathFromHostView gets the disk image file in the target pod (virt-launcher) on the host.
 func GetFileSystemDiskTargetPathFromHostView(virtlauncherPodUID types.UID, volumeName string, create bool) (*safepath.Path, error) {
-	targetPath, err := h.GetHotplugTargetPodPathOnHost(virtlauncherPodUID)
+	targetPath, err := GetHotplugTargetPodPathOnHost(virtlauncherPodUID)
 	if err != nil {
 		return targetPath, err
 	}

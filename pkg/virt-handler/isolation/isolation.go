@@ -357,8 +357,8 @@ func (r *realIsolationResult) IsMounted(mountPoint *safepath.Path) (isMounted bo
 }
 
 // IsBlockDevice check if the path given is a block device or not.
-func (r *realIsolationResult) IsBlockDevice(path string) (bool, error) {
-	fileInfo, err := os.Stat(path)
+func (r *realIsolationResult) IsBlockDevice(path *safepath.Path) (bool, error) {
+	fileInfo, err := safepath.StatAtNoFollow(path)
 	if err == nil {
 		if !fileInfo.IsDir() && (fileInfo.Mode()&os.ModeDevice) != 0 {
 			return true, nil
@@ -500,12 +500,4 @@ func NodeIsolationResult() *realIsolationResult {
 	return &realIsolationResult{
 		pid: 1,
 	}
-}
-
-func SafeJoin(res IsolationResult, elems ...string) (*safepath.Path, error) {
-	mountRoot, err := res.MountRoot()
-	if err != nil {
-		return nil, err
-	}
-	return mountRoot.AppendAndResolveWithRelativeRoot(elems...)
 }

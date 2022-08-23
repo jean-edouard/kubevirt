@@ -30,6 +30,8 @@ import (
 	"strings"
 	"sync"
 
+	diskutils "kubevirt.io/kubevirt/pkg/ephemeral-disk-utils"
+
 	"kubevirt.io/client-go/log"
 	"kubevirt.io/kubevirt/pkg/util"
 	"kubevirt.io/kubevirt/pkg/util/net/ip"

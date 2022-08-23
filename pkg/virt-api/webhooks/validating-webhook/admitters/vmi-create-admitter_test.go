@@ -2180,64 +2180,6 @@ var _ = Describe("Validating VMICreate Admitter", func() {
 			Expect(causes[0].Field).To(Equal("fake.startStrategy"))
 			Expect(causes[0].Message).To(Equal("either fake.startStrategy or fake.livenessProbe should be provided.Pausing VMI with LivenessProbe is not supported"))
 		})
-		Context("with kernel boot defined", func() {
-
-			const (
-				fakeKernelArgs = "args"
-				fakeImage      = "image"
-				fakeInitrd     = "/initrd"
-				fakeKernel     = "/kernel"
-				invalidInitrd  = "initrd"
-				invalidKernel  = "kernel"
-			)
-
-			table.DescribeTable("", func(kernelArgs, initrdPath, kernelPath, image string, defineContainerNil bool, shouldBeValid bool) {
-				vmi := utils.GetVMIKernelBoot()
-
-				kb := vmi.Spec.Domain.Firmware.KernelBoot
-
-				if defineContainerNil {
-					kb.Container = nil
-				} else {
-					kb.KernelArgs = kernelArgs
-					kb.Container.KernelPath = kernelPath
-					kb.Container.InitrdPath = initrdPath
-					kb.Container.Image = image
-				}
-
-				kernelBootField := k8sfield.NewPath("spec").Child("domain").Child("firmware").Child("kernelBoot")
-				causes := validateKernelBoot(kernelBootField, kb)
-
-				if shouldBeValid {
-					Expect(causes).To(BeEmpty())
-				} else {
-					Expect(causes).ToNot(BeEmpty())
-				}
-			},
-				table.Entry("without kernel args and null container - should approve",
-					"", "", "", "", true, true),
-				table.Entry("with kernel args and null container - should approve",
-					fakeKernelArgs, "", "", "", true, true),
-				table.Entry("without kernel args, with container that has image & kernel & initrd defined - should approve",
-					"", fakeInitrd, fakeKernel, fakeImage, false, true),
-				table.Entry("with kernel args, with container that has image & kernel & initrd defined - should approve",
-					fakeKernelArgs, fakeInitrd, fakeKernel, fakeImage, false, true),
-				table.Entry("with kernel args, with container that has image & kernel defined - should approve",
-					fakeKernelArgs, "", fakeKernel, fakeImage, false, true),
-				table.Entry("with kernel args, with container that has image & initrd defined - should approve",
-					fakeKernelArgs, fakeInitrd, "", fakeImage, false, true),
-				table.Entry("with kernel args, with container that has only image defined - should reject",
-					fakeKernelArgs, "", "", fakeImage, false, false),
-				table.Entry("with invalid kernel path - should reject",
-					fakeKernelArgs, fakeInitrd, invalidKernel, fakeImage, false, false),
-				table.Entry("with invalid initrd path - should reject",
-					fakeKernelArgs, invalidInitrd, fakeKernel, fakeImage, false, false),
-				table.Entry("with kernel args, with container that has initrd and kernel defined but without image - should reject",
-					fakeKernelArgs, fakeInitrd, fakeKernel, "", false, false),
-				table.Entry("with kernel args, with container that has nothing defined", "", "", "", "", false, false),
-			)
-		})
-
 		It("should detect invalid containerDisk paths", func() {
 			spec := &v1.VirtualMachineInstanceSpec{}
 			disk := v1.Disk{

@@ -160,9 +160,9 @@ func GetImage(root *safepath.Path, imagePath string) (*safepath.Path, error) {
 		if err != nil {
 			return nil, fmt.Errorf("failed to determine default image path %v: %v", fallbackPath, err)
 		}
-		var files []os.DirEntry
+		var files []os.FileInfo
 		err = fallbackPath.ExecuteNoFollow(func(safePath string) (err error) {
-			files, err = os.ReadDir(safePath)
+			files, err = ioutil.ReadDir(safePath)
 			return err
 		})
 		if err != nil {

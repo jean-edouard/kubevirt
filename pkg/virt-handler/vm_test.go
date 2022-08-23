@@ -1680,6 +1680,7 @@ var _ = Describe("VirtualMachineInstance", func() {
 				AllowPostCopy:           false,
 			}
 			client.EXPECT().MigrateVirtualMachine(vmi, options)
+			vmiInterface.EXPECT().Update(vmi)
 			controller.Execute()
 			testutils.ExpectEvent(recorder, VMIMigrating)
 		}, 3)

@@ -7,6 +7,8 @@ import (
 	"os"
 	"path/filepath"
 
+	"kubevirt.io/kubevirt/pkg/unsafepath"
+
 	"kubevirt.io/kubevirt/pkg/safepath"
 
 	"github.com/golang/mock/gomock"
@@ -113,7 +115,9 @@ var _ = Describe("Isolation", func() {
 		It("Should detect the Mount root of the test suite", func() {
 			result, err := NewSocketBasedIsolationDetector(tmpDir, cgroupParser).Whitelist([]string{"devices"}).Detect(vm)
 			Expect(err).ToNot(HaveOccurred())
-			Expect(result.MountRoot()).To(Equal(fmt.Sprintf("/proc/%d/root", os.Getpid())))
+			root, err := result.MountRoot()
+			Expect(err).ToNot(HaveOccurred())
+			Expect(unsafepath.UnsafeAbsolute(root.Raw())).To(Equal(fmt.Sprintf("/proc/%d/root", os.Getpid())))
 		})
 
 		It("Should detect the Network namespace of the test suite", func() {

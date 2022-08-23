@@ -26,5 +26,5 @@ import (
 )
 
 func TestSafePath(t *testing.T) {
-	testutils.KubeVirtTestSuiteSetup(t)
+	testutils.KubeVirtTestSuiteSetup(t, "Safepath Test Suite")
 }
