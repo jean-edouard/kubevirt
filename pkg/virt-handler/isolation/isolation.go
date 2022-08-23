@@ -36,15 +36,18 @@ import (
 	"time"
 	"unsafe"
 
-	"kubevirt.io/kubevirt/pkg/safepath"
 	"kubevirt.io/kubevirt/pkg/unsafepath"
 
 	"golang.org/x/sys/unix"
+
+	"kubevirt.io/kubevirt/pkg/safepath"
 
 	"github.com/containernetworking/plugins/pkg/ns"
 
 	ps "github.com/mitchellh/go-ps"
 	"k8s.io/apimachinery/pkg/api/resource"
+
+	mount "github.com/moby/sys/mountinfo"
 
 	v1 "kubevirt.io/client-go/api/v1"
 	"kubevirt.io/client-go/log"
@@ -327,8 +330,7 @@ func (r *realIsolationResult) MountInfoRoot() (mountInfo *MountInfo, err error) 
 	return
 }
 
-// IsMounted checks if a path in the mount namespace of a
-// given process isolation result is a mount point. Works with symlinks.
+// IsMounted checks if the given path is a mount point or not.
 func (r *realIsolationResult) IsMounted(mountPoint *safepath.Path) (isMounted bool, err error) {
 	// Ensure that the path is still a valid absolute path without symlinks
 	f, err := safepath.OpenAtNoFollow(mountPoint)
@@ -345,20 +347,14 @@ func (r *realIsolationResult) IsMounted(mountPoint *safepath.Path) (isMounted bo
 		// safepath.
 		return true, nil
 	} else {
-		if err = forEachRecord(r.mountInfo(), func(record []string) bool {
-			// TODO: Unsafe full path is required, and not a fd, since otherwise mount table lookups and such would not work.
-			isMounted = record[4] == unsafepath.UnsafeAbsolute(mountPoint.Raw())
-			return isMounted
-		}); err != nil {
-			return false, nil
-		}
-		return true, nil
+		// TODO: Unsafe full path is required, and not a fd, since otherwise mount table lookups and such would not work.
+		return mount.Mounted(unsafepath.UnsafeAbsolute(mountPoint.Raw()))
 	}
 }
 
 // IsBlockDevice check if the path given is a block device or not.
-func (r *realIsolationResult) IsBlockDevice(path string) (bool, error) {
-	fileInfo, err := os.Stat(path)
+func (r *realIsolationResult) IsBlockDevice(path *safepath.Path) (bool, error) {
+	fileInfo, err := safepath.StatAtNoFollow(path)
 	if err == nil {
 		if !fileInfo.IsDir() && (fileInfo.Mode()&os.ModeDevice) != 0 {
 			return true, nil
@@ -404,7 +400,6 @@ func (r *realIsolationResult) FullPath(mountInfo *MountInfo) (path *safepath.Pat
 		}
 		return path, nil
 	}
-
 	parentMountInfo, err := r.ParentMountInfoFor(mountInfo)
 	if err != nil {
 		return
@@ -500,12 +495,4 @@ func NodeIsolationResult() *realIsolationResult {
 	return &realIsolationResult{
 		pid: 1,
 	}
-}
-
-func SafeJoin(res IsolationResult, elems ...string) (*safepath.Path, error) {
-	mountRoot, err := res.MountRoot()
-	if err != nil {
-		return nil, err
-	}
-	return mountRoot.AppendAndResolveWithRelativeRoot(elems...)
 }

@@ -2,7 +2,6 @@ package safepath
 
 import (
 	"fmt"
-	"io/fs"
 	"io/ioutil"
 	"os"
 	"os/user"
@@ -240,11 +239,11 @@ var _ = Describe("safepath", func() {
 		Expect(err).ToNot(HaveOccurred())
 		Expect(stat.Sys().(*syscall.Stat_t).Gid).To(Equal(uint32(gid)))
 		Expect(stat.Sys().(*syscall.Stat_t).Uid).To(Equal(uint32(uid)))
-		Expect(stat.Mode() & 0777).To(Equal(fs.FileMode(0777)))
+		Expect(stat.Mode() & 0777).To(Equal(os.FileMode(0777)))
 		Expect(ChpermAtNoFollow(root, uid, gid, 0770)).To(Succeed())
 		stat, err = StatAtNoFollow(root)
 		Expect(err).ToNot(HaveOccurred())
-		Expect(stat.Mode() & 0777).To(Equal(fs.FileMode(0770)))
+		Expect(stat.Mode() & 0777).To(Equal(os.FileMode(0770)))
 		Expect(stat.Sys().(*syscall.Stat_t).Gid).To(Equal(uint32(gid)))
 		Expect(stat.Sys().(*syscall.Stat_t).Uid).To(Equal(uint32(uid)))
 	})
@@ -315,9 +314,9 @@ var _ = Describe("safepath", func() {
 
 		Expect(os.MkdirAll(filepath.Join(baseDir, "test"), os.ModePerm)).To(Succeed())
 
-		var files []os.DirEntry
+		var files []os.FileInfo
 		Expect(root.ExecuteNoFollow(func(safePath string) (err error) {
-			files, err = os.ReadDir(safePath)
+			files, err = ioutil.ReadDir(safePath)
 			return err
 		})).To(Succeed())
 		Expect(files).To(HaveLen(1))

@@ -43,21 +43,27 @@ var (
 
 // GetHotplugTargetPodPathOnHost retrieves the target pod (virt-launcher) path on the host.
 func GetHotplugTargetPodPathOnHost(virtlauncherPodUID types.UID) (*safepath.Path, error) {
-	podpath := TargetPodBasePath(h.podsBaseDir, virtlauncherPodUID)
-	return safepath.JoinAndResolveWithRelativeRoot("/", podpath)
+	podpath := targetPodBasePath(virtlauncherPodUID)
+	return safepath.JoinAndResolveWithRelativeRoot("/", filepath.Join(podsBaseDir, podpath))
 }
 
 // GetFileSystemDiskTargetPathFromHostView gets the disk image file in the target pod (virt-launcher) on the host.
 func GetFileSystemDiskTargetPathFromHostView(virtlauncherPodUID types.UID, volumeName string, create bool) (*safepath.Path, error) {
-	targetPath, err := h.GetHotplugTargetPodPathOnHost(virtlauncherPodUID)
+	targetPath, err := GetHotplugTargetPodPathOnHost(virtlauncherPodUID)
 	if err != nil {
 		return targetPath, err
 	}
-	diskName := fmt.Sprintf("%s.img", volumeName)
-	if err := safepath.TouchAtNoFollow(targetPath, diskName, 0666); err != nil && !os.IsExist(err) {
-		return nil, err
+	diskPath, err := safepath.JoinNoFollow(targetPath, volumeName)
+	if err != nil && create {
+		err = safepath.MkdirAtNoFollow(targetPath, volumeName, os.ModePerm)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		return diskPath, err
 	}
-	return safepath.JoinNoFollow(targetPath, diskName)
+
+	return safepath.JoinNoFollow(targetPath, volumeName)
 }
 
 // SetLocalDirectory sets the base directory where disk images will be mounted when hotplugged. File system volumes will be in
