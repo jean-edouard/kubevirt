@@ -404,7 +404,6 @@ func (r *realIsolationResult) FullPath(mountInfo *MountInfo) (path *safepath.Pat
 		}
 		return path, nil
 	}
-
 	parentMountInfo, err := r.ParentMountInfoFor(mountInfo)
 	if err != nil {
 		return

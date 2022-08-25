@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/onsi/ginkgo"
 	"io"
 	"io/ioutil"
 	"os"
@@ -334,17 +335,32 @@ func (m *volumeMounter) Mount(vmi *v1.VirtualMachineInstance) error {
 // each pod, we use this knowledge to determine if we have a block volume or not.
 func (m *volumeMounter) isBlockVolume(sourceUID types.UID) bool {
 	// Check if the volumeDevices directory exists in the attachment pod, if so, its a block device, otherwise its file system.
+	ginkgo.GinkgoWriter.Write([]byte(fmt.Sprintf("JEDIS1 %s\n", sourceUID)))
+	ginkgo.GinkgoWriter.Write([]byte(fmt.Sprintf("JEDIS1 %s\n", sourceUID)))
+	ginkgo.GinkgoWriter.Write([]byte(fmt.Sprintf("JEDIS1 %s\n", sourceUID)))
 	if sourceUID != types.UID("") {
 		devicePath, err := deviceBasePath(sourceUID)
+		ginkgo.GinkgoWriter.Write([]byte(fmt.Sprintf("JEDIS1.5 %v\n", devicePath)))
+		ginkgo.GinkgoWriter.Write([]byte(fmt.Sprintf("JEDIS1.5 %v\n", devicePath)))
+		ginkgo.GinkgoWriter.Write([]byte(fmt.Sprintf("JEDIS1.5 %v\n", devicePath)))
 		if err != nil {
+			ginkgo.GinkgoWriter.Write([]byte(fmt.Sprintf("JEDIS2 %v\n", err)))
+			ginkgo.GinkgoWriter.Write([]byte(fmt.Sprintf("JEDIS2 %v\n", err)))
+			ginkgo.GinkgoWriter.Write([]byte(fmt.Sprintf("JEDIS2 %v\n", err)))
 			log.Log.V(4).Error(err.Error())
 			return false
 		}
 		info, err := safepath.StatAtNoFollow(devicePath)
 		if err != nil {
+			ginkgo.GinkgoWriter.Write([]byte(fmt.Sprintf("JEDIS3 %s\n", unsafepath.UnsafeAbsolute(devicePath.Raw()))))
+			ginkgo.GinkgoWriter.Write([]byte(fmt.Sprintf("JEDIS3 %s\n", unsafepath.UnsafeAbsolute(devicePath.Raw()))))
+			ginkgo.GinkgoWriter.Write([]byte(fmt.Sprintf("JEDIS3 %s\n", unsafepath.UnsafeAbsolute(devicePath.Raw()))))
 			log.Log.V(4).Infof("%s pod does not contain a block device %v", sourceUID, err)
 			return false
 		}
+		ginkgo.GinkgoWriter.Write([]byte(fmt.Sprintf("JEDIS4 %v\n", info.IsDir())))
+		ginkgo.GinkgoWriter.Write([]byte(fmt.Sprintf("JEDIS4 %v\n", info)))
+		ginkgo.GinkgoWriter.Write([]byte(fmt.Sprintf("JEDIS4 %v\n", info)))
 		return info.IsDir()
 	}
 	return false
@@ -593,14 +609,19 @@ func (m *volumeMounter) createBlockDeviceFile(basePath *safepath.Path, deviceNam
 }
 
 func (m *volumeMounter) mountFileSystemHotplugVolume(vmi *v1.VirtualMachineInstance, volume string, sourceUID types.UID, record *vmiMountTargetRecord) error {
+	ginkgo.GinkgoWriter.Write([]byte(fmt.Sprintf("JEDFS0 %s\n", sourceUID)))
 	sourcePath, err := m.getSourcePodFilePath(sourceUID, vmi, volume)
 	if err != nil {
+		ginkgo.GinkgoWriter.Write([]byte(fmt.Sprintf("JEDFS1 %s\n", sourceUID)))
+		ginkgo.GinkgoWriter.Write([]byte(fmt.Sprintf("JEDFS1 %s\n", sourceUID)))
 		log.DefaultLogger().Infof("Error finding source path: %v", err)
 		return nil
 	}
 
 	virtlauncherUID := m.findVirtlauncherUID(vmi)
 	if virtlauncherUID == "" {
+		ginkgo.GinkgoWriter.Write([]byte(fmt.Sprintf("JEDFS2 %s\n", sourceUID)))
+		ginkgo.GinkgoWriter.Write([]byte(fmt.Sprintf("JEDFS2 %s\n", sourceUID)))
 		// This is not the node the pod is running on.
 		return nil
 	}
@@ -610,20 +631,20 @@ func (m *volumeMounter) mountFileSystemHotplugVolume(vmi *v1.VirtualMachineInsta
 	}
 
 	if isMounted, err := isMounted(targetPath); err != nil {
+		ginkgo.GinkgoWriter.Write([]byte(fmt.Sprintf("JEDFS3 %s\n", sourceUID)))
 		return fmt.Errorf("failed to determine if %s is already mounted: %v", targetPath, err)
 	} else if !isMounted {
+		ginkgo.GinkgoWriter.Write([]byte(fmt.Sprintf("JEDFS4 %s\n", sourceUID)))
 		if err := m.writePathToMountRecord(unsafepath.UnsafeAbsolute(targetPath.Raw()), vmi, record); err != nil {
 			return err
 		}
-		sourcePath, err = sourcePath.AppendAndResolveWithRelativeRoot("disk.img")
-		if err != nil {
-			return err
-		}
+		ginkgo.GinkgoWriter.Write([]byte(fmt.Sprintf("JEDFS5 %s\n", sourceUID)))
 		if out, err := mountCommand(sourcePath, targetPath); err != nil {
 			return fmt.Errorf("failed to bindmount hotplug-disk %v to %v: %v : %v", sourcePath, targetPath, string(out), err)
 		}
 		log.DefaultLogger().V(1).Infof("successfully mounted %v", volume)
 	}
+	ginkgo.GinkgoWriter.Write([]byte(fmt.Sprintf("JEDFS99 %s\n", sourceUID)))
 	return nil
 }
 
@@ -670,11 +691,7 @@ func (m *volumeMounter) getSourcePodFilePath(sourceUID types.UID, vmi *v1.Virtua
 		}
 		for _, mount := range mounts {
 			if mount.MountPoint == "/pvc" {
-				mountRoot, err := safepath.NewPathNoFollow(mount.Root)
-				if err != nil {
-					return nil, err
-				}
-				return mountRoot, nil
+				return safepath.NewPathNoFollow(mount.Root)
 			}
 		}
 	}

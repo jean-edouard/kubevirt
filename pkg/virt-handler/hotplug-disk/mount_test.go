@@ -195,7 +195,7 @@ var _ = Describe("HotplugVolume block devices", func() {
 		record = &vmiMountTargetRecord{}
 
 		deviceBasePath = func(sourceUID types.UID) (*safepath.Path, error) {
-			return newDir(tempDir, string(sourceUID), "volumes")
+			return safepath.JoinAndResolveWithRelativeRoot(tempDir, string(sourceUID), "volumes")
 		}
 		statSourceDevice = func(*safepath.Path) (os.FileInfo, error) {
 			return fakeStat(true, 0777, 123456), nil
@@ -219,12 +219,12 @@ var _ = Describe("HotplugVolume block devices", func() {
 	It("isBlockVolume should determine if we have a block volume", func() {
 		err = os.RemoveAll(filepath.Join(tempDir, string(vmi.UID), "volumes"))
 		Expect(err).ToNot(HaveOccurred())
-		By("Passing empty UID, should return false")
-		res := m.isBlockVolume("")
-		Expect(res).To(BeFalse())
+		//By("Passing empty UID, should return false")
+		//res := m.isBlockVolume("")
+		//Expect(res).To(BeFalse())
 		By("Not having the volume directory, should return false")
-		res = m.isBlockVolume(vmi.UID)
-		Expect(res).To(BeFalse())
+		res := m.isBlockVolume(vmi.UID)
+		Expect(res).To(BeFalse(), filepath.Join(tempDir, string(vmi.UID), "volumes"))
 		By("Creating the volume directory, should return true")
 		err = os.MkdirAll(filepath.Join(tempDir, string(vmi.UID), "volumes"), 0755)
 		Expect(err).ToNot(HaveOccurred())
@@ -667,6 +667,7 @@ var _ = Describe("HotplugVolume filesystem volumes", func() {
 				pid: 1,
 			}
 		}
+		os.MkdirAll("/test/result", 0755)
 		procMounts = func(pid int) ([]*procfs.MountInfo, error) {
 			Expect(pid).To(Equal(1))
 			res := make([]*procfs.MountInfo, 0)
@@ -837,18 +838,24 @@ var _ = Describe("HotplugVolume volumes", func() {
 			},
 		})
 		isBlockDevice = func(path *safepath.Path) (bool, error) {
-			return isolation.NodeIsolationResult().IsBlockDevice(path)
+			return strings.Contains(unsafepath.UnsafeAbsolute(path.Raw()), "blockvolume"), nil
 		}
+		//mknodCommand = func(basePath *safepath.Path, deviceName string, dev uint64, blockDevicePermissions os.FileMode) error {
+		//	_, err := newFile(unsafepath.UnsafeAbsolute(basePath.Raw()), deviceName)
+		//	Expect(err).ToNot(HaveOccurred())
+		//	return nil
+		//}
 		vmi.Status.VolumeStatus = volumeStatuses
 		deviceBasePath = func(podUID types.UID) (*safepath.Path, error) {
-			return newDir(tempDir, string(podUID), "volumeDevices")
+			return safepath.JoinAndResolveWithRelativeRoot(tempDir, string(podUID), "volumeDevices")
 		}
 		blockDevicePath, err := newDir(tempDir, string(blockSourcePodUID), "volumeDevices")
 		Expect(err).ToNot(HaveOccurred())
-		fileSystemPath, err := newDir(tempDir, string(blockSourcePodUID), "volumes")
+		fileSystemPath, err := newDir(tempDir, string(fsSourcePodUID), "volumes")
 		Expect(err).ToNot(HaveOccurred())
 
-		deviceFile, err := newFile(unsafepath.UnsafeAbsolute(blockDevicePath.Raw()), "file")
+		//deviceFile, err := newFile(unsafepath.UnsafeAbsolute(blockDevicePath.Raw()), "file")
+		deviceFile, err := newFile(unsafepath.UnsafeAbsolute(blockDevicePath.Raw()), "blockvolumefile")
 		Expect(err).ToNot(HaveOccurred())
 		slicePath := "slice"
 		m.podIsolationDetector = &mockIsolationDetector{
@@ -874,18 +881,22 @@ var _ = Describe("HotplugVolume volumes", func() {
 			}
 			return fileSystemPath, nil
 		}
-		diskFile, err := newFile(unsafepath.UnsafeAbsolute(fileSystemPath.Raw()), "disk.img")
-		Expect(err).ToNot(HaveOccurred())
+		//diskFile, err := newFile(unsafepath.UnsafeAbsolute)fileSystemPath.Raw()), "disk.img")
+		//Expect(err).ToNot(HaveOccurred())
 		hotplugdisk.SetKubeletPodsDirectory(tempDir)
 		targetPodPath := filepath.Join(tempDir, string(m.findVirtlauncherUID(vmi)), "volumes/kubernetes.io~empty-dir/hotplug-disks")
 		err = os.MkdirAll(targetPodPath, 0755)
+		Expect(err).ToNot(HaveOccurred())
 		fileSystemVolume := filepath.Join(tempDir, "/abcd/volumes/kubernetes.io~empty-dir/hotplug-disks/filesystemvolume")
 		blockVolume := filepath.Join(tempDir, "/abcd/volumes/kubernetes.io~empty-dir/hotplug-disks/blockvolume")
-		Expect(err).ToNot(HaveOccurred())
 		targetFilePath := filepath.Join(targetPodPath, "filesystemvolume")
+		//isMounted = func(diskPath *safepath.Path) (bool, error) {
+		//	Expect(targetFilePath).To(Equal(unsafepath.UnsafeAbsolute(diskPath.Raw())))
+		//	return false, nil
+		//}
 		mountCommand = func(sourcePath, targetPath *safepath.Path) ([]byte, error) {
-			Expect(unsafepath.UnsafeRelative(sourcePath.Raw())).To(Equal(unsafepath.UnsafeRelative(diskFile.Raw())))
-			Expect(unsafepath.UnsafeRelative(targetPath.Raw())).To(Equal(targetFilePath))
+			Expect(unsafepath.UnsafeRelative(sourcePath.Raw())).To(Equal(unsafepath.UnsafeAbsolute(fileSystemPath.Raw())))
+			Expect(unsafepath.UnsafeAbsolute(targetPath.Raw())).To(Equal(targetFilePath))
 			return []byte("Success"), nil
 		}
 		err = m.Mount(vmi)
@@ -957,17 +968,20 @@ var _ = Describe("HotplugVolume volumes", func() {
 				AttachPodUID:  blockSourcePodUID,
 			},
 		})
+		//isBlockDevice = func(path *safepath.Path) (bool, error) {
+		//	return isolation.NodeIsolationResult().IsBlockDevice(path)
+		//}
 		isBlockDevice = func(path *safepath.Path) (bool, error) {
-			return isolation.NodeIsolationResult().IsBlockDevice(path)
+			return strings.Contains(unsafepath.UnsafeAbsolute(path.Raw()), "blockvolume"), nil
 		}
 
 		vmi.Status.VolumeStatus = volumeStatuses
 		deviceBasePath = func(podUID types.UID) (*safepath.Path, error) {
-			return newDir(tempDir, string(podUID), "volumeDevices")
+			return safepath.JoinAndResolveWithRelativeRoot(tempDir, string(podUID), "volumeDevices")
 		}
 		blockDevicePath, err := newDir(tempDir, string(blockSourcePodUID), "volumeDevices")
 		Expect(err).ToNot(HaveOccurred())
-		fileSystemPath, err := newDir(tempDir, string(blockSourcePodUID), "volumes")
+		fileSystemPath, err := newDir(tempDir, string(fsSourcePodUID), "volumes")
 		Expect(err).ToNot(HaveOccurred())
 		deviceFile, err := newFile(unsafepath.UnsafeAbsolute(blockDevicePath.Raw()), "blockvolumefile")
 		Expect(err).ToNot(HaveOccurred())
