@@ -423,6 +423,10 @@ func (r *realIsolationResult) MountRoot() (*safepath.Path, error) {
 	return safepath.JoinAndResolveWithRelativeRoot(fmt.Sprintf("/proc/%d/root", r.pid))
 }
 
+func (r *realIsolationResult) UnsafeMountRoot() string {
+	return fmt.Sprintf("/proc/%d/root", r.pid)
+}
+
 func (r *realIsolationResult) MountRootRelative(relativePath string) (*safepath.Path, error) {
 	mountRoot, err := r.MountRoot()
 	if err != nil {
