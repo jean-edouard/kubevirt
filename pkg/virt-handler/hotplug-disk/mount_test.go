@@ -46,6 +46,7 @@ import (
 
 var (
 	tempDir              string
+	tempDirSafe          *safepath.Path
 	orgIsoDetector       = isolationDetector
 	orgProcMounts        = procMounts
 	orgDeviceBasePath    = deviceBasePath
@@ -173,6 +174,8 @@ var _ = Describe("HotplugVolume block devices", func() {
 	BeforeEach(func() {
 		tempDir, err = ioutil.TempDir("", "hotplug-volume-test")
 		Expect(err).ToNot(HaveOccurred())
+		tempDirSafe, err = safepath.JoinAndResolveWithRelativeRoot("/", tempDir)
+		Expect(err).ToNot(HaveOccurred())
 		vmi = v1.NewMinimalVMI("fake-vmi")
 		vmi.UID = "1234"
 		activePods := make(map[types.UID]string, 0)
@@ -187,8 +190,8 @@ var _ = Describe("HotplugVolume block devices", func() {
 		}
 		record = &vmiMountTargetRecord{}
 
-		deviceBasePath = func(sourceUID types.UID) string {
-			return filepath.Join(tempDir, string(sourceUID), "volumes")
+		deviceBasePath = func(sourceUID types.UID) (*safepath.Path, error) {
+			return tempDirSafe.AppendAndResolveWithRelativeRoot(string(sourceUID), "volumes")
 		}
 		statCommand = func(fileName string) ([]byte, error) {
 			return []byte("6,6,0777,block special file"), nil
@@ -244,7 +247,7 @@ var _ = Describe("HotplugVolume block devices", func() {
 		targetPodPath := filepath.Join(tempDir, string(m.findVirtlauncherUID(vmi)), "volumes/kubernetes.io~empty-dir/hotplug-disks")
 		err = os.MkdirAll(targetPodPath, 0755)
 		Expect(err).ToNot(HaveOccurred())
-		deviceFile := filepath.Join(tempDir, string(blockSourcePodUID), "volumes", "file")
+		deviceFile := filepath.Join(tempDir, string(blockSourcePodUID), "volumes", "testvolume")
 		slicePath := "slice"
 		m.podIsolationDetector = &mockIsolationDetector{
 			slice: slicePath,
@@ -286,7 +289,7 @@ var _ = Describe("HotplugVolume block devices", func() {
 
 	It("getSourceMajorMinor should return an error if no uid", func() {
 		vmi.UID = ""
-		_, _, _, err := m.getSourceMajorMinor("fghij")
+		_, _, _, err := m.getSourceMajorMinor("fghij", "")
 		Expect(err).To(HaveOccurred())
 	})
 
@@ -296,7 +299,7 @@ var _ = Describe("HotplugVolume block devices", func() {
 		Expect(err).ToNot(HaveOccurred())
 		err = ioutil.WriteFile(deviceFile, []byte("test"), 0644)
 		Expect(err).ToNot(HaveOccurred())
-		major, minor, perm, err := m.getSourceMajorMinor("fghij")
+		major, minor, perm, err := m.getSourceMajorMinor("fghij", "file")
 		Expect(err).ToNot(HaveOccurred())
 		Expect(major).To(Equal(int64(6)))
 		Expect(minor).To(Equal(int64(6)))
@@ -307,7 +310,7 @@ var _ = Describe("HotplugVolume block devices", func() {
 		deviceFile := filepath.Join(tempDir, "fghij", "volumes", "file")
 		err = os.MkdirAll(filepath.Dir(deviceFile), 0755)
 		Expect(err).ToNot(HaveOccurred())
-		major, minor, perm, err := m.getSourceMajorMinor("fghij")
+		major, minor, perm, err := m.getSourceMajorMinor("fghij", "file")
 		Expect(err).To(HaveOccurred())
 		Expect(major).To(Equal(int64(-1)))
 		Expect(minor).To(Equal(int64(-1)))
@@ -578,6 +581,7 @@ var _ = Describe("HotplugVolume filesystem volumes", func() {
 	BeforeEach(func() {
 		tempDir, err = ioutil.TempDir("", "hotplug-volume-test")
 		Expect(err).ToNot(HaveOccurred())
+		tempDirSafe, err = safepath.JoinAndResolveWithRelativeRoot("/", tempDir)
 		vmi = v1.NewMinimalVMI("fake-vmi")
 		vmi.UID = "1234"
 		activePods := make(map[types.UID]string, 0)
@@ -592,8 +596,8 @@ var _ = Describe("HotplugVolume filesystem volumes", func() {
 			mountStateDir:        tempDir,
 		}
 
-		deviceBasePath = func(sourceUID types.UID) string {
-			return filepath.Join(tempDir, string(sourceUID), "volumes")
+		deviceBasePath = func(sourceUID types.UID) (*safepath.Path, error) {
+			return tempDirSafe.AppendAndResolveWithRelativeRoot(string(sourceUID), "volumes")
 		}
 
 	})
@@ -803,6 +807,8 @@ var _ = Describe("HotplugVolume volumes", func() {
 	BeforeEach(func() {
 		tempDir, err = ioutil.TempDir("", "hotplug-volume-test")
 		Expect(err).ToNot(HaveOccurred())
+		tempDirSafe, err = safepath.JoinAndResolveWithRelativeRoot("/", tempDir)
+		Expect(err).ToNot(HaveOccurred())
 		vmi = v1.NewMinimalVMI("fake-vmi")
 		vmi.UID = "1234"
 		activePods := make(map[types.UID]string, 0)
@@ -816,8 +822,8 @@ var _ = Describe("HotplugVolume volumes", func() {
 			skipSafetyCheck:      true,
 		}
 
-		deviceBasePath = func(sourceUID types.UID) string {
-			return filepath.Join(tempDir, string(sourceUID), "volumes")
+		deviceBasePath = func(sourceUID types.UID) (*safepath.Path, error) {
+			return tempDirSafe.AppendAndResolveWithRelativeRoot(string(sourceUID), "volumes")
 		}
 		statCommand = func(fileName string) ([]byte, error) {
 			return []byte("6,6,0777,block special file"), nil
@@ -870,8 +876,8 @@ var _ = Describe("HotplugVolume volumes", func() {
 			return false, fmt.Errorf("Not a block device")
 		}
 		vmi.Status.VolumeStatus = volumeStatuses
-		deviceBasePath = func(sourceUID types.UID) string {
-			return filepath.Join(tempDir, string(sourceUID), "volumeDevices")
+		deviceBasePath = func(sourceUID types.UID) (*safepath.Path, error) {
+			return tempDirSafe.AppendAndResolveWithRelativeRoot(string(sourceUID), "volumeDevices")
 		}
 		blockDevicePath := filepath.Join(tempDir, string(blockSourcePodUID), "volumeDevices")
 		fileSystemPath := filepath.Join(tempDir, string(fsSourcePodUID), "volumes")
@@ -880,7 +886,7 @@ var _ = Describe("HotplugVolume volumes", func() {
 		err = os.MkdirAll(fileSystemPath, 0755)
 		Expect(err).ToNot(HaveOccurred())
 
-		deviceFile := filepath.Join(blockDevicePath, "file")
+		deviceFile := filepath.Join(blockDevicePath, "blockvolume")
 		slicePath := "slice"
 		m.podIsolationDetector = &mockIsolationDetector{
 			slice: slicePath,
@@ -996,8 +1002,8 @@ var _ = Describe("HotplugVolume volumes", func() {
 		}
 
 		vmi.Status.VolumeStatus = volumeStatuses
-		deviceBasePath = func(sourceUID types.UID) string {
-			return filepath.Join(tempDir, string(sourceUID), "volumeDevices")
+		deviceBasePath = func(sourceUID types.UID) (*safepath.Path, error) {
+			return tempDirSafe.AppendAndResolveWithRelativeRoot(string(sourceUID), "volumeDevices")
 		}
 		blockDevicePath := filepath.Join(tempDir, string(blockSourcePodUID), "volumeDevices")
 		fileSystemPath := filepath.Join(tempDir, string(fsSourcePodUID), "volumes")
@@ -1006,7 +1012,7 @@ var _ = Describe("HotplugVolume volumes", func() {
 		err = os.MkdirAll(fileSystemPath, 0755)
 		Expect(err).ToNot(HaveOccurred())
 
-		deviceFile := filepath.Join(blockDevicePath, "file")
+		deviceFile := filepath.Join(blockDevicePath, "blockvolume")
 		slicePath := "slice"
 		m.podIsolationDetector = &mockIsolationDetector{
 			slice: slicePath,

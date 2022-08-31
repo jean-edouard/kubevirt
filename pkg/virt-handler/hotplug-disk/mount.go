@@ -23,7 +23,6 @@ import (
 
 	diskutils "kubevirt.io/kubevirt/pkg/ephemeral-disk-utils"
 	hotplugdisk "kubevirt.io/kubevirt/pkg/hotplug-disk"
-	"kubevirt.io/kubevirt/pkg/util"
 	"kubevirt.io/kubevirt/pkg/virt-handler/cgroup"
 	"kubevirt.io/kubevirt/pkg/virt-handler/isolation"
 
@@ -39,8 +38,8 @@ import (
 )
 
 var (
-	deviceBasePath = func(podUID types.UID) string {
-		return fmt.Sprintf("/proc/1/root/var/lib/kubelet/pods/%s/volumeDevices", string(podUID))
+	deviceBasePath = func(podUID types.UID) (*safepath.Path, error) {
+		return safepath.JoinAndResolveWithRelativeRoot("/proc/1/root", fmt.Sprintf("/var/lib/kubelet/pods/%s/volumeDevices", string(podUID)))
 	}
 
 	sourcePodBasePath = func(podUID types.UID) string {
@@ -282,8 +281,12 @@ func (m *volumeMounter) Mount(vmi *v1.VirtualMachineInstance) error {
 func (m *volumeMounter) isBlockVolume(sourceUID types.UID) bool {
 	// Check if the volumeDevices directory exists in the attachment pod, if so, its a block device, otherwise its file system.
 	if sourceUID != types.UID("") {
-		devicePath := deviceBasePath(sourceUID)
-		info, err := os.Stat(devicePath)
+		devicePath, err := deviceBasePath(sourceUID)
+		if err != nil {
+			log.Log.V(4).Infof("%s pod does not contain a block device %v", sourceUID, err)
+			return false
+		}
+		info, err := safepath.StatAtNoFollow(devicePath)
 		if err != nil {
 			log.Log.V(4).Infof("%s pod does not contain a block device %v", sourceUID, err)
 			return false
@@ -311,7 +314,7 @@ func (m *volumeMounter) mountBlockHotplugVolume(vmi *v1.VirtualMachineInstance, 
 		if err != nil {
 			return err
 		}
-		sourceMajor, sourceMinor, permissions, err := m.getSourceMajorMinor(sourceUID)
+		sourceMajor, sourceMinor, permissions, err := m.getSourceMajorMinor(sourceUID, volume)
 		if err != nil {
 			return err
 		}
@@ -331,7 +334,7 @@ func (m *volumeMounter) mountBlockHotplugVolume(vmi *v1.VirtualMachineInstance, 
 		if err != nil {
 			return err
 		}
-		sourceMajor, sourceMinor, _, err := m.getSourceMajorMinor(sourceUID)
+		sourceMajor, sourceMinor, _, err := m.getSourceMajorMinor(sourceUID, volume)
 		if err != nil {
 			return err
 		}
@@ -355,53 +358,6 @@ func (m *volumeMounter) volumeStatusReady(volumeName string, vmi *v1.VirtualMach
 	return true
 }
 
-func (m *volumeMounter) getSourceMajorMinor(sourceUID types.UID) (int64, int64, string, error) {
-	result := make([]int64, 2)
-	perms := ""
-	if sourceUID != types.UID("") {
-		basepath := deviceBasePath(sourceUID)
-		err := filepath.Walk(basepath, func(filePath string, info os.FileInfo, err error) error {
-			if info != nil && !info.IsDir() {
-				// Walk doesn't follow symlinks which is good because I need to massage symlinks
-				linkInfo, err := os.Lstat(filePath)
-				if err != nil {
-					return err
-				}
-				path := filePath
-				if linkInfo.Mode()&os.ModeSymlink != 0 {
-					// Its a symlink, follow it
-					link, err := os.Readlink(filePath)
-					if err != nil {
-						return err
-					}
-					if !strings.HasPrefix(link, util.HostRootMount) {
-						path = filepath.Join(util.HostRootMount, link)
-					} else {
-						path = link
-					}
-				}
-				if m.isBlockFile(path) {
-					result[0], result[1], perms, err = m.getBlockFileMajorMinor(path)
-					// Err != nil means not a block device or unable to determine major/minor, try next file
-					if err == nil {
-						// Successfully located
-						return io.EOF
-					}
-				}
-				return nil
-			}
-			return nil
-		})
-		if err != nil && err != io.EOF {
-			return -1, -1, "", err
-		}
-	}
-	if perms == "" {
-		return -1, -1, "", fmt.Errorf("Unable to find block device")
-	}
-	return result[0], result[1], perms, nil
-}
-
 func (m *volumeMounter) isBlockFile(fileName string) bool {
 	// Stat the file and see if there is no error
 	out, err := statCommand(fileName)
@@ -415,6 +371,18 @@ func (m *volumeMounter) isBlockFile(fileName string) bool {
 		return false
 	}
 	return strings.TrimSpace(split[3]) == "block special file"
+}
+
+func (m *volumeMounter) getSourceMajorMinor(sourceUID types.UID, volumeName string) (int64, int64, string, error) {
+	basePath, err := deviceBasePath(sourceUID)
+	if err != nil {
+		return -1, -1, "", err
+	}
+	devicePath, err := basePath.AppendAndResolveWithRelativeRoot(volumeName)
+	if err != nil {
+		return -1, -1, "", err
+	}
+	return m.getBlockFileMajorMinor(unsafepath.UnsafeAbsolute(devicePath.Raw()))
 }
 
 func (m *volumeMounter) getBlockFileMajorMinor(fileName string) (int64, int64, string, error) {
