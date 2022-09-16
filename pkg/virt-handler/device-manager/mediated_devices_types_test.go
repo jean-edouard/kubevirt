@@ -37,36 +37,36 @@ var _ = Describe("Mediated Devices Types configuration", func() {
 	var configuredMdevTypesOnCards map[string]map[string]struct{}
 	var clientTest *fake.Clientset
 	var mdevTypesDetailsMap = map[string]mdevTypesDetails{
-		"nvidia-222": mdevTypesDetails{
+		"nvidia-222": {
 			name:               "GRID T4-1B",
 			availableInstances: 16,
 		},
-		"nvidia-223": mdevTypesDetails{
+		"nvidia-223": {
 			name:               "GRID T4-2B",
 			availableInstances: 8,
 		},
-		"nvidia-224": mdevTypesDetails{
+		"nvidia-224": {
 			name:               "GRID T4-2B4",
 			availableInstances: 8,
 		},
-		"nvidia-228": mdevTypesDetails{
+		"nvidia-228": {
 			name:               "GRID T4-8A",
 			availableInstances: 2,
 		},
-		"nvidia-229": mdevTypesDetails{
+		"nvidia-229": {
 			name:               "GRID T4-16A",
 			availableInstances: 1,
 		},
-		"i915-GVTg_V5_1": mdevTypesDetails{
+		"i915-GVTg_V5_1": {
 			availableInstances: 1,
 		},
-		"i915-GVTg_V5_2": mdevTypesDetails{
+		"i915-GVTg_V5_2": {
 			availableInstances: 1,
 		},
-		"i915-GVTg_V5_4": mdevTypesDetails{
+		"i915-GVTg_V5_4": {
 			availableInstances: 1,
 		},
-		"i915-GVTg_V5_8": mdevTypesDetails{
+		"i915-GVTg_V5_8": {
 			availableInstances: 2,
 		},
 	}
@@ -186,7 +186,7 @@ var _ = Describe("Mediated Devices Types configuration", func() {
 			"0000:65:00.0": mdevTypesForIdenticalPciDevices,
 			"0000:66:00.0": mdevTypesForIdenticalPciDevices,
 			"0000:67:00.0": mdevTypesForIdenticalPciDevices,
-			"0000:00:02.0": []string{"i915-GVTg_V5_1", "i915-GVTg_V5_2", "i915-GVTg_V5_4", "i915-GVTg_V5_8"},
+			"0000:00:02.0": {"i915-GVTg_V5_1", "i915-GVTg_V5_2", "i915-GVTg_V5_4", "i915-GVTg_V5_8"},
 		}
 		return &scenarioValues{
 			pciMDEVDevicesMap:       pciMDEVDevicesMap,
@@ -236,7 +236,7 @@ var _ = Describe("Mediated Devices Types configuration", func() {
 		pciMDEVDevicesMap := map[string][]string{
 			"0000:65:00.0": mdevTypesForIdenticalPciDevices,
 			"0000:66:00.0": mdevTypesForIdenticalPciDevices,
-			"0000:00:02.0": []string{"i915-GVTg_V5_1", "i915-GVTg_V5_2", "i915-GVTg_V5_4", "i915-GVTg_V5_8"},
+			"0000:00:02.0": {"i915-GVTg_V5_1", "i915-GVTg_V5_2", "i915-GVTg_V5_4", "i915-GVTg_V5_8"},
 		}
 		return &scenarioValues{
 			pciMDEVDevicesMap:       pciMDEVDevicesMap,
@@ -290,7 +290,8 @@ var _ = Describe("Mediated Devices Types configuration", func() {
 			sc := scenario()
 			createTempMDEVSysfsStructure(sc.pciMDEVDevicesMap)
 			mdevManager := NewMDEVTypesManager()
-			mdevManager.updateMDEVTypesConfiguration(sc.desiredDevicesList)
+			_, err := mdevManager.updateMDEVTypesConfiguration(sc.desiredDevicesList)
+			Expect(err).ToNot(HaveOccurred())
 
 			By("creating the desired mdev types")
 			desiredDevicesToConfigure := make(map[string]struct{})
@@ -303,7 +304,7 @@ var _ = Describe("Mediated Devices Types configuration", func() {
 			if len(sc.expectedConfiguredTypes) == 1 && sc.expectedConfiguredTypes[0] == "ANY" {
 				Expect(configuredMdevTypesOnCards).To(HaveLen(len(sc.pciMDEVDevicesMap)))
 			} else {
-				for mdevType, _ := range mdevTypesDetailsMap {
+				for mdevType := range mdevTypesDetailsMap {
 					numberOfCreatedMDEVs := countCreatedMdevs(mdevType)
 					if _, exist := desiredDevicesToConfigure[mdevType]; exist {
 						numberOfCardsConfiguredWithMdevType := len(configuredMdevTypesOnCards[mdevType])
@@ -320,7 +321,8 @@ var _ = Describe("Mediated Devices Types configuration", func() {
 			}
 
 			By("removing all created mdevs")
-			mdevManager.updateMDEVTypesConfiguration([]string{})
+			_, err = mdevManager.updateMDEVTypesConfiguration([]string{})
+			Expect(err).ToNot(HaveOccurred())
 			files, err := ioutil.ReadDir(fakeMdevDevicesPath)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(files).To(BeEmpty())
@@ -413,7 +415,7 @@ var _ = Describe("Mediated Devices Types configuration", func() {
 			if len(sc.expectedConfiguredTypes) == 1 && sc.expectedConfiguredTypes[0] == "ANY" {
 				Expect(configuredMdevTypesOnCards).To(HaveLen(len(sc.pciMDEVDevicesMap)))
 			} else {
-				for mdevType, _ := range mdevTypesDetailsMap {
+				for mdevType := range mdevTypesDetailsMap {
 					numberOfCreatedMDEVs := countCreatedMdevs(mdevType)
 					if _, exist := desiredDevicesToConfigure[mdevType]; exist {
 						numberOfCardsConfiguredWithMdevType := len(configuredMdevTypesOnCards[mdevType])
