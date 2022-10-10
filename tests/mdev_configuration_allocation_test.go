@@ -133,7 +133,7 @@ var _ = Describe("[Serial][sig-compute]MediatedDevices", func() {
 			config = kv.Spec.Configuration
 			config.DeveloperConfiguration.FeatureGates = append(config.DeveloperConfiguration.FeatureGates, virtconfig.GPUGate)
 			config.MediatedDevicesConfiguration = &v1.MediatedDevicesConfiguration{
-				MediatedDevicesTypes: []string{desiredMdevTypeName},
+				MediatedDeviceTypes: []string{desiredMdevTypeName},
 			}
 			config.PermittedHostDevices = &v1.PermittedHostDevices{
 				MediatedDevices: []v1.MediatedHostDevice{
