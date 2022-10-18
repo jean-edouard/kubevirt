@@ -45,6 +45,7 @@ import (
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/workqueue"
 
+	"kubevirt.io/kubevirt/pkg/psa"
 	"kubevirt.io/kubevirt/pkg/util"
 	"kubevirt.io/kubevirt/pkg/util/pdbs"
 	"kubevirt.io/kubevirt/pkg/util/status"
@@ -806,6 +807,20 @@ func (c *MigrationController) handleTargetPodHandoff(migration *virtv1.VirtualMa
 
 	if !c.isMigrationPolicyMatched(vmiCopy) {
 		vmiCopy.Status.MigrationState.MigrationConfiguration = clusterMigrationConfigs
+	}
+
+	if c.clusterConfig.PSAEnabled() && *vmiCopy.Status.MigrationState.MigrationConfiguration.AllowPostCopy {
+		isPrivileged, err := psa.IsNamespacePrivilegedWithStore(c.namespaceStore, c.clientset, vmiCopy.Namespace)
+		if err != nil {
+			return err
+		}
+
+		if !isPrivileged {
+			doNotAllowPostCopy := false
+			vmiCopy.Status.MigrationState.MigrationConfiguration.AllowPostCopy = &doNotAllowPostCopy
+			log.Log.Object(vmi).Warningf("PostCopy disabled for migration %s/%s as the namespace is not privileged", migration.Namespace, migration.Name)
+			c.recorder.Eventf(migration, k8sv1.EventTypeWarning, WarningPostCopyNotAllowed, "Disabled PostCopy as the namespace is not privileged.")
+		}
 	}
 
 	err = c.patchVMI(vmi, vmiCopy)

@@ -26,6 +26,7 @@ import (
 	"time"
 
 	virtcontroller "kubevirt.io/kubevirt/pkg/controller"
+	"kubevirt.io/kubevirt/pkg/psa"
 
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/utils/pointer"
@@ -1599,14 +1600,6 @@ var _ = Describe("Migration watcher", func() {
 				},
 				true,
 			),
-			Entry("allow post copy",
-				func(p *migrationsv1.MigrationPolicySpec) { p.AllowPostCopy = pointer.BoolPtr(true) },
-				func(c *virtv1.MigrationConfiguration) {
-					Expect(c.AllowPostCopy).ToNot(BeNil())
-					Expect(*c.AllowPostCopy).To(BeTrue())
-				},
-				true,
-			),
 			Entry("deny post copy",
 				func(p *migrationsv1.MigrationPolicySpec) { p.AllowPostCopy = pointer.BoolPtr(false) },
 				func(c *virtv1.MigrationConfiguration) {
@@ -1621,6 +1614,44 @@ var _ = Describe("Migration watcher", func() {
 				false,
 			),
 		)
+
+		It("should override cluster-wide migration configurations when postcopy is enabled", func() {
+			By("Defining a PSA privileged namespace")
+			privilegedNamespace := &k8sv1.Namespace{
+				TypeMeta: metav1.TypeMeta{Kind: "Namespace"},
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "privileged-namespace",
+					Labels: map[string]string{
+						psa.PSALabel: "privileged",
+					},
+				},
+			}
+			Expect(namespaceStore.Add(privilegedNamespace)).To(Succeed())
+			vmi.Namespace = privilegedNamespace.Name
+
+			By("Defining migration policy, matching it to vmi to posting it into the cluster")
+			migrationPolicy := tests.GetPolicyMatchedToVmi("testpolicy", vmi, privilegedNamespace, 1, 0)
+			migrationPolicy.Spec.AllowPostCopy = pointer.BoolPtr(true)
+			addMigrationPolicies(*migrationPolicy)
+
+			By("Calculating new migration config and validating it")
+			expectedConfigs := getDefaultMigrationConfiguration()
+			isConfigUpdated, err := migrationPolicy.GetMigrationConfByPolicy(expectedConfigs)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(isConfigUpdated).To(BeTrue())
+			Expect(expectedConfigs.AllowPostCopy).ToNot(BeNil())
+			Expect(*expectedConfigs.AllowPostCopy).To(BeTrue())
+
+			By("Expecting right patch to occur")
+			patch := getExpectedVmiPatch(true, expectedConfigs, migrationPolicy)
+			shouldExpectVirtualMachineInstancePatch(vmi, patch)
+
+			virtClient.EXPECT().VirtualMachineInstance(privilegedNamespace.Name).Return(vmiInterface).AnyTimes()
+
+			By("Running the controller")
+			controller.Execute()
+			testutils.ExpectEvent(recorder, SuccessfulHandOverPodReason)
+		})
 
 	})
 
