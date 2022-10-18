@@ -24,7 +24,6 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"strings"
 	"sync"
@@ -302,16 +301,10 @@ func (app *SubresourceAPIApp) DumpClusterProfilerHandler(request *restful.Reques
 
 			}
 
-			data, err := ioutil.ReadAll(resp.Body)
-			if err != nil {
-				errorChan <- err
-				return
-			}
-
 			componentResult := v1.ProfilerResult{}
-			err = json.Unmarshal(data, &componentResult)
+			err = json.NewDecoder(resp.Body).Decode(&componentResult)
 			if err != nil {
-				errorChan <- fmt.Errorf("Failure to unmarshal json body: %s\nerr: %v", string(data), err)
+				errorChan <- fmt.Errorf("Failure to unmarshal json body: %v", err)
 				return
 			}
 
