@@ -603,7 +603,7 @@ func max(x int, y int) int {
 	return y
 }
 
-//limit
+// limit
 func limit(x int, burstReplicas uint) int {
 	replicas := int(burstReplicas)
 	if x <= 0 {
