@@ -503,6 +503,13 @@ func (t *templateService) renderLaunchManifest(vmi *v1.VirtualMachineInstance, i
 	if nonRoot {
 		pod.Spec.SecurityContext.RunAsGroup = &userId
 		pod.Spec.SecurityContext.RunAsNonRoot = &nonRoot
+		pod.Spec.SecurityContext.SeccompProfile = &k8sv1.SeccompProfile{
+			Type: k8sv1.SeccompProfileTypeRuntimeDefault,
+		}
+	} else {
+		pod.Spec.SecurityContext.SeccompProfile = &k8sv1.SeccompProfile{
+			Type: k8sv1.SeccompProfileTypeUnconfined,
+		}
 	}
 
 	alignPodMultiCategorySecurity(&pod, vmi, t.clusterConfig.GetSELinuxLauncherType(), t.clusterConfig.DockerSELinuxMCSWorkaroundEnabled())
