@@ -1478,15 +1478,6 @@ var _ = Describe("Template", func() {
 				mem := resource.MustParse("64M")
 				Expect(pod.Spec.Containers[1].Resources.Limits.Memory().Cmp(mem)).To(BeZero())
 				Expect(pod.Spec.Containers[1].Resources.Limits.Cpu().Cmp(cpu)).To(BeZero())
-
-				found := false
-				caps := pod.Spec.Containers[0].SecurityContext.Capabilities
-				for _, cap := range caps.Add {
-					if cap == CAP_SYS_NICE {
-						found = true
-					}
-				}
-				Expect(found).To(BeTrue(), "Expected compute container to be granted SYS_NICE capability")
 				Expect(pod.Spec.NodeSelector).Should(HaveKeyWithValue(v1.CPUManager, "true"))
 			})
 			It("should allocate 1 more cpu when isolateEmulatorThread requested", func() {
@@ -2706,7 +2697,7 @@ var _ = Describe("Template", func() {
 
 				caps := pod.Spec.Containers[0].SecurityContext.Capabilities
 
-				Expect(caps.Drop).To(ContainElement(kubev1.Capability(CAP_NET_RAW)), "Expected compute container to drop NET_RAW capability")
+				Expect(caps.Drop).To(ContainElement(kubev1.Capability("ALL")), "Expected compute container to drop all capabilities")
 			})
 
 			It("Should require tun device if explicitly requested", func() {
@@ -2730,7 +2721,7 @@ var _ = Describe("Template", func() {
 
 				caps := pod.Spec.Containers[0].SecurityContext.Capabilities
 
-				Expect(caps.Drop).To(ContainElement(kubev1.Capability(CAP_NET_RAW)), "Expected compute container to drop NET_RAW capability")
+				Expect(caps.Drop).To(ContainElement(kubev1.Capability("ALL")), "Expected compute container to drop all capabilities")
 			})
 
 			It("Should not require tun device if explicitly rejected", func() {
@@ -2753,7 +2744,7 @@ var _ = Describe("Template", func() {
 
 				caps := pod.Spec.Containers[0].SecurityContext.Capabilities
 
-				Expect(caps.Drop).To(ContainElement(kubev1.Capability(CAP_NET_RAW)), "Expected compute container to drop NET_RAW capability")
+				Expect(caps.Drop).To(ContainElement(kubev1.Capability("ALL")), "Expected compute container to drop all capabilities")
 			})
 		})
 
@@ -3397,7 +3388,7 @@ var _ = Describe("Template", func() {
 			for _, container := range pod.Spec.Containers {
 				if container.Name == "compute" {
 					Expect(container.SecurityContext.Capabilities.Add).To(
-						ContainElements(kubev1.Capability("NET_BIND_SERVICE")))
+						ContainElement(kubev1.Capability("NET_BIND_SERVICE")))
 					return
 				}
 			}
