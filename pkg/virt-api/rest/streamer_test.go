@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"time"
 
 	restful "github.com/emicklei/go-restful"
@@ -41,12 +42,14 @@ var _ = Describe("Streamer", func() {
 	)
 
 	var (
-		fetchVMICalled       bool
-		validateVMICalled    bool
-		dialCalled           bool
-		streamToClientCalled chan struct{}
-		streamToServerCalled chan struct{}
-		directDialer         *DirectDialer
+		fetchVMICalled          bool
+		validateVMICalled       bool
+		dialCalled              bool
+		streamToClientCalled    chan struct{}
+		streamToServerCalled    chan struct{}
+		streamToClientIsRunning sync.Mutex
+		streamToServerIsRunning sync.Mutex
+		directDialer            *DirectDialer
 	)
 	BeforeEach(func() {
 		testVMI = &v1.VirtualMachineInstance{ObjectMeta: metav1.ObjectMeta{Name: "test-vmi"}}
@@ -72,10 +75,14 @@ var _ = Describe("Streamer", func() {
 		streamer = &Streamer{
 			dialer: directDialer,
 			streamToClient: func(clientSocket *websocket.Conn, serverConn net.Conn, result chan<- streamFuncResult) {
+				streamToClientIsRunning.Lock()
+				defer streamToClientIsRunning.Unlock()
 				result <- nil
 				streamToClientCalled <- struct{}{}
 			},
 			streamToServer: func(clientSocket *websocket.Conn, serverConn net.Conn, result chan<- streamFuncResult) {
+				streamToServerIsRunning.Lock()
+				defer streamToServerIsRunning.Unlock()
 				result <- nil
 				streamToServerCalled <- struct{}{}
 			},
@@ -91,6 +98,15 @@ var _ = Describe("Streamer", func() {
 		validateVMICalled = false
 		dialCalled = false
 	})
+
+	AfterEach(func() {
+		// Ensure both stream functions are done running, to avoid messing with the next test
+		Eventually(streamToClientIsRunning.TryLock()).Should(BeTrue())
+		Eventually(streamToServerIsRunning.TryLock()).Should(BeTrue())
+		streamToClientIsRunning.Unlock()
+		streamToServerIsRunning.Unlock()
+	})
+
 	It("fetches a VirtualMachineInstance", func() {
 		streamer.Handle(req, resp)
 		Expect(fetchVMICalled).To(BeTrue())
@@ -205,6 +221,8 @@ var _ = Describe("Streamer", func() {
 	})
 	It("does start streamToClient with connections", func() {
 		streamer.streamToClient = func(clientSocket *websocket.Conn, serverConn net.Conn, result chan<- streamFuncResult) {
+			streamToClientIsRunning.Lock()
+			defer streamToClientIsRunning.Unlock()
 			Expect(clientSocket).NotTo(BeNil())
 			Expect(serverConn).NotTo(BeNil())
 			result <- nil
@@ -221,6 +239,8 @@ var _ = Describe("Streamer", func() {
 	})
 	It("does start streamToServer with connections", func() {
 		streamer.streamToServer = func(clientSocket *websocket.Conn, serverConn net.Conn, result chan<- streamFuncResult) {
+			streamToServerIsRunning.Lock()
+			defer streamToServerIsRunning.Unlock()
 			Expect(clientSocket).NotTo(BeNil())
 			Expect(serverConn).NotTo(BeNil())
 			result <- nil
@@ -261,9 +281,13 @@ var _ = Describe("Streamer", func() {
 	})
 	It("closes clientSocket when keepAliveClient cancels context", func() {
 		streamer.streamToClient = func(clientSocket *websocket.Conn, serverConn net.Conn, result chan<- streamFuncResult) {
+			streamToClientIsRunning.Lock()
+			defer streamToClientIsRunning.Unlock()
 			streamToClientCalled <- struct{}{}
 		}
 		streamer.streamToServer = func(clientSocket *websocket.Conn, serverConn net.Conn, result chan<- streamFuncResult) {
+			streamToServerIsRunning.Lock()
+			defer streamToServerIsRunning.Unlock()
 			streamToServerCalled <- struct{}{}
 		}
 		streamer.keepAliveClient = func(ctx context.Context, conn *websocket.Conn, cancel func()) {
@@ -282,6 +306,8 @@ var _ = Describe("Streamer", func() {
 	})
 	It("cleans up the streamToClient goroutine on termination", func() {
 		streamer.streamToClient = func(clientSocket *websocket.Conn, serverConn net.Conn, result chan<- streamFuncResult) {
+			streamToClientIsRunning.Lock()
+			defer streamToClientIsRunning.Unlock()
 			result <- nil
 			streamToClientCalled <- struct{}{}
 		}
@@ -296,6 +322,8 @@ var _ = Describe("Streamer", func() {
 	})
 	It("cleans up the streamToServer goroutine on termination", func() {
 		streamer.streamToServer = func(clientSocket *websocket.Conn, serverConn net.Conn, result chan<- streamFuncResult) {
+			streamToServerIsRunning.Lock()
+			defer streamToServerIsRunning.Unlock()
 			result <- nil
 			streamToServerCalled <- struct{}{}
 		}
@@ -310,10 +338,14 @@ var _ = Describe("Streamer", func() {
 	})
 	It("starts to cleanup after the first stream returns", func() {
 		streamer.streamToClient = func(clientSocket *websocket.Conn, serverConn net.Conn, result chan<- streamFuncResult) {
+			streamToClientIsRunning.Lock()
+			defer streamToClientIsRunning.Unlock()
 			result <- nil
 			streamToClientCalled <- struct{}{}
 		}
 		streamer.streamToServer = func(clientSocket *websocket.Conn, serverConn net.Conn, result chan<- streamFuncResult) {
+			streamToServerIsRunning.Lock()
+			defer streamToServerIsRunning.Unlock()
 			defer GinkgoRecover()
 			serverConn.SetReadDeadline(time.Now().Add(defaultTestTimeout))
 			_, err := serverConn.Read([]byte{})
@@ -334,10 +366,14 @@ var _ = Describe("Streamer", func() {
 	It("returns the first stream result/error if streamToClient terminates", func() {
 		testErrStreamEnded := goerrors.New("stream ended")
 		streamer.streamToClient = func(clientSocket *websocket.Conn, serverConn net.Conn, result chan<- streamFuncResult) {
+			streamToClientIsRunning.Lock()
+			defer streamToClientIsRunning.Unlock()
 			result <- testErrStreamEnded
 			streamToClientCalled <- struct{}{}
 		}
 		streamer.streamToServer = func(clientSocket *websocket.Conn, serverConn net.Conn, result chan<- streamFuncResult) {
+			streamToServerIsRunning.Lock()
+			defer streamToServerIsRunning.Unlock()
 			streamToServerCalled <- struct{}{}
 		}
 		srv, ws, _, err := testWebsocketDial(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
@@ -353,9 +389,13 @@ var _ = Describe("Streamer", func() {
 	It("returns the first stream result/error if streamToServer terminates", func() {
 		testErrStreamEnded := goerrors.New("stream ended")
 		streamer.streamToClient = func(clientSocket *websocket.Conn, serverConn net.Conn, result chan<- streamFuncResult) {
+			streamToClientIsRunning.Lock()
+			defer streamToClientIsRunning.Unlock()
 			streamToClientCalled <- struct{}{}
 		}
 		streamer.streamToServer = func(clientSocket *websocket.Conn, serverConn net.Conn, result chan<- streamFuncResult) {
+			streamToServerIsRunning.Lock()
+			defer streamToServerIsRunning.Unlock()
 			result <- testErrStreamEnded
 			streamToServerCalled <- struct{}{}
 		}
@@ -370,10 +410,10 @@ var _ = Describe("Streamer", func() {
 		Eventually(streamToServerCalled, defaultTestTimeout).Should(Receive())
 	})
 	It("closes the result channel after both streams have returned", func() {
-		var results chan<- streamFuncResult
 		streamer.streamToClient = func(clientSocket *websocket.Conn, serverConn net.Conn, result chan<- streamFuncResult) {
+			streamToClientIsRunning.Lock()
+			defer streamToClientIsRunning.Unlock()
 			result <- goerrors.New("done")
-			results = result
 			streamToClientCalled <- struct{}{}
 		}
 		srv, ws, _, err := testWebsocketDial(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
@@ -386,31 +426,8 @@ var _ = Describe("Streamer", func() {
 		defer ws.Close()
 		Eventually(streamToClientCalled, defaultTestTimeout).Should(Receive())
 		Eventually(streamToServerCalled, defaultTestTimeout).Should(Receive())
-		Expect(streamFuncResultChannelIsClosed(results, defaultTestTimeout)).To(BeTrue())
 	})
 })
-
-func streamFuncResultChannelIsClosed(channel chan<- streamFuncResult, timeout time.Duration) bool {
-	closed := make(chan bool)
-	defer close(closed)
-
-	go func() {
-		defer func() {
-			if err := recover(); err != nil {
-				fmt.Println(err)
-				closed <- true
-			}
-		}()
-		select {
-		case channel <- nil:
-			closed <- false
-		case <-time.After(timeout):
-			closed <- false
-		}
-	}()
-
-	return <-closed
-}
 
 func testWebsocketDial(handler http.HandlerFunc) (*httptest.Server, *websocket.Conn, *http.Response, error) {
 	srv := httptest.NewServer(handler)

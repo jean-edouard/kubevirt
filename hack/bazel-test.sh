@@ -27,5 +27,5 @@ fi
 
 bazel test \
     --config=${ARCHITECTURE} \
-    --features race \
-    --test_output=errors -- //staging/src/kubevirt.io/client-go/... //pkg/... //cmd/... //tests/framework/...
+    --@io_bazel_rules_go//go/config:race \
+    --test_output=errors -- //staging/src/kubevirt.io/client-go/... //pkg/... //cmd/... //tests/framework/... -//cmd/virtctl/...
