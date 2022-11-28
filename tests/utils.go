@@ -188,10 +188,10 @@ func GetSupportedCPUModels(nodes k8sv1.NodeList) []string {
 	return cpus
 }
 
-func CreateConfigMap(name string, data map[string]string) {
+func CreateConfigMap(name, namespace string, data map[string]string) {
 	virtCli, err := kubecli.GetKubevirtClient()
 	util2.PanicOnError(err)
-	_, err = virtCli.CoreV1().ConfigMaps(util2.NamespaceTestDefault).Create(context.Background(), &k8sv1.ConfigMap{
+	_, err = virtCli.CoreV1().ConfigMaps(namespace).Create(context.Background(), &k8sv1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{Name: name},
 		Data:       data,
 	}, metav1.CreateOptions{})
@@ -201,11 +201,11 @@ func CreateConfigMap(name string, data map[string]string) {
 	}
 }
 
-func CreateSecret(name string, data map[string]string) {
+func CreateSecret(name, namespace string, data map[string]string) {
 	virtCli, err := kubecli.GetKubevirtClient()
 	util2.PanicOnError(err)
 
-	_, err = virtCli.CoreV1().Secrets(util2.NamespaceTestDefault).Create(context.Background(), &k8sv1.Secret{
+	_, err = virtCli.CoreV1().Secrets(namespace).Create(context.Background(), &k8sv1.Secret{
 		ObjectMeta: metav1.ObjectMeta{Name: name},
 		StringData: data,
 	}, metav1.CreateOptions{})
@@ -242,21 +242,21 @@ func PrometheusRuleEnabled() bool {
 	return prometheusRuleEnabled
 }
 
-func DeleteConfigMap(name string) {
+func DeleteConfigMap(name, namespace string) {
 	virtCli, err := kubecli.GetKubevirtClient()
 	util2.PanicOnError(err)
 
-	err = virtCli.CoreV1().ConfigMaps(util2.NamespaceTestDefault).Delete(context.Background(), name, metav1.DeleteOptions{})
+	err = virtCli.CoreV1().ConfigMaps(namespace).Delete(context.Background(), name, metav1.DeleteOptions{})
 	if !errors.IsNotFound(err) {
 		util2.PanicOnError(err)
 	}
 }
 
-func DeleteSecret(name string) {
+func DeleteSecret(name, namespace string) {
 	virtCli, err := kubecli.GetKubevirtClient()
 	util2.PanicOnError(err)
 
-	err = virtCli.CoreV1().Secrets(util2.NamespaceTestDefault).Delete(context.Background(), name, metav1.DeleteOptions{})
+	err = virtCli.CoreV1().Secrets(namespace).Delete(context.Background(), name, metav1.DeleteOptions{})
 	if !errors.IsNotFound(err) {
 		util2.PanicOnError(err)
 	}
@@ -268,7 +268,7 @@ func RunVMI(vmi *v1.VirtualMachineInstance, timeout int) *v1.VirtualMachineInsta
 
 	var obj *v1.VirtualMachineInstance
 	Eventually(func() error {
-		obj, err = virtCli.VirtualMachineInstance(util2.NamespaceTestDefault).Create(vmi)
+		obj, err = virtCli.VirtualMachineInstance(testsuite.GetTestNamespace(vmi)).Create(vmi)
 		return err
 	}, timeout, 1*time.Second).ShouldNot(HaveOccurred())
 	return obj
@@ -552,7 +552,7 @@ func NewRandomVMI() *v1.VirtualMachineInstance {
 		libvmi.WithInterface(libvmi.InterfaceDeviceWithMasqueradeBinding()),
 		libvmi.WithNetwork(v1.DefaultPodNetwork()),
 	)
-	vmi.ObjectMeta.Namespace = util2.NamespaceTestDefault
+	vmi.ObjectMeta.Namespace = testsuite.GetTestNamespace(vmi)
 	vmi.Spec.Domain.Resources.Requests = k8sv1.ResourceList{}
 
 	if checks.IsARM64(testsuite.Arch) {
@@ -903,7 +903,7 @@ func DeletePvAndPvc(name string) {
 		util2.PanicOnError(err)
 	}
 
-	err = virtCli.CoreV1().PersistentVolumeClaims(util2.NamespaceTestDefault).Delete(context.Background(), name, metav1.DeleteOptions{})
+	err = virtCli.CoreV1().PersistentVolumeClaims(testsuite.GetTestNamespace(nil)).Delete(context.Background(), name, metav1.DeleteOptions{})
 	if !errors.IsNotFound(err) {
 		util2.PanicOnError(err)
 	}
@@ -1346,14 +1346,14 @@ func RunPodInNamespace(pod *k8sv1.Pod, namespace string) *k8sv1.Pod {
 }
 
 func RunPod(pod *k8sv1.Pod) *k8sv1.Pod {
-	return RunPodInNamespace(pod, util2.NamespaceTestDefault)
+	return RunPodInNamespace(pod, testsuite.GetTestNamespace(pod))
 }
 
 func RunPodAndExpectCompletion(pod *k8sv1.Pod) *k8sv1.Pod {
 	virtClient, err := kubecli.GetKubevirtClient()
 	util2.PanicOnError(err)
 
-	pod, err = virtClient.CoreV1().Pods(util2.NamespaceTestDefault).Create(context.Background(), pod, metav1.CreateOptions{})
+	pod, err = virtClient.CoreV1().Pods(testsuite.GetTestNamespace(pod)).Create(context.Background(), pod, metav1.CreateOptions{})
 	Expect(err).ToNot(HaveOccurred())
 	Eventually(ThisPod(pod), 120).Should(BeInPhase(k8sv1.PodSucceeded))
 
@@ -1447,7 +1447,7 @@ func renderPrivilegedContainerSpec(imgPath string, name string, cmd []string, ar
 }
 
 func GetRunningVirtualMachineInstanceDomainXML(virtClient kubecli.KubevirtClient, vmi *v1.VirtualMachineInstance) (string, error) {
-	vmiPod, err := getRunningPodByVirtualMachineInstance(vmi, util2.NamespaceTestDefault)
+	vmiPod, err := getRunningPodByVirtualMachineInstance(vmi, testsuite.GetTestNamespace(vmi))
 	if err != nil {
 		return "", err
 	}
@@ -1478,7 +1478,7 @@ func GetRunningVirtualMachineInstanceDomainXML(virtClient kubecli.KubevirtClient
 }
 
 func LibvirtDomainIsPaused(virtClient kubecli.KubevirtClient, vmi *v1.VirtualMachineInstance) (bool, error) {
-	vmiPod, err := getRunningPodByVirtualMachineInstance(vmi, util2.NamespaceTestDefault)
+	vmiPod, err := getRunningPodByVirtualMachineInstance(vmi, testsuite.GetTestNamespace(vmi))
 	if err != nil {
 		return false, err
 	}
@@ -1635,7 +1635,7 @@ func CreateVmiOnNodeLabeled(vmi *v1.VirtualMachineInstance, nodeLabel, labelValu
 		},
 	}
 
-	vmi, err = virtClient.VirtualMachineInstance(util2.NamespaceTestDefault).Create(vmi)
+	vmi, err = virtClient.VirtualMachineInstance(testsuite.GetTestNamespace(vmi)).Create(vmi)
 	ExpectWithOffset(1, err).ToNot(HaveOccurred())
 	return vmi
 }
@@ -2278,7 +2278,7 @@ func RandTmpDir() string {
 func VMILauncherIgnoreWarnings(virtClient kubecli.KubevirtClient) func(vmi *v1.VirtualMachineInstance) *v1.VirtualMachineInstance {
 	return func(vmi *v1.VirtualMachineInstance) *v1.VirtualMachineInstance {
 		By(StartingVMInstance)
-		obj, err := virtClient.RestClient().Post().Resource("virtualmachineinstances").Namespace(util2.NamespaceTestDefault).Body(vmi).Do(context.Background()).Get()
+		obj, err := virtClient.RestClient().Post().Resource("virtualmachineinstances").Namespace(testsuite.GetTestNamespace(vmi)).Body(vmi).Do(context.Background()).Get()
 		Expect(err).ToNot(HaveOccurred())
 
 		By("Waiting the VirtualMachineInstance start")
@@ -2381,7 +2381,7 @@ func GetIdOfLauncher(vmi *v1.VirtualMachineInstance) string {
 	virtClient, err := kubecli.GetKubevirtClient()
 	util2.PanicOnError(err)
 
-	vmiPod := GetRunningPodByVirtualMachineInstance(vmi, util2.NamespaceTestDefault)
+	vmiPod := GetRunningPodByVirtualMachineInstance(vmi, testsuite.GetTestNamespace(vmi))
 	podOutput, err := exec.ExecuteCommandOnPod(
 		virtClient,
 		vmiPod,

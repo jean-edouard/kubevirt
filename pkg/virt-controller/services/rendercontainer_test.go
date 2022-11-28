@@ -88,11 +88,6 @@ var _ = Describe("Container spec renderer", func() {
 				specRenderer = NewContainerSpecRenderer(containerName, img, pullPolicy, WithCapabilities(simplestVMI()))
 			})
 
-			It("must request to drop ALL capabilities", func() {
-				Expect(specRenderer.Render(exampleCommand).SecurityContext.Capabilities.Drop).Should(
-					Equal([]k8sv1.Capability{"ALL"}))
-			})
-
 			It("must request to add the NET_BIND_SERVICE and SYS_NICE capabilities", func() {
 				Expect(specRenderer.Render(exampleCommand).SecurityContext.Capabilities.Add).To(
 					ConsistOf(allowedCapabilities))

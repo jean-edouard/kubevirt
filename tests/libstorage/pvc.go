@@ -57,7 +57,7 @@ func RenderPodWithPVC(name string, cmd []string, args []string, pvc *k8sv1.Persi
 	pod := &k8sv1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			GenerateName: name,
-			Namespace:    util.NamespaceTestDefault,
+			Namespace:    pvc.Namespace,
 			Labels: map[string]string{
 				v1.AppLabel: "test",
 			},

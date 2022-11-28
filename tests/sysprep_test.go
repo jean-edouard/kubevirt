@@ -302,9 +302,9 @@ var _ = Describe("[Serial][Sysprep][sig-compute]Syspreped VirtualMachineInstance
 		checks.SkipIfMissingRequiredImage(virtClient, tests.DiskWindowsSysprep)
 		libstorage.CreatePVC(OSWindowsSysprep, "35Gi", libstorage.Config.StorageClassWindows, true)
 		answerFileWithKey := insertProductKeyToAnswerFileTemplate(answerFileTemplate)
-		tests.CreateConfigMap("sysprepautounattend", map[string]string{"Autounattend.xml": answerFileWithKey, "Unattend.xml": answerFileWithKey})
 		windowsVMI = tests.NewRandomVMI()
 		windowsVMI.Spec = getWindowsSysprepVMISpec()
+		tests.CreateConfigMap("sysprepautounattend", windowsVMI.Namespace, map[string]string{"Autounattend.xml": answerFileWithKey, "Unattend.xml": answerFileWithKey})
 		tests.AddExplicitPodNetworkInterface(windowsVMI)
 		windowsVMI.Spec.Domain.Devices.Interfaces[0].Model = "e1000"
 	})

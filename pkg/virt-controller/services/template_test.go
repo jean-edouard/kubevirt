@@ -2687,6 +2687,9 @@ var _ = Describe("Template", func() {
 					ObjectMeta: metav1.ObjectMeta{
 						Name: "testvmi", Namespace: "default", UID: "1234",
 					},
+					Status: v1.VirtualMachineInstanceStatus{
+						RuntimeUser: util.NonRootUID,
+					},
 				}
 				pod, err := svc.RenderLaunchManifest(&vmi)
 				Expect(err).ToNot(HaveOccurred())
@@ -2711,6 +2714,9 @@ var _ = Describe("Template", func() {
 						Name: "testvmi", Namespace: "default", UID: "1234",
 					},
 					Spec: v1.VirtualMachineInstanceSpec{Domain: domain},
+					Status: v1.VirtualMachineInstanceStatus{
+						RuntimeUser: util.NonRootUID,
+					},
 				}
 				pod, err := svc.RenderLaunchManifest(&vmi)
 				Expect(err).ToNot(HaveOccurred())
@@ -2735,6 +2741,9 @@ var _ = Describe("Template", func() {
 						Name: "testvmi", Namespace: "default", UID: "1234",
 					},
 					Spec: v1.VirtualMachineInstanceSpec{Domain: domain},
+					Status: v1.VirtualMachineInstanceStatus{
+						RuntimeUser: util.NonRootUID,
+					},
 				}
 				pod, err := svc.RenderLaunchManifest(&vmi)
 				Expect(err).ToNot(HaveOccurred())

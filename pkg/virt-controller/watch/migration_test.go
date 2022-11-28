@@ -1630,7 +1630,7 @@ var _ = Describe("Migration watcher", func() {
 			vmi.Namespace = privilegedNamespace.Name
 
 			By("Defining migration policy, matching it to vmi to posting it into the cluster")
-			migrationPolicy := tests.GetPolicyMatchedToVmi("testpolicy", vmi, privilegedNamespace, 1, 0)
+			migrationPolicy := tests.PreparePolicyAndVMI(vmi)
 			migrationPolicy.Spec.AllowPostCopy = pointer.BoolPtr(true)
 			addMigrationPolicies(*migrationPolicy)
 
