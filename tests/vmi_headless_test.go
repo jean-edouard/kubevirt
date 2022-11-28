@@ -28,6 +28,7 @@ import (
 	kubev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
+	"kubevirt.io/kubevirt/tests/testsuite"
 	"kubevirt.io/kubevirt/tests/util"
 
 	v1 "kubevirt.io/api/core/v1"
@@ -83,7 +84,7 @@ var _ = Describe("[rfe_id:609][sig-compute]VMIheadless", func() {
 				}
 				vmi = tests.RunVMIAndExpectLaunch(vmi, 30)
 
-				readyPod := libvmi.GetPodByVirtualMachineInstance(vmi, util.NamespaceTestDefault)
+				readyPod := libvmi.GetPodByVirtualMachineInstance(vmi, testsuite.GetTestNamespace(vmi))
 				computeContainer := tests.GetComputeContainerOfPod(readyPod)
 
 				Expect(computeContainer.Resources.Requests.Memory().String()).To(Equal("100M"))
@@ -97,7 +98,7 @@ var _ = Describe("[rfe_id:609][sig-compute]VMIheadless", func() {
 				}
 				vmi = tests.RunVMIAndExpectLaunch(vmi, 30)
 
-				readyPod := libvmi.GetPodByVirtualMachineInstance(vmi, util.NamespaceTestDefault)
+				readyPod := libvmi.GetPodByVirtualMachineInstance(vmi, testsuite.GetTestNamespace(vmi))
 				computeContainer := tests.GetComputeContainerOfPod(readyPod)
 
 				Expect(computeContainer.Resources.Requests.Memory().String()).ToNot(Equal("100M"))
@@ -109,10 +110,10 @@ var _ = Describe("[rfe_id:609][sig-compute]VMIheadless", func() {
 				vmi = tests.RunVMIAndExpectLaunch(vmi, 30)
 				normalVmi = tests.RunVMIAndExpectLaunch(normalVmi, 30)
 
-				readyPod := libvmi.GetPodByVirtualMachineInstance(vmi, util.NamespaceTestDefault)
+				readyPod := libvmi.GetPodByVirtualMachineInstance(vmi, testsuite.GetTestNamespace(vmi))
 				computeContainer := tests.GetComputeContainerOfPod(readyPod)
 
-				normalReadyPod := libvmi.GetPodByVirtualMachineInstance(normalVmi, util.NamespaceTestDefault)
+				normalReadyPod := libvmi.GetPodByVirtualMachineInstance(normalVmi, testsuite.GetTestNamespace(vmi))
 				normalComputeContainer := tests.GetComputeContainerOfPod(normalReadyPod)
 
 				memDiff := normalComputeContainer.Resources.Requests.Memory()

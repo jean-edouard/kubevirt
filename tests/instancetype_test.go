@@ -27,7 +27,7 @@ import (
 	k6ttypes "kubevirt.io/kubevirt/pkg/util/types"
 	"kubevirt.io/kubevirt/tests"
 	"kubevirt.io/kubevirt/tests/libvmi"
-	"kubevirt.io/kubevirt/tests/util"
+	"kubevirt.io/kubevirt/tests/testsuite"
 )
 
 var _ = Describe("[crit:medium][vendor:cnv-qe@redhat.com][level:component][sig-compute] Instancetype and Preferences", func() {
@@ -45,13 +45,13 @@ var _ = Describe("[crit:medium][vendor:cnv-qe@redhat.com][level:component][sig-c
 	Context("Instancetype validation", func() {
 		It("[test_id:CNV-9082] should allow valid instancetype", func() {
 			instancetype := newVirtualMachineInstancetype(nil)
-			_, err := virtClient.VirtualMachineInstancetype(util.NamespaceTestDefault).
+			_, err := virtClient.VirtualMachineInstancetype(testsuite.GetTestNamespace(instancetype)).
 				Create(context.Background(), instancetype, metav1.CreateOptions{})
 			Expect(err).ToNot(HaveOccurred())
 		})
 
 		DescribeTable("[test_id:CNV-9083] should reject invalid instancetype", func(instancetype instancetypev1alpha2.VirtualMachineInstancetype) {
-			_, err := virtClient.VirtualMachineInstancetype(util.NamespaceTestDefault).
+			_, err := virtClient.VirtualMachineInstancetype(testsuite.GetTestNamespace(nil)).
 				Create(context.Background(), &instancetype, metav1.CreateOptions{})
 			Expect(err).To(HaveOccurred())
 			var apiStatus errors.APIStatus
@@ -96,7 +96,7 @@ var _ = Describe("[crit:medium][vendor:cnv-qe@redhat.com][level:component][sig-c
 	Context("Preference validation", func() {
 		It("[test_id:CNV-9084] should allow valid preference", func() {
 			preference := newVirtualMachinePreference()
-			_, err := virtClient.VirtualMachinePreference(util.NamespaceTestDefault).
+			_, err := virtClient.VirtualMachinePreference(testsuite.GetTestNamespace(preference)).
 				Create(context.Background(), preference, metav1.CreateOptions{})
 			Expect(err).ToNot(HaveOccurred())
 		})
@@ -110,7 +110,7 @@ var _ = Describe("[crit:medium][vendor:cnv-qe@redhat.com][level:component][sig-c
 				Name: "non-existing-cluster-instancetype",
 			}
 
-			_, err := virtClient.VirtualMachine(util.NamespaceTestDefault).Create(vm)
+			_, err := virtClient.VirtualMachine(testsuite.GetTestNamespace(vmi)).Create(vm)
 			Expect(err).To(HaveOccurred())
 			var apiStatus errors.APIStatus
 			Expect(goerrors.As(err, &apiStatus)).To(BeTrue(), "error should be type APIStatus")
@@ -130,7 +130,7 @@ var _ = Describe("[crit:medium][vendor:cnv-qe@redhat.com][level:component][sig-c
 				Kind: instancetypeapi.SingularResourceName,
 			}
 
-			_, err := virtClient.VirtualMachine(util.NamespaceTestDefault).Create(vm)
+			_, err := virtClient.VirtualMachine(testsuite.GetTestNamespace(vmi)).Create(vm)
 			Expect(err).To(HaveOccurred())
 			var apiStatus errors.APIStatus
 			Expect(goerrors.As(err, &apiStatus)).To(BeTrue(), "error should be type APIStatus")
@@ -151,7 +151,7 @@ var _ = Describe("[crit:medium][vendor:cnv-qe@redhat.com][level:component][sig-c
 				Name: "non-existing-cluster-preference",
 			}
 
-			_, err := virtClient.VirtualMachine(util.NamespaceTestDefault).Create(vm)
+			_, err := virtClient.VirtualMachine(testsuite.GetTestNamespace(vmi)).Create(vm)
 			Expect(err).To(HaveOccurred())
 			var apiStatus errors.APIStatus
 			Expect(goerrors.As(err, &apiStatus)).To(BeTrue(), "error should be type APIStatus")
@@ -171,7 +171,7 @@ var _ = Describe("[crit:medium][vendor:cnv-qe@redhat.com][level:component][sig-c
 				Kind: instancetypeapi.SingularPreferenceResourceName,
 			}
 
-			_, err := virtClient.VirtualMachine(util.NamespaceTestDefault).Create(vm)
+			_, err := virtClient.VirtualMachine(testsuite.GetTestNamespace(vm)).Create(vm)
 			Expect(err).To(HaveOccurred())
 			var apiStatus errors.APIStatus
 			Expect(goerrors.As(err, &apiStatus)).To(BeTrue(), "error should be type APIStatus")
@@ -213,12 +213,12 @@ var _ = Describe("[crit:medium][vendor:cnv-qe@redhat.com][level:component][sig-c
 				Name: clusterPreference.Name,
 			}
 
-			vm, err = virtClient.VirtualMachine(util.NamespaceTestDefault).Create(vm)
+			vm, err = virtClient.VirtualMachine(testsuite.GetTestNamespace(vm)).Create(vm)
 			Expect(err).ToNot(HaveOccurred())
 
 			vm = tests.StartVMAndExpectRunning(virtClient, vm)
 
-			_, err = virtClient.VirtualMachineInstance(util.NamespaceTestDefault).Get(vm.Name, &metav1.GetOptions{})
+			_, err = virtClient.VirtualMachineInstance(testsuite.GetTestNamespace(vm)).Get(vm.Name, &metav1.GetOptions{})
 			Expect(err).ToNot(HaveOccurred())
 		})
 
@@ -226,7 +226,7 @@ var _ = Describe("[crit:medium][vendor:cnv-qe@redhat.com][level:component][sig-c
 			vmi := libvmi.NewCirros()
 
 			instancetype := newVirtualMachineInstancetype(vmi)
-			instancetype, err := virtClient.VirtualMachineInstancetype(util.NamespaceTestDefault).
+			instancetype, err := virtClient.VirtualMachineInstancetype(testsuite.GetTestNamespace(instancetype)).
 				Create(context.Background(), instancetype, metav1.CreateOptions{})
 			Expect(err).ToNot(HaveOccurred())
 
@@ -251,7 +251,7 @@ var _ = Describe("[crit:medium][vendor:cnv-qe@redhat.com][level:component][sig-c
 				PreferredUseBios: pointer.Bool(true),
 			}
 
-			preference, err = virtClient.VirtualMachinePreference(util.NamespaceTestDefault).
+			preference, err = virtClient.VirtualMachinePreference(testsuite.GetTestNamespace(preference)).
 				Create(context.Background(), preference, metav1.CreateOptions{})
 			Expect(err).ToNot(HaveOccurred())
 
@@ -270,12 +270,12 @@ var _ = Describe("[crit:medium][vendor:cnv-qe@redhat.com][level:component][sig-c
 				Kind: instancetypeapi.SingularPreferenceResourceName,
 			}
 
-			vm, err = virtClient.VirtualMachine(util.NamespaceTestDefault).Create(vm)
+			vm, err = virtClient.VirtualMachine(testsuite.GetTestNamespace(vm)).Create(vm)
 			Expect(err).ToNot(HaveOccurred())
 
 			vm = tests.StartVMAndExpectRunning(virtClient, vm)
 
-			vmi, err = virtClient.VirtualMachineInstance(util.NamespaceTestDefault).Get(vm.Name, &metav1.GetOptions{})
+			vmi, err = virtClient.VirtualMachineInstance(testsuite.GetTestNamespace(vmi)).Get(vm.Name, &metav1.GetOptions{})
 			Expect(err).ToNot(HaveOccurred())
 
 			// Assert we've used sockets as instancetypev1alpha2.PreferSockets was requested
@@ -306,7 +306,7 @@ var _ = Describe("[crit:medium][vendor:cnv-qe@redhat.com][level:component][sig-c
 			vmi := libvmi.NewCirros()
 
 			instancetype := newVirtualMachineInstancetype(vmi)
-			instancetype, err := virtClient.VirtualMachineInstancetype(util.NamespaceTestDefault).
+			instancetype, err := virtClient.VirtualMachineInstancetype(testsuite.GetTestNamespace(instancetype)).
 				Create(context.Background(), instancetype, metav1.CreateOptions{})
 			Expect(err).ToNot(HaveOccurred())
 
@@ -319,7 +319,7 @@ var _ = Describe("[crit:medium][vendor:cnv-qe@redhat.com][level:component][sig-c
 				Kind: instancetypeapi.SingularResourceName,
 			}
 
-			_, err = virtClient.VirtualMachine(util.NamespaceTestDefault).Create(vm)
+			_, err = virtClient.VirtualMachine(testsuite.GetTestNamespace(vm)).Create(vm)
 			Expect(err).To(HaveOccurred())
 			var apiStatus errors.APIStatus
 			Expect(goerrors.As(err, &apiStatus)).To(BeTrue(), "error should be type APIStatus")
@@ -336,7 +336,7 @@ var _ = Describe("[crit:medium][vendor:cnv-qe@redhat.com][level:component][sig-c
 
 			vmi := libvmi.NewCirros()
 			instancetype := newVirtualMachineInstancetype(vmi)
-			instancetype, err := virtClient.VirtualMachineInstancetype(util.NamespaceTestDefault).
+			instancetype, err := virtClient.VirtualMachineInstancetype(testsuite.GetTestNamespace(instancetype)).
 				Create(context.Background(), instancetype, metav1.CreateOptions{})
 			Expect(err).ToNot(HaveOccurred())
 
@@ -347,7 +347,7 @@ var _ = Describe("[crit:medium][vendor:cnv-qe@redhat.com][level:component][sig-c
 				Kind: instancetypeapi.SingularResourceName,
 			}
 
-			_, err = virtClient.VirtualMachine(util.NamespaceTestDefault).Create(vm)
+			_, err = virtClient.VirtualMachine(testsuite.GetTestNamespace(vm)).Create(vm)
 			Expect(err).To(HaveOccurred())
 			var apiStatus errors.APIStatus
 			Expect(goerrors.As(err, &apiStatus)).To(BeTrue(), "error should be type APIStatus")
@@ -398,12 +398,12 @@ var _ = Describe("[crit:medium][vendor:cnv-qe@redhat.com][level:component][sig-c
 				Name: clusterPreference.Name,
 			}
 
-			vm, err = virtClient.VirtualMachine(util.NamespaceTestDefault).Create(vm)
+			vm, err = virtClient.VirtualMachine(testsuite.GetTestNamespace(vm)).Create(vm)
 			Expect(err).ToNot(HaveOccurred())
 
 			vm = tests.StartVMAndExpectRunning(virtClient, vm)
 
-			vmi, err = virtClient.VirtualMachineInstance(util.NamespaceTestDefault).Get(vm.Name, &metav1.GetOptions{})
+			vmi, err = virtClient.VirtualMachineInstance(testsuite.GetTestNamespace(vmi)).Get(vm.Name, &metav1.GetOptions{})
 			Expect(err).ToNot(HaveOccurred())
 
 			Expect(vmi.Spec.Domain.Devices.Interfaces[0].Model).To(Equal(clusterPreference.Spec.Devices.PreferredInterfaceModel))
@@ -427,12 +427,12 @@ var _ = Describe("[crit:medium][vendor:cnv-qe@redhat.com][level:component][sig-c
 			}
 			vm.Spec.Template.Spec.Domain.Devices.Disks = []v1.Disk{}
 
-			vm, err = virtClient.VirtualMachine(util.NamespaceTestDefault).Create(vm)
+			vm, err = virtClient.VirtualMachine(testsuite.GetTestNamespace(vm)).Create(vm)
 			Expect(err).ToNot(HaveOccurred())
 
 			vm = tests.StartVMAndExpectRunning(virtClient, vm)
 
-			vmi, err = virtClient.VirtualMachineInstance(util.NamespaceTestDefault).Get(vm.Name, &metav1.GetOptions{})
+			vmi, err = virtClient.VirtualMachineInstance(testsuite.GetTestNamespace(vmi)).Get(vm.Name, &metav1.GetOptions{})
 			Expect(err).ToNot(HaveOccurred())
 
 			for _, disk := range vmi.Spec.Domain.Devices.Disks {
@@ -446,7 +446,7 @@ var _ = Describe("[crit:medium][vendor:cnv-qe@redhat.com][level:component][sig-c
 			By("Creating a VirtualMachineInstancetype")
 			instancetype := newVirtualMachineInstancetype(vmi)
 			originalInstancetypeCPUGuest := instancetype.Spec.CPU.Guest
-			instancetype, err := virtClient.VirtualMachineInstancetype(util.NamespaceTestDefault).
+			instancetype, err := virtClient.VirtualMachineInstancetype(testsuite.GetTestNamespace(instancetype)).
 				Create(context.Background(), instancetype, metav1.CreateOptions{})
 			Expect(err).ToNot(HaveOccurred())
 
@@ -457,7 +457,7 @@ var _ = Describe("[crit:medium][vendor:cnv-qe@redhat.com][level:component][sig-c
 					PreferredCPUTopology: instancetypev1alpha2.PreferSockets,
 				},
 			}
-			preference, err = virtClient.VirtualMachinePreference(util.NamespaceTestDefault).
+			preference, err = virtClient.VirtualMachinePreference(testsuite.GetTestNamespace(preference)).
 				Create(context.Background(), preference, metav1.CreateOptions{})
 			Expect(err).ToNot(HaveOccurred())
 
@@ -474,7 +474,7 @@ var _ = Describe("[crit:medium][vendor:cnv-qe@redhat.com][level:component][sig-c
 				Kind: instancetypeapi.SingularPreferenceResourceName,
 			}
 
-			vm, err = virtClient.VirtualMachine(util.NamespaceTestDefault).Create(vm)
+			vm, err = virtClient.VirtualMachine(testsuite.GetTestNamespace(vm)).Create(vm)
 			Expect(err).ToNot(HaveOccurred())
 
 			By("Waiting for VirtualMachineInstancetypeSpec and VirtualMachinePreferenceSpec ControllerRevision to be referenced from the VirtualMachine")
@@ -486,14 +486,14 @@ var _ = Describe("[crit:medium][vendor:cnv-qe@redhat.com][level:component][sig-c
 			}, 300*time.Second, 1*time.Second).Should(Succeed())
 
 			By("Checking that ControllerRevisions have been created for the VirtualMachineInstancetype and VirtualMachinePreference")
-			instancetypeRevision, err := virtClient.AppsV1().ControllerRevisions(util.NamespaceTestDefault).Get(context.Background(), vm.Spec.Instancetype.RevisionName, metav1.GetOptions{})
+			instancetypeRevision, err := virtClient.AppsV1().ControllerRevisions(testsuite.GetTestNamespace(vm)).Get(context.Background(), vm.Spec.Instancetype.RevisionName, metav1.GetOptions{})
 			Expect(err).ToNot(HaveOccurred())
 
 			stashedInstancetype := &instancetypev1alpha2.VirtualMachineInstancetype{}
 			Expect(json.Unmarshal(instancetypeRevision.Data.Raw, stashedInstancetype)).To(Succeed())
 			Expect(stashedInstancetype.Spec).To(Equal(instancetype.Spec))
 
-			preferenceRevision, err := virtClient.AppsV1().ControllerRevisions(util.NamespaceTestDefault).Get(context.Background(), vm.Spec.Preference.RevisionName, metav1.GetOptions{})
+			preferenceRevision, err := virtClient.AppsV1().ControllerRevisions(testsuite.GetTestNamespace(vm)).Get(context.Background(), vm.Spec.Preference.RevisionName, metav1.GetOptions{})
 			Expect(err).ToNot(HaveOccurred())
 
 			stashedPreference := &instancetypev1alpha2.VirtualMachinePreference{}
@@ -503,7 +503,7 @@ var _ = Describe("[crit:medium][vendor:cnv-qe@redhat.com][level:component][sig-c
 			vm = tests.StartVirtualMachine(vm)
 
 			By("Checking that a VirtualMachineInstance has been created with the VirtualMachineInstancetype and VirtualMachinePreference applied")
-			vmi, err = virtClient.VirtualMachineInstance(util.NamespaceTestDefault).Get(vm.Name, &metav1.GetOptions{})
+			vmi, err = virtClient.VirtualMachineInstance(testsuite.GetTestNamespace(vmi)).Get(vm.Name, &metav1.GetOptions{})
 			Expect(err).ToNot(HaveOccurred())
 			Expect(vmi.Spec.Domain.CPU.Sockets).To(Equal(originalInstancetypeCPUGuest))
 
@@ -511,7 +511,7 @@ var _ = Describe("[crit:medium][vendor:cnv-qe@redhat.com][level:component][sig-c
 			newInstancetypeCPUGuest := originalInstancetypeCPUGuest + 1
 			patchData, err := k6ttypes.GenerateTestReplacePatch("/spec/cpu/guest", originalInstancetypeCPUGuest, newInstancetypeCPUGuest)
 			Expect(err).ToNot(HaveOccurred())
-			updatedInstancetype, err := virtClient.VirtualMachineInstancetype(util.NamespaceTestDefault).Patch(context.Background(), instancetype.Name, types.JSONPatchType, patchData, metav1.PatchOptions{})
+			updatedInstancetype, err := virtClient.VirtualMachineInstancetype(testsuite.GetTestNamespace(instancetype)).Patch(context.Background(), instancetype.Name, types.JSONPatchType, patchData, metav1.PatchOptions{})
 			Expect(err).ToNot(HaveOccurred())
 			Expect(updatedInstancetype.Spec.CPU.Guest).To(Equal(newInstancetypeCPUGuest))
 
@@ -519,7 +519,7 @@ var _ = Describe("[crit:medium][vendor:cnv-qe@redhat.com][level:component][sig-c
 			vm = tests.StartVirtualMachine(vm)
 
 			By("Checking that a VirtualMachineInstance has been created with the original VirtualMachineInstancetype and VirtualMachinePreference applied")
-			vmi, err = virtClient.VirtualMachineInstance(util.NamespaceTestDefault).Get(vm.Name, &metav1.GetOptions{})
+			vmi, err = virtClient.VirtualMachineInstance(testsuite.GetTestNamespace(vmi)).Get(vm.Name, &metav1.GetOptions{})
 			Expect(err).ToNot(HaveOccurred())
 			Expect(vmi.Spec.Domain.CPU.Sockets).To(Equal(originalInstancetypeCPUGuest))
 
@@ -535,7 +535,7 @@ var _ = Describe("[crit:medium][vendor:cnv-qe@redhat.com][level:component][sig-c
 				Name: preference.Name,
 				Kind: instancetypeapi.SingularPreferenceResourceName,
 			}
-			newVM, err = virtClient.VirtualMachine(util.NamespaceTestDefault).Create(newVM)
+			newVM, err = virtClient.VirtualMachine(testsuite.GetTestNamespace(vm)).Create(newVM)
 			Expect(err).ToNot(HaveOccurred())
 
 			By("Waiting for a VirtualMachineInstancetypeSpec ControllerRevision to be referenced from the new VirtualMachine")
@@ -552,7 +552,7 @@ var _ = Describe("[crit:medium][vendor:cnv-qe@redhat.com][level:component][sig-c
 			Expect(newVM.Spec.Instancetype.RevisionName).ToNot(Equal(vm.Spec.Instancetype.RevisionName))
 
 			By("Checking that new ControllerRevisions for the updated VirtualMachineInstancetype")
-			instancetypeRevision, err = virtClient.AppsV1().ControllerRevisions(util.NamespaceTestDefault).Get(context.Background(), newVM.Spec.Instancetype.RevisionName, metav1.GetOptions{})
+			instancetypeRevision, err = virtClient.AppsV1().ControllerRevisions(testsuite.GetTestNamespace(vm)).Get(context.Background(), newVM.Spec.Instancetype.RevisionName, metav1.GetOptions{})
 			Expect(err).ToNot(HaveOccurred())
 
 			stashedInstancetype = &instancetypev1alpha2.VirtualMachineInstancetype{}
@@ -562,7 +562,7 @@ var _ = Describe("[crit:medium][vendor:cnv-qe@redhat.com][level:component][sig-c
 			newVM = tests.StartVirtualMachine(newVM)
 
 			By("Checking that the new VirtualMachineInstance is using the updated VirtualMachineInstancetype")
-			newVMI, err = virtClient.VirtualMachineInstance(util.NamespaceTestDefault).Get(newVM.Name, &metav1.GetOptions{})
+			newVMI, err = virtClient.VirtualMachineInstance(testsuite.GetTestNamespace(vmi)).Get(newVM.Name, &metav1.GetOptions{})
 			Expect(err).ToNot(HaveOccurred())
 			Expect(newVMI.Spec.Domain.CPU.Sockets).To(Equal(newInstancetypeCPUGuest))
 
@@ -573,7 +573,7 @@ var _ = Describe("[crit:medium][vendor:cnv-qe@redhat.com][level:component][sig-c
 
 			By("Creating a VirtualMachineInstancetype")
 			instancetype := newVirtualMachineInstancetype(vmi)
-			instancetype, err := virtClient.VirtualMachineInstancetype(util.NamespaceTestDefault).
+			instancetype, err := virtClient.VirtualMachineInstancetype(testsuite.GetTestNamespace(instancetype)).
 				Create(context.Background(), instancetype, metav1.CreateOptions{})
 			Expect(err).ToNot(HaveOccurred())
 
@@ -586,7 +586,7 @@ var _ = Describe("[crit:medium][vendor:cnv-qe@redhat.com][level:component][sig-c
 				Kind: instancetypeapi.SingularResourceName,
 			}
 
-			vm, err = virtClient.VirtualMachine(util.NamespaceTestDefault).Create(vm)
+			vm, err = virtClient.VirtualMachine(testsuite.GetTestNamespace(vm)).Create(vm)
 			Expect(err).ToNot(HaveOccurred())
 
 			vm = tests.StartVirtualMachine(vm)
@@ -599,18 +599,18 @@ var _ = Describe("[crit:medium][vendor:cnv-qe@redhat.com][level:component][sig-c
 			}, 5*time.Minute, time.Second).Should(Succeed())
 
 			By("Checking that ControllerRevisions have been created for the VirtualMachineInstancetype and VirtualMachinePreference")
-			instancetypeRevision, err := virtClient.AppsV1().ControllerRevisions(util.NamespaceTestDefault).Get(context.Background(), vm.Spec.Instancetype.RevisionName, metav1.GetOptions{})
+			instancetypeRevision, err := virtClient.AppsV1().ControllerRevisions(testsuite.GetTestNamespace(vm)).Get(context.Background(), vm.Spec.Instancetype.RevisionName, metav1.GetOptions{})
 			Expect(err).ToNot(HaveOccurred())
 
 			By("Stopping and removing VM")
 			vm = tests.StopVirtualMachine(vm)
 
-			err = virtClient.VirtualMachine(util.NamespaceTestDefault).Delete(vm.Name, &metav1.DeleteOptions{})
+			err = virtClient.VirtualMachine(testsuite.GetTestNamespace(vm)).Delete(vm.Name, &metav1.DeleteOptions{})
 			Expect(err).ToNot(HaveOccurred())
 
 			// Wait until ControllerRevision is deleted
 			Eventually(func(g Gomega) metav1.StatusReason {
-				_, err := virtClient.AppsV1().ControllerRevisions(util.NamespaceTestDefault).Get(context.Background(), instancetypeRevision.Name, metav1.GetOptions{})
+				_, err := virtClient.AppsV1().ControllerRevisions(testsuite.GetTestNamespace(instancetype)).Get(context.Background(), instancetypeRevision.Name, metav1.GetOptions{})
 				g.Expect(err).To(HaveOccurred())
 				return errors.ReasonForError(err)
 			}, 5*time.Minute, time.Second).Should(Equal(metav1.StatusReasonNotFound))
@@ -630,7 +630,7 @@ var _ = Describe("[crit:medium][vendor:cnv-qe@redhat.com][level:component][sig-c
 			newInstancetypeRevision.Data.Raw, err = json.Marshal(stashedInstancetype)
 			Expect(err).ToNot(HaveOccurred())
 
-			newInstancetypeRevision, err = virtClient.AppsV1().ControllerRevisions(util.NamespaceTestDefault).Create(context.Background(), newInstancetypeRevision, metav1.CreateOptions{})
+			newInstancetypeRevision, err = virtClient.AppsV1().ControllerRevisions(testsuite.GetTestNamespace(instancetype)).Create(context.Background(), newInstancetypeRevision, metav1.CreateOptions{})
 			Expect(err).ToNot(HaveOccurred())
 
 			By("Creating and starting the VM and expecting a failure")
@@ -640,11 +640,11 @@ var _ = Describe("[crit:medium][vendor:cnv-qe@redhat.com][level:component][sig-c
 				Kind: instancetypeapi.SingularResourceName,
 			}
 
-			newVm, err = virtClient.VirtualMachine(util.NamespaceTestDefault).Create(newVm)
+			newVm, err = virtClient.VirtualMachine(testsuite.GetTestNamespace(vm)).Create(newVm)
 			Expect(err).ToNot(HaveOccurred())
 
 			Eventually(func(g Gomega) {
-				foundVm, err := virtClient.VirtualMachine(util.NamespaceTestDefault).Get(newVm.Name, &metav1.GetOptions{})
+				foundVm, err := virtClient.VirtualMachine(testsuite.GetTestNamespace(vm)).Get(newVm.Name, &metav1.GetOptions{})
 				g.Expect(err).ToNot(HaveOccurred())
 
 				cond := controller.NewVirtualMachineConditionManager().
@@ -661,7 +661,7 @@ func newVirtualMachineInstancetype(vmi *v1.VirtualMachineInstance) *instancetype
 	return &instancetypev1alpha2.VirtualMachineInstancetype{
 		ObjectMeta: metav1.ObjectMeta{
 			GenerateName: "vm-instancetype-",
-			Namespace:    util.NamespaceTestDefault,
+			Namespace:    testsuite.GetTestNamespace(nil),
 		},
 		Spec: newVirtualMachineInstancetypeSpec(vmi),
 	}
@@ -671,7 +671,7 @@ func newVirtualMachineClusterInstancetype(vmi *v1.VirtualMachineInstance) *insta
 	return &instancetypev1alpha2.VirtualMachineClusterInstancetype{
 		ObjectMeta: metav1.ObjectMeta{
 			GenerateName: "vm-cluster-instancetype-",
-			Namespace:    util.NamespaceTestDefault,
+			Namespace:    testsuite.GetTestNamespace(nil),
 		},
 		Spec: newVirtualMachineInstancetypeSpec(vmi),
 	}
@@ -699,7 +699,7 @@ func newVirtualMachinePreference() *instancetypev1alpha2.VirtualMachinePreferenc
 	return &instancetypev1alpha2.VirtualMachinePreference{
 		ObjectMeta: metav1.ObjectMeta{
 			GenerateName: "vm-preference-",
-			Namespace:    util.NamespaceTestDefault,
+			Namespace:    testsuite.GetTestNamespace(nil),
 		},
 	}
 }
@@ -708,7 +708,7 @@ func newVirtualMachineClusterPreference() *instancetypev1alpha2.VirtualMachineCl
 	return &instancetypev1alpha2.VirtualMachineClusterPreference{
 		ObjectMeta: metav1.ObjectMeta{
 			GenerateName: "vm-cluster-preference-",
-			Namespace:    util.NamespaceTestDefault,
+			Namespace:    testsuite.GetTestNamespace(nil),
 		},
 	}
 }

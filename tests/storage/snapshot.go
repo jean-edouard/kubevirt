@@ -22,6 +22,7 @@ import (
 	"kubevirt.io/kubevirt/tests/exec"
 	"kubevirt.io/kubevirt/tests/framework/matcher"
 	. "kubevirt.io/kubevirt/tests/framework/matcher"
+	"kubevirt.io/kubevirt/tests/testsuite"
 
 	v1 "kubevirt.io/api/core/v1"
 	instancetypev1alpha2 "kubevirt.io/api/instancetype/v1alpha2"
@@ -170,7 +171,7 @@ var _ = SIGDescribe("VirtualMachineSnapshot Tests", func() {
 					}},
 					ClientConfig: admissionregistrationv1.WebhookClientConfig{
 						Service: &admissionregistrationv1.ServiceReference{
-							Namespace: util.NamespaceTestDefault,
+							Namespace: testsuite.GetTestNamespace(nil),
 							Name:      "nonexistant",
 							Path:      &whPath,
 						},
@@ -226,7 +227,7 @@ var _ = SIGDescribe("VirtualMachineSnapshot Tests", func() {
 		BeforeEach(func() {
 			var err error
 			vm = tests.NewRandomVirtualMachine(libvmi.NewCirros(), false)
-			vm, err = virtClient.VirtualMachine(util.NamespaceTestDefault).Create(vm)
+			vm, err = virtClient.VirtualMachine(testsuite.GetTestNamespace(nil)).Create(vm)
 			Expect(err).ToNot(HaveOccurred())
 		})
 
@@ -402,7 +403,7 @@ var _ = SIGDescribe("VirtualMachineSnapshot Tests", func() {
 				quantity, err := resource.ParseQuantity("1Gi")
 				Expect(err).ToNot(HaveOccurred())
 				vmi := tests.NewRandomFedoraVMIWithGuestAgent()
-				vmi.Namespace = util.NamespaceTestDefault
+				vmi.Namespace = testsuite.GetTestNamespace(nil)
 				vm = tests.NewRandomVirtualMachine(vmi, false)
 				dvName := "dv-" + vm.Name
 				vm.Spec.DataVolumeTemplates = []v1.DataVolumeTemplateSpec{
@@ -481,7 +482,7 @@ var _ = SIGDescribe("VirtualMachineSnapshot Tests", func() {
 				quantity, err := resource.ParseQuantity("1Gi")
 				Expect(err).ToNot(HaveOccurred())
 				vmi := tests.NewRandomFedoraVMI()
-				vmi.Namespace = util.NamespaceTestDefault
+				vmi.Namespace = testsuite.GetTestNamespace(nil)
 				vm = tests.NewRandomVirtualMachine(vmi, false)
 				dvName := "dv-" + vm.Name
 				vm.Spec.DataVolumeTemplates = []v1.DataVolumeTemplateSpec{
@@ -541,7 +542,7 @@ var _ = SIGDescribe("VirtualMachineSnapshot Tests", func() {
 
 			It("[test_id:6769]without volumes with guest agent available", func() {
 				vmi := tests.NewRandomFedoraVMIWithGuestAgent()
-				vmi.Namespace = util.NamespaceTestDefault
+				vmi.Namespace = testsuite.GetTestNamespace(nil)
 				vm = tests.NewRandomVirtualMachine(vmi, false)
 
 				vm, vmi = createAndStartVM(vm)
@@ -566,7 +567,7 @@ var _ = SIGDescribe("VirtualMachineSnapshot Tests", func() {
 				var vmi *v1.VirtualMachineInstance
 				vm, vmi = createAndStartVM(tests.NewRandomVMWithDataVolumeWithRegistryImport(
 					cd.DataVolumeImportUrlForContainerDisk(cd.ContainerDiskFedoraTestTooling),
-					util.NamespaceTestDefault,
+					testsuite.GetTestNamespace(nil),
 					snapshotStorageClass,
 					corev1.ReadWriteOnce))
 				Eventually(matcher.ThisVMI(vmi), 12*time.Minute, 2*time.Second).Should(matcher.HaveConditionTrue(v1.VirtualMachineInstanceAgentConnected))
@@ -596,7 +597,7 @@ var _ = SIGDescribe("VirtualMachineSnapshot Tests", func() {
 				var vmi *v1.VirtualMachineInstance
 				vm, vmi = createAndStartVM(tests.NewRandomVMWithDataVolumeWithRegistryImport(
 					cd.DataVolumeImportUrlForContainerDisk(cd.ContainerDiskFedoraTestTooling),
-					util.NamespaceTestDefault,
+					testsuite.GetTestNamespace(nil),
 					snapshotStorageClass,
 					corev1.ReadWriteOnce))
 				Eventually(matcher.ThisVMI(vmi), 12*time.Minute, 2*time.Second).Should(matcher.HaveConditionTrue(v1.VirtualMachineInstanceAgentConnected))
@@ -645,7 +646,7 @@ var _ = SIGDescribe("VirtualMachineSnapshot Tests", func() {
 				var vmi *v1.VirtualMachineInstance
 				vm, vmi = createAndStartVM(tests.NewRandomVMWithDataVolumeWithRegistryImport(
 					cd.DataVolumeImportUrlForContainerDisk(cd.ContainerDiskFedoraTestTooling),
-					util.NamespaceTestDefault,
+					testsuite.GetTestNamespace(nil),
 					snapshotStorageClass,
 					corev1.ReadWriteOnce))
 				Eventually(matcher.ThisVMI(vmi), 12*time.Minute, 2*time.Second).Should(matcher.HaveConditionTrue(v1.VirtualMachineInstanceAgentConnected))
@@ -719,7 +720,7 @@ var _ = SIGDescribe("VirtualMachineSnapshot Tests", func() {
 			It("Calling Velero hooks should freeze/unfreeze VM", func() {
 				By("Creating VM")
 				vmi := tests.NewRandomFedoraVMIWithGuestAgent()
-				vmi.Namespace = util.NamespaceTestDefault
+				vmi.Namespace = testsuite.GetTestNamespace(nil)
 				vm = tests.NewRandomVirtualMachine(vmi, false)
 
 				vm, vmi = createAndStartVM(vm)
@@ -774,7 +775,7 @@ var _ = SIGDescribe("VirtualMachineSnapshot Tests", func() {
 				running := false
 				vm = tests.NewRandomVMWithDataVolumeWithRegistryImport(
 					cd.DataVolumeImportUrlForContainerDisk(cd.ContainerDiskAlpine),
-					util.NamespaceTestDefault,
+					testsuite.GetTestNamespace(nil),
 					snapshotStorageClass,
 					corev1.ReadWriteOnce,
 				)
@@ -797,7 +798,7 @@ var _ = SIGDescribe("VirtualMachineSnapshot Tests", func() {
 			It("Calling Velero hooks should error if VM is Paused", func() {
 				By("Creating VM")
 				vmi := tests.NewRandomFedoraVMIWithGuestAgent()
-				vmi.Namespace = util.NamespaceTestDefault
+				vmi.Namespace = testsuite.GetTestNamespace(nil)
 				vm = tests.NewRandomVirtualMachine(vmi, false)
 
 				vm, vmi = createAndStartVM(vm)
@@ -827,7 +828,7 @@ var _ = SIGDescribe("VirtualMachineSnapshot Tests", func() {
 					volumeMode := corev1.PersistentVolumeFilesystem
 					memoryDumpPVC.Spec.VolumeMode = &volumeMode
 					var err error
-					memoryDumpPVC, err = virtClient.CoreV1().PersistentVolumeClaims(util.NamespaceTestDefault).Create(context.Background(), memoryDumpPVC, metav1.CreateOptions{})
+					memoryDumpPVC, err = virtClient.CoreV1().PersistentVolumeClaims(testsuite.GetTestNamespace(nil)).Create(context.Background(), memoryDumpPVC, metav1.CreateOptions{})
 					if err != nil {
 						Skip(fmt.Sprintf("Skiping test, no filesystem pvc available, err: %s", err))
 					}
@@ -866,7 +867,7 @@ var _ = SIGDescribe("VirtualMachineSnapshot Tests", func() {
 					var vmi *v1.VirtualMachineInstance
 					vm, vmi = createAndStartVM(tests.NewRandomVMWithDataVolumeWithRegistryImport(
 						cd.DataVolumeImportUrlForContainerDisk(cd.ContainerDiskFedoraTestTooling),
-						util.NamespaceTestDefault,
+						testsuite.GetTestNamespace(nil),
 						snapshotStorageClass,
 						corev1.ReadWriteOnce))
 					Eventually(matcher.ThisVMI(vmi), 12*time.Minute, 2*time.Second).Should(matcher.HaveConditionTrue(v1.VirtualMachineInstanceAgentConnected))
@@ -937,7 +938,7 @@ var _ = SIGDescribe("VirtualMachineSnapshot Tests", func() {
 				running := false
 				vm = tests.NewRandomVMWithDataVolumeWithRegistryImport(
 					cd.DataVolumeImportUrlForContainerDisk(cd.ContainerDiskAlpine),
-					util.NamespaceTestDefault,
+					testsuite.GetTestNamespace(nil),
 					snapshotStorageClass,
 					corev1.ReadWriteOnce,
 				)
@@ -1218,7 +1219,7 @@ var _ = SIGDescribe("VirtualMachineSnapshot Tests", func() {
 				running := false
 				vm = tests.NewRandomVMWithDataVolumeWithRegistryImport(
 					cd.DataVolumeImportUrlForContainerDisk(cd.ContainerDiskAlpine),
-					util.NamespaceTestDefault,
+					testsuite.GetTestNamespace(nil),
 					snapshotStorageClass,
 					corev1.ReadWriteOnce,
 				)
@@ -1308,7 +1309,7 @@ var _ = SIGDescribe("VirtualMachineSnapshot Tests", func() {
 						!vm.Status.VolumeSnapshotStatuses[0].Enabled
 				}, 180*time.Second, 1*time.Second).Should(BeTrue())
 
-				dv, err = virtClient.CdiClient().CdiV1beta1().DataVolumes(util.NamespaceTestDefault).Create(context.Background(), dataVolume, metav1.CreateOptions{})
+				dv, err = virtClient.CdiClient().CdiV1beta1().DataVolumes(testsuite.GetTestNamespace(nil)).Create(context.Background(), dataVolume, metav1.CreateOptions{})
 				Expect(err).ToNot(HaveOccurred())
 
 				Eventually(func() bool {
@@ -1332,7 +1333,7 @@ var _ = SIGDescribe("VirtualMachineSnapshot Tests", func() {
 					libdv.WithRegistryURLSourceAndPullMethod(cd.DataVolumeImportUrlForContainerDisk(cd.ContainerDiskAlpine), cdiv1.RegistryPullNode),
 					libdv.WithPVC(libdv.PVCWithStorageClass(snapshotStorageClass)),
 				)
-				dv, err = virtClient.CdiClient().CdiV1beta1().DataVolumes(util.NamespaceTestDefault).Create(context.Background(), includedDataVolume, metav1.CreateOptions{})
+				dv, err = virtClient.CdiClient().CdiV1beta1().DataVolumes(testsuite.GetTestNamespace(nil)).Create(context.Background(), includedDataVolume, metav1.CreateOptions{})
 				Expect(err).ToNot(HaveOccurred())
 				libstorage.EventuallyDVWith(dv.Namespace, dv.Name, 180, HaveSucceeded())
 
@@ -1341,7 +1342,7 @@ var _ = SIGDescribe("VirtualMachineSnapshot Tests", func() {
 					libdv.WithRegistryURLSourceAndPullMethod(cd.DataVolumeImportUrlForContainerDisk(cd.ContainerDiskAlpine), cdiv1.RegistryPullNode),
 					libdv.WithPVC(libdv.PVCWithStorageClass(noSnapshotSC)),
 				)
-				dv, err = virtClient.CdiClient().CdiV1beta1().DataVolumes(util.NamespaceTestDefault).Create(context.Background(), excludedDataVolume, metav1.CreateOptions{})
+				dv, err = virtClient.CdiClient().CdiV1beta1().DataVolumes(testsuite.GetTestNamespace(nil)).Create(context.Background(), excludedDataVolume, metav1.CreateOptions{})
 				Expect(err).ToNot(HaveOccurred())
 
 				vmi := tests.NewRandomVMI()
@@ -1384,7 +1385,7 @@ var _ = SIGDescribe("VirtualMachineSnapshot Tests", func() {
 				instancetype = &instancetypev1alpha2.VirtualMachineInstancetype{
 					ObjectMeta: metav1.ObjectMeta{
 						GenerateName: "vm-instancetype-",
-						Namespace:    util.NamespaceTestDefault,
+						Namespace:    testsuite.GetTestNamespace(nil),
 					},
 					Spec: instancetypev1alpha2.VirtualMachineInstancetypeSpec{
 						CPU: instancetypev1alpha2.CPUInstancetype{
@@ -1395,12 +1396,12 @@ var _ = SIGDescribe("VirtualMachineSnapshot Tests", func() {
 						},
 					},
 				}
-				instancetype, err := virtClient.VirtualMachineInstancetype(util.NamespaceTestDefault).Create(context.Background(), instancetype, metav1.CreateOptions{})
+				instancetype, err := virtClient.VirtualMachineInstancetype(testsuite.GetTestNamespace(nil)).Create(context.Background(), instancetype, metav1.CreateOptions{})
 				Expect(err).ToNot(HaveOccurred())
 
 				vm = tests.NewRandomVMWithDataVolumeWithRegistryImport(
 					cd.DataVolumeImportUrlForContainerDisk(cd.ContainerDiskAlpine),
-					util.NamespaceTestDefault,
+					testsuite.GetTestNamespace(nil),
 					snapshotStorageClass,
 					corev1.ReadWriteOnce,
 				)
