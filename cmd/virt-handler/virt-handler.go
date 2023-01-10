@@ -141,6 +141,7 @@ type virtHandlerApp struct {
 	MaxRequestsInFlight       int
 	domainResyncPeriodSeconds int
 	gracefulShutdownSeconds   int
+	noCustomSELinuxPolicy     bool
 
 	caConfigMapName    string
 	clientCertFilePath string
@@ -393,10 +394,12 @@ func (app *virtHandlerApp) Run() {
 	se, exists, err := selinux.NewSELinux()
 	if err == nil && exists {
 		log.DefaultLogger().Infof("SELinux is reported as '%s'", se.Mode())
-		// Install KubeVirt's virt-launcher policy
-		err = se.InstallPolicy("/var/run/kubevirt")
-		if err != nil {
-			panic(fmt.Errorf("failed to install virt-launcher selinux policy: %v", err))
+		if !app.noCustomSELinuxPolicy {
+			// Install KubeVirt's virt-launcher policy
+			err = se.InstallPolicy("/var/run/kubevirt")
+			if err != nil {
+				panic(fmt.Errorf("failed to install virt-launcher selinux policy: %v", err))
+			}
 		}
 
 		// relabel tun device
@@ -607,6 +610,9 @@ func (app *virtHandlerApp) AddFlags() {
 
 	flag.IntVar(&app.gracefulShutdownSeconds, "graceful-shutdown-seconds", defaultGracefulShutdownSeconds,
 		"The number of seconds to wait for existing migration connections to close before shutting down virt-handler.")
+
+	flag.BoolVar(&app.noCustomSELinuxPolicy, "no-custom-selinux-policy", false,
+		"Setting this flag will disable the installation of the custom SELinux policy for virt-launcher")
 }
 
 func (app *virtHandlerApp) setupTLS(factory controller.KubeInformerFactory) error {

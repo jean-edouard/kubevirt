@@ -23,6 +23,11 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
+
+	"kubevirt.io/kubevirt/pkg/virt-operator/resource/generate/components"
+	"kubevirt.io/kubevirt/tests/flags"
+	"kubevirt.io/kubevirt/tests/libnode"
 
 	"kubevirt.io/kubevirt/tests/decorators"
 
@@ -274,7 +279,85 @@ var _ = Describe("[Serial][sig-compute]SecurityFeatures", Serial, decorators.Sig
 			}
 		})
 	})
+	Context("Disabling the custom SELinux policy", func() {
+		AfterEach(func() {
+			By("Re-enabling the custom policy by removing the corresponding feature gate")
+			tests.DisableFeatureGate(virtconfig.DisableCustomSELinuxPolicy)
+
+			By("Waiting for all the virt-handler pods to be restarted without the --no-custom-selinux-policy option")
+			Eventually(func() error {
+				return testForVirtHandlerOption(virtClient, "--no-custom-selinux-policy", false)
+			}, 5*time.Minute, 10*time.Second).ShouldNot(BeNil())
+		})
+
+		It("Should prevent virt-handler from installing the custom policy", func() {
+			By("Removing custom SELinux policy from all nodes")
+			err = runOnAllNodes(virtClient, []string{"chroot", "/proc/1/root", "semodule", "-r", "virt_launcher"}, "")
+			Expect(err).ToNot(HaveOccurred())
+
+			By("Disabling the custom policy by adding the corresponding feature gate")
+			tests.EnableFeatureGate(virtconfig.DisableCustomSELinuxPolicy)
+
+			By("Waiting for all the virt-handler pods to be restarted with the --no-custom-selinux-policy option")
+			Eventually(func() error {
+				return testForVirtHandlerOption(virtClient, "--no-custom-selinux-policy", true)
+			}, 5*time.Minute, 10*time.Second).ShouldNot(BeNil())
+
+			By("Ensuring the custom SELinux policy is absent from all nodes")
+			Consistently(func() error {
+				return runOnAllNodes(virtClient, []string{"chroot", "/proc/1/root", "semodule", "-l"}, "virt_launcher")
+			}, 30*time.Second, 10*time.Second).Should(BeNil())
+		})
+	})
 })
+
+func testForVirtHandlerOption(virtClient kubecli.KubevirtClient, option string, expected bool) error {
+	listOpts := metav1.ListOptions{LabelSelector: v1.AppLabel + "=" + components.VirtHandlerName}
+	pods, err := virtClient.CoreV1().Pods(flags.KubeVirtInstallNamespace).List(context.Background(), listOpts)
+	if err != nil {
+		return err
+	}
+	for _, pod := range pods.Items {
+		found := false
+		for _, arg := range pod.Spec.Containers[0].Args {
+			if arg == option {
+				found = true
+			}
+		}
+		if !found && expected {
+			return fmt.Errorf("%s is running without %s", pod.Name, option)
+		}
+		if found && !expected {
+			return fmt.Errorf("%s is running with %s", pod.Name, option)
+		}
+	}
+	return nil
+}
+
+func runOnAllNodes(virtClient kubecli.KubevirtClient, command []string, forbiddenString string) error {
+	nodes, err := virtClient.CoreV1().Nodes().List(context.Background(), metav1.ListOptions{})
+	if err != nil {
+		return err
+	}
+	for _, node := range nodes.Items {
+		pod, err := libnode.GetVirtHandlerPod(virtClient, node.Name)
+		if err != nil {
+			return err
+		}
+		stdout, stderr, err := exec.ExecuteCommandOnPodWithResults(virtClient, pod, components.VirtHandlerName, command)
+		if err != nil {
+			_, _ = GinkgoWriter.Write([]byte(stderr))
+			return err
+		}
+		if forbiddenString != "" {
+			if strings.Contains(stdout, forbiddenString) {
+				return fmt.Errorf("found unexpected %s on node %s", forbiddenString, node.Name)
+			}
+		}
+	}
+
+	return nil
+}
 
 func isLauncherCapabilityValid(capability k8sv1.Capability) bool {
 	switch capability {

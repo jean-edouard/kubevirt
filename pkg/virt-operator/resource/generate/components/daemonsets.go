@@ -22,7 +22,7 @@ const (
 	kubeletPodsPath = "/var/lib/kubelet/pods"
 )
 
-func NewHandlerDaemonSet(namespace, repository, imagePrefix, version, launcherVersion, productName, productVersion, productComponent, image, launcherImage string, pullPolicy corev1.PullPolicy, imagePullSecrets []corev1.LocalObjectReference, migrationNetwork *string, verbosity string, extraEnv map[string]string) (*appsv1.DaemonSet, error) {
+func NewHandlerDaemonSet(namespace, repository, imagePrefix, version, launcherVersion, productName, productVersion, productComponent, image, launcherImage string, pullPolicy corev1.PullPolicy, imagePullSecrets []corev1.LocalObjectReference, migrationNetwork *string, noCustomSELinuxPolicy bool, verbosity string, extraEnv map[string]string) (*appsv1.DaemonSet, error) {
 
 	deploymentName := VirtHandlerName
 	imageName := fmt.Sprintf("%s%s", imagePrefix, deploymentName)
@@ -160,6 +160,9 @@ func NewHandlerDaemonSet(namespace, repository, imagePrefix, version, launcherVe
 		fmt.Sprintf("%d", handlerGracePeriod),
 		"-v",
 		verbosity,
+	}
+	if noCustomSELinuxPolicy {
+		container.Args = append(container.Args, "--no-custom-selinux-policy")
 	}
 	container.Ports = []corev1.ContainerPort{
 		{

@@ -30,6 +30,8 @@ import (
 	"sort"
 	"strings"
 
+	virtconfig "kubevirt.io/kubevirt/pkg/virt-config"
+
 	k8sv1 "k8s.io/api/core/v1"
 
 	v1 "kubevirt.io/api/core/v1"
@@ -90,6 +92,9 @@ const (
 
 	// lookup key in AdditionalProperties
 	AdditionalPropertiesMigrationNetwork = "MigrationNetwork"
+
+	// lookup key in AdditionalProperties
+	AdditionalPropertiesCustomSELinuxPolicyDisabled = "CustomSELinuxPolicyDisabled"
 
 	// account to use if one is not explicitly named
 	DefaultMonitorAccount = "prometheus-k8s"
@@ -199,6 +204,14 @@ func GetTargetConfigFromKVWithEnvVarManager(kv *v1.KubeVirt, envVarManager EnvVa
 	if kv.Spec.Configuration.MigrationConfiguration != nil &&
 		kv.Spec.Configuration.MigrationConfiguration.Network != nil {
 		additionalProperties[AdditionalPropertiesMigrationNetwork] = *kv.Spec.Configuration.MigrationConfiguration.Network
+	}
+	if kv.Spec.Configuration.DeveloperConfiguration != nil {
+		for _, featureGate := range kv.Spec.Configuration.DeveloperConfiguration.FeatureGates {
+			if featureGate == virtconfig.DisableCustomSELinuxPolicy {
+				additionalProperties[AdditionalPropertiesCustomSELinuxPolicyDisabled] = "true"
+				break
+			}
+		}
 	}
 	// don't use status.target* here, as that is always set, but we need to know if it was set by the spec and with that
 	// overriding shasums from env vars
@@ -531,6 +544,11 @@ func (c *KubeVirtDeploymentConfig) GetMigrationNetwork() *string {
 	} else {
 		return nil
 	}
+}
+
+func (c *KubeVirtDeploymentConfig) GetCustomSELinuxPolicyDisabled() bool {
+	_, disabled := c.AdditionalProperties[AdditionalPropertiesCustomSELinuxPolicyDisabled]
+	return disabled
 }
 
 /*
