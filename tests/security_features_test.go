@@ -25,6 +25,8 @@ import (
 	"strings"
 	"time"
 
+	"kubevirt.io/kubevirt/tests/flags"
+
 	"kubevirt.io/kubevirt/pkg/virt-operator/resource/generate/components"
 	"kubevirt.io/kubevirt/tests/libnode"
 
@@ -188,6 +190,10 @@ var _ = Describe("[Serial][sig-compute]SecurityFeatures", Serial, decorators.Sig
 		Context("With selinuxLauncherType defined as virt_launcher.process", func() {
 
 			It("[test_id:4298]qemu process type is virt_launcher.process, when selinuxLauncherType is virt_launcher.process", func() {
+				if flags.DisableCustomSELinuxPolicy {
+					Skip("the virt_launcher.process custom policy is not installed or enabled.")
+				}
+
 				config := kubevirtConfiguration.DeepCopy()
 				launcherType := "virt_launcher.process"
 				config.SELinuxLauncherType = launcherType
