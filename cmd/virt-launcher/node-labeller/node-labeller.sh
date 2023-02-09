@@ -21,6 +21,9 @@ fi
 
 virtqemud -d
 
+# Some versions of virsh expect the old socket path
+ln -s /var/run/libvirt/virtqemud-sock /var/run/libvirt/libvirt-sock
+
 virsh domcapabilities --machine q35 --arch x86_64 --virttype $VIRTTYPE > /var/lib/kubevirt-node-labeller/virsh_domcapabilities.xml
 
 cp -r /usr/share/libvirt/cpu_map /var/lib/kubevirt-node-labeller
