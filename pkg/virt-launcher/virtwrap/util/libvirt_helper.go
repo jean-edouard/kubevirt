@@ -399,14 +399,9 @@ func SplitVMINamespaceKey(domainName string) (namespace, name string) {
 	return splitName[0], splitName[1]
 }
 
-// VMINamespaceKeyFunc constructs the domain name with a namespace prefix i.g.
-// namespace_name.
+// VMINamespaceKeyFunc constructs the domain name which is now just "vm".
 func VMINamespaceKeyFunc(vmi *v1.VirtualMachineInstance) string {
-	return DomainFromNamespaceName(vmi.Namespace, vmi.Name)
-}
-
-func DomainFromNamespaceName(namespace, name string) string {
-	return fmt.Sprintf("%s_%s", namespace, name)
+	return "vm"
 }
 
 func NewDomain(dom cli.VirDomain) (*api.Domain, error) {

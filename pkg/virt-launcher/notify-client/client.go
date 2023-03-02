@@ -241,7 +241,7 @@ func newWatchEventError(err error) watch.Event {
 func eventCallback(c cli.Connection, domain *api.Domain, libvirtEvent libvirtEvent, client *Notifier, events chan watch.Event,
 	interfaceStatus []api.InterfaceStatus, osInfo *api.GuestOSInfo, vmi *v1.VirtualMachineInstance, fsFreezeStatus *api.FSFreeze,
 	metadataCache *metadata.Cache) {
-	d, err := c.LookupDomainByName(util.DomainFromNamespaceName(domain.ObjectMeta.Namespace, domain.ObjectMeta.Name))
+	d, err := c.LookupDomainByName("vm")
 	if err != nil {
 		if !domainerrors.IsNotFound(err) {
 			log.Log.Reason(err).Error("Could not fetch the Domain.")
@@ -439,10 +439,7 @@ func (n *Notifier) StartDomainNotifier(
 				n.SendDomainEvent(newWatchEventError(fmt.Errorf("Libvirt reconnect, domain %s", domainName)))
 
 			case <-metadataCache.Listen():
-				domainCache = util.NewDomainFromName(
-					util.DomainFromNamespaceName(domainCache.ObjectMeta.Namespace, domainCache.ObjectMeta.Name),
-					vmi.UID,
-				)
+				domainCache = util.NewDomainFromName("vm", vmi.UID)
 				eventCallback(
 					domainConn,
 					domainCache,

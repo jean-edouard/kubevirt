@@ -22,7 +22,6 @@ package api
 import (
 	"encoding/json"
 	"encoding/xml"
-	"fmt"
 	"strings"
 
 	kubev1 "k8s.io/api/core/v1"
@@ -1172,9 +1171,7 @@ func (dl *DomainList) GetListMeta() meta.List {
 	return &dl.ListMeta
 }
 
-// VMINamespaceKeyFunc constructs the domain name with a namespace prefix i.g.
-// namespace_name.
+// VMINamespaceKeyFunc constructs the domain name, which is now just "vm".
 func VMINamespaceKeyFunc(vmi *v1.VirtualMachineInstance) string {
-	domName := fmt.Sprintf("%s_%s", vmi.Namespace, vmi.Name)
-	return domName
+	return "vm"
 }

@@ -88,7 +88,7 @@ var _ = Describe("Manager", func() {
 	var metadataCache *metadata.Cache
 	testVmName := "testvmi"
 	testNamespace := "testnamespace"
-	testDomainName := fmt.Sprintf("%s_%s", testNamespace, testVmName)
+	testDomainName := "vm"
 	ephemeralDiskCreatorMock := &fake.MockEphemeralDiskImageCreator{}
 
 	BeforeEach(func() {

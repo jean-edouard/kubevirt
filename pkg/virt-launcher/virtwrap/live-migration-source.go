@@ -825,6 +825,11 @@ func generateMigrationParams(dom cli.VirDomain, vmi *v1.VirtualMachineInstance, 
 		PersistXML:    xmlstr,
 		PersistXMLSet: true,
 	}
+	// Libvirt domains are now all called "vm". When upgrading, old domains need to be renamed accordingly
+	if domSpec.Name != "vm" {
+		params.DestName = "vm"
+		params.DestNameSet = true
+	}
 
 	copyDisks := getDiskTargetsForMigration(dom, vmi)
 	if len(copyDisks) != 0 {
