@@ -289,9 +289,10 @@ func (p *cpuPool) fitThread() (thread *uint32) {
 }
 
 func GetCPUTopology(vmi *v12.VirtualMachineInstance) *api.CPUTopology {
+	extraCPUs := int64(2)
 	cores := uint32(1)
 	threads := uint32(1)
-	sockets := uint32(1)
+	sockets := uint32(1 + extraCPUs)
 	vmiCPU := vmi.Spec.Domain.CPU
 	if vmiCPU != nil {
 		if vmiCPU.Cores != 0 {
@@ -313,9 +314,9 @@ func GetCPUTopology(vmi *v12.VirtualMachineInstance) *api.CPUTopology {
 		//set value into sockets, which have best performance (https://bugzilla.redhat.com/show_bug.cgi?id=1653453)
 		resources := vmi.Spec.Domain.Resources
 		if cpuLimit, ok := resources.Limits[k8sv1.ResourceCPU]; ok {
-			sockets = uint32(cpuLimit.Value())
+			sockets = uint32(cpuLimit.Value() + extraCPUs)
 		} else if cpuRequests, ok := resources.Requests[k8sv1.ResourceCPU]; ok {
-			sockets = uint32(cpuRequests.Value())
+			sockets = uint32(cpuRequests.Value() + extraCPUs)
 		}
 	}
 

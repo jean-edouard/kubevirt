@@ -200,6 +200,7 @@ type DomainSpec struct {
 	Features       *Features       `xml:"features,omitempty"`
 	CPU            CPU             `xml:"cpu"`
 	VCPU           *VCPU           `xml:"vcpu"`
+	VCPUs          *VCPUs          `xml:"vcpus"`
 	CPUTune        *CPUTune        `xml:"cputune"`
 	NUMATune       *NUMATune       `xml:"numatune"`
 	IOThreads      *IOThreads      `xml:"iothreads,omitempty"`
@@ -245,6 +246,16 @@ type CPUEmulatorPin struct {
 type VCPU struct {
 	Placement string `xml:"placement,attr"`
 	CPUs      uint32 `xml:",chardata"`
+}
+
+type SingleVCPU struct {
+	ID           uint32 `xml:"id,attr"`
+	Enabled      string `xml:"enabled,attr"`
+	Hotplugabble string `xml:"hotplugabble,attr"`
+}
+
+type VCPUs struct {
+	VCPUs []SingleVCPU `xml:"vcpu"`
 }
 
 type CPU struct {

@@ -1185,6 +1185,28 @@ func isUSBNeeded(c *ConverterContext, vmi *v1.VirtualMachineInstance) bool {
 	return false
 }
 
+func listVCPUs(cpuCount uint32, extraCpus uint32) []api.SingleVCPU {
+	var vcpus []api.SingleVCPU
+	for i := uint32(0); i < cpuCount+extraCpus; i++ {
+		enabled := "yes"
+		hotpluggable := "yes"
+		// Make the first CPU non-hotpluggable
+		if i == 0 {
+			hotpluggable = "no"
+		}
+		// Disable the extra CPUs
+		if i >= cpuCount {
+			enabled = "no"
+		}
+		vcpus = append(vcpus, api.SingleVCPU{
+			ID:           i,
+			Enabled:      enabled,
+			Hotplugabble: hotpluggable,
+		})
+	}
+	return vcpus
+}
+
 func Convert_v1_VirtualMachineInstance_To_api_Domain(vmi *v1.VirtualMachineInstance, domain *api.Domain, c *ConverterContext) (err error) {
 	var controllerDriver *api.ControllerDriver
 
@@ -1202,11 +1224,13 @@ func Convert_v1_VirtualMachineInstance_To_api_Domain(vmi *v1.VirtualMachineInsta
 	// in vmi.Spec.Domain.CPU
 	cpuTopology := vcpu.GetCPUTopology(vmi)
 	cpuCount := vcpu.CalculateRequestedVCPUs(cpuTopology)
+	extraCPUs := uint32(2)
 	domain.Spec.CPU.Topology = cpuTopology
 	domain.Spec.VCPU = &api.VCPU{
 		Placement: "static",
-		CPUs:      cpuCount,
+		CPUs:      cpuCount + extraCPUs,
 	}
+	domain.Spec.VCPUs = &api.VCPUs{VCPUs: listVCPUs(cpuCount, extraCPUs)}
 
 	kvmPath := "/dev/kvm"
 	if softwareEmulation, err := util.UseSoftwareEmulationForDevice(kvmPath, c.AllowEmulation); err != nil {
