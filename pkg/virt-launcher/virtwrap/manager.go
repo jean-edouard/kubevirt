@@ -369,6 +369,24 @@ func (l *LibvirtDomainManager) FinalizeVirtualMachineMigration(vmi *v1.VirtualMa
 	return l.finalizeMigrationTarget(vmi)
 }
 
+// TODO: move to lib
+func boolToString(value *bool, defaultPositive bool, positive string, negative string) string {
+	toString := func(value bool) string {
+		if value {
+			return positive
+		}
+		return negative
+	}
+
+	if value == nil {
+		return toString(defaultPositive)
+	}
+	return toString(*value)
+}
+func boolToYesNo(value *bool, defaultYes bool) string {
+	return boolToString(value, defaultYes, "yes", "no")
+}
+
 // UpdateVCPUs plugs or unplugs vCPUs on a running domain
 func (l *LibvirtDomainManager) UpdateVCPUs(vmi *v1.VirtualMachineInstance, options *cmdv1.VirtualMachineOptions) error {
 	l.domainModifyLock.Lock()
@@ -414,6 +432,24 @@ func (l *LibvirtDomainManager) UpdateVCPUs(vmi *v1.VirtualMachineInstance, optio
 
 		if domain.Spec.CPUTune != nil && len(domain.Spec.CPUTune.IOThreadPin) > 0 {
 			useIOThreads = true
+		}
+
+		domain.Spec.CPU.Topology = vcpuTopology
+		vmiCPU := vmi.Spec.Domain.CPU
+		if vmiCPU.MaxSockets != 0 {
+			// TODO: block copied from converter.go. Belong in a function in vcpu.go
+			VCPUs := &api.VCPUs{}
+			for id := uint32(0); id < vcpuCount; id++ {
+				isEnabled := id < vcpuTopology.Sockets*vcpuTopology.Cores*vcpuTopology.Threads
+				isHotpluggable := !isEnabled
+				vcpu := api.VCPUsVCPU{
+					ID:           id,
+					Enabled:      boolToYesNo(&isEnabled, true),
+					Hotpluggable: boolToYesNo(&isHotpluggable, false),
+				}
+				VCPUs.VCPU = append(VCPUs.VCPU, vcpu)
+			}
+			domain.Spec.VCPUs = VCPUs
 		}
 
 		err = vcpu.AdjustDomainForTopologyAndCPUSet(domain, vmi, topology, podCPUSet, useIOThreads)

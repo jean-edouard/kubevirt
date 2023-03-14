@@ -1239,6 +1239,21 @@ func (d *VirtualMachineController) updateVMIStatus(origVMI *v1.VirtualMachineIns
 		return err
 	}
 
+	// CPU hotplug. TODO: create a function instead
+	if condManager.HasCondition(vmi, v1.VirtualMachineInstanceVCPUChange) {
+		client, err := d.getVerifiedLauncherClient(vmi)
+		if err != nil {
+			return fmt.Errorf("%s: %v", "failed to get client", err)
+		}
+		options := virtualMachineOptions(nil, 0, nil, d.capabilities, map[string]*containerdisk.DiskInfo{}, d.clusterConfig.ExpandDisksEnabled())
+		err = client.SyncVirtualMachineCPUs(vmi, options)
+		if err != nil {
+			return fmt.Errorf("%s: %v", "failed to CPU hotplug", err)
+		}
+		vmi.Status.CurrentCPUTopology = nil
+		condManager.RemoveCondition(vmi, v1.VirtualMachineInstanceVCPUChange)
+	}
+
 	// Calculate the new VirtualMachineInstance state based on what libvirt reported
 	err = d.setVmPhaseForStatusReason(domain, vmi)
 	if err != nil {
