@@ -533,10 +533,7 @@ func (ctrl *VMSnapshotController) createContent(vmSnapshot *snapshotv1.VirtualMa
 	}
 
 	var volumeBackups []snapshotv1.VolumeBackup
-	pvcs, err := source.PersistentVolumeClaims()
-	if err != nil {
-		return err
-	}
+	pvcs := source.PersistentVolumeClaims()
 	for volumeName, pvcName := range pvcs {
 		pvc, err := ctrl.getSnapshotPVC(vmSnapshot.Namespace, pvcName)
 		if err != nil {

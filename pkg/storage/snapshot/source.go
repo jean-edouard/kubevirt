@@ -26,6 +26,10 @@ import (
 	"strings"
 	"time"
 
+	corev1 "k8s.io/api/core/v1"
+
+	backendstorage "kubevirt.io/kubevirt/pkg/storage/backend-storage"
+
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -59,7 +63,7 @@ type snapshotSource interface {
 	Freeze() error
 	Unfreeze() error
 	Spec() (snapshotv1.SourceSpec, error)
-	PersistentVolumeClaims() (map[string]string, error)
+	PersistentVolumeClaims() map[string]string
 }
 
 type vmSnapshotSource struct {
@@ -251,6 +255,24 @@ func (s *vmSnapshotSource) captureInstancetypeControllerRevisions(vm *snapshotv1
 	return nil
 }
 
+func (s *vmSnapshotSource) addBackendStorageVolume(volumes *[]kubevirtv1.Volume) {
+	// Add backend storage PVC as a volume to include it in the snapshot spec so it gets restored properly
+	backendStoragePVC := backendstorage.PVCForVM(s.vm, s.controller.Client)
+	if backendStoragePVC != "" {
+		bs := kubevirtv1.Volume{
+			Name: "backend-storage",
+			VolumeSource: kubevirtv1.VolumeSource{
+				PersistentVolumeClaim: &kubevirtv1.PersistentVolumeClaimVolumeSource{
+					PersistentVolumeClaimVolumeSource: corev1.PersistentVolumeClaimVolumeSource{
+						ClaimName: backendStoragePVC,
+					},
+				},
+			},
+		}
+		*volumes = append(*volumes, bs)
+	}
+}
+
 func (s *vmSnapshotSource) Spec() (snapshotv1.SourceSpec, error) {
 	online, err := s.Online()
 	if err != nil {
@@ -282,6 +304,8 @@ func (s *vmSnapshotSource) Spec() (snapshotv1.SourceSpec, error) {
 		vmCpy.Spec = *s.vm.Spec.DeepCopy()
 		vmCpy.Status = kubevirtv1.VirtualMachineStatus{}
 	}
+
+	s.addBackendStorageVolume(&vmCpy.Spec.Template.Spec.Volumes)
 
 	if err = s.captureInstancetypeControllerRevisions(vmCpy); err != nil {
 		return snapshotv1.SourceSpec{}, err
@@ -368,8 +392,13 @@ func (s *vmSnapshotSource) Unfreeze() error {
 	return nil
 }
 
-func (s *vmSnapshotSource) PersistentVolumeClaims() (map[string]string, error) {
-	return storagetypes.GetPVCsFromVolumes(s.vm.Spec.Template.Spec.Volumes), nil
+func (s *vmSnapshotSource) PersistentVolumeClaims() map[string]string {
+	pvcs := storagetypes.GetPVCsFromVolumes(s.vm.Spec.Template.Spec.Volumes)
+	backendStoragePVC := backendstorage.PVCForVM(s.vm, s.controller.Client)
+	if backendStoragePVC != "" {
+		pvcs["backend-storage"] = backendStoragePVC
+	}
+	return pvcs
 }
 
 func (s *vmSnapshotSource) pvcNames() sets.String {

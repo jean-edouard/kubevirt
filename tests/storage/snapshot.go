@@ -6,6 +6,10 @@ import (
 	"strings"
 	"time"
 
+	backendstorage "kubevirt.io/kubevirt/pkg/storage/backend-storage"
+
+	"kubevirt.io/kubevirt/tests/util"
+
 	"kubevirt.io/kubevirt/tests/decorators"
 
 	expect "github.com/google/goexpect"
@@ -234,7 +238,7 @@ var _ = SIGDescribe("VirtualMachineSnapshot Tests", func() {
 			Expect(err).ToNot(HaveOccurred())
 		})
 
-		createAndVerifyVMSnapshot := func(vm *v1.VirtualMachine) {
+		createAndVerifyVMSnapshot := func(vm *v1.VirtualMachine, expectedVolumesBackups int) {
 			snapshot = newSnapshot()
 
 			_, err := virtClient.VirtualMachineSnapshot(snapshot.Namespace).Create(context.Background(), snapshot, metav1.CreateOptions{})
@@ -258,12 +262,26 @@ var _ = SIGDescribe("VirtualMachineSnapshot Tests", func() {
 				Expect(*content.Spec.VirtualMachineSnapshotName).To(Equal(snapshot.Name))
 				Expect(content.Spec.Source.VirtualMachine.Spec).To(Equal(vm.Spec))
 				Expect(content.Spec.Source.VirtualMachine.UID).ToNot(BeEmpty())
-				Expect(content.Spec.VolumeBackups).To(BeEmpty())
+				Expect(content.Spec.VolumeBackups).To(HaveLen(expectedVolumesBackups))
 			}
 		}
 
+		findSnapshotClassForStorageClass := func(storageClass string) string {
+			sc, err := virtClient.StorageV1().StorageClasses().Get(context.Background(), storageClass, metav1.GetOptions{})
+			Expect(err).ToNot(HaveOccurred())
+			vscis, err := virtClient.KubernetesSnapshotClient().SnapshotV1().VolumeSnapshotClasses().List(context.Background(), metav1.ListOptions{})
+			Expect(err).ToNot(HaveOccurred())
+			Expect(vscis).ToNot(BeNil())
+			for _, vsci := range vscis.Items {
+				if vsci.Driver == sc.Provisioner {
+					return vsci.Name
+				}
+			}
+			return ""
+		}
+
 		It("[test_id:4609]should successfully create a snapshot", func() {
-			createAndVerifyVMSnapshot(vm)
+			createAndVerifyVMSnapshot(vm, 0)
 		})
 
 		It("[test_id:4610]create a snapshot when VM is running should succeed", func() {
@@ -272,7 +290,7 @@ var _ = SIGDescribe("VirtualMachineSnapshot Tests", func() {
 			Expect(err).ToNot(HaveOccurred())
 			Expect(*vm.Spec.Running).Should(BeTrue())
 
-			createAndVerifyVMSnapshot(vm)
+			createAndVerifyVMSnapshot(vm, 0)
 		})
 
 		It("VM should contain snapshot status for all volumes", func() {
@@ -289,6 +307,63 @@ var _ = SIGDescribe("VirtualMachineSnapshot Tests", func() {
 					vm2.Status.VolumeSnapshotStatuses[0].Name == "disk0" &&
 					vm2.Status.VolumeSnapshotStatuses[1].Name == "disk1"
 			}, 180*time.Second, time.Second).Should(BeTrue())
+		})
+
+		It("should snapshot persistent storage", Serial, func() {
+			By("Setting the backend storage class to the default for RWX FS or skip if missing")
+			storageClass, exists := libstorage.GetRWXFileSystemStorageClass()
+			Expect(exists).To(BeTrue(), "No RWX FS storage class found")
+			kv := util.GetCurrentKv(virtClient)
+			kv.Spec.Configuration.VMStateStorageClass = storageClass
+			tests.UpdateKubeVirtConfigValueAndWait(kv.Spec.Configuration)
+
+			By("Marking the VM as running so it starts and creates persistent storage")
+			patch := []byte(`[{ "op": "add", "path": "/spec/template/spec/domain/devices/tpm", "value": {"persistent":true} }]`)
+			vm, err = virtClient.VirtualMachine(vm.Namespace).Patch(context.Background(), vm.Name, types.JSONPatchType, patch, &metav1.PatchOptions{})
+			Expect(err).ToNot(HaveOccurred())
+			Expect(*vm.Spec.Template.Spec.Domain.Devices.TPM.Persistent).To(BeTrue())
+
+			By("Starting the VM so it creates persistent storage")
+			err = virtClient.VirtualMachine(vm.Namespace).Start(context.Background(), vm.Name, &v1.StartOptions{})
+			Expect(err).ToNot(HaveOccurred())
+			Eventually(func() error {
+				vmi, err := virtClient.VirtualMachineInstance(vm.Namespace).Get(context.Background(), vm.Name, &metav1.GetOptions{})
+				if err != nil {
+					return err
+				}
+				if vmi.Status.Phase != v1.Running {
+					return fmt.Errorf("VMI not running")
+				}
+				return nil
+			}, time.Minute, time.Second).ShouldNot(HaveOccurred())
+
+			By("Stopping the VM")
+			err = virtClient.VirtualMachine(vm.Namespace).Stop(context.Background(), vm.Name, &v1.StopOptions{})
+			Expect(err).ToNot(HaveOccurred())
+			Eventually(func() error {
+				_, err = virtClient.VirtualMachineInstance(vm.Namespace).Get(context.Background(), vm.Name, &metav1.GetOptions{})
+				return err
+			}, time.Minute, time.Second).Should(HaveOccurred())
+
+			By("Creating and verifying a snapshot")
+			vsci := findSnapshotClassForStorageClass(storageClass)
+			if vsci != "" {
+				By("The RWX FS storage class supports snapshot, the persistent state PVC should be backed up")
+				vm.Spec.Template.Spec.Volumes = append(vm.Spec.Template.Spec.Volumes, v1.Volume{
+					Name: "backend-storage",
+					VolumeSource: v1.VolumeSource{
+						PersistentVolumeClaim: &v1.PersistentVolumeClaimVolumeSource{
+							PersistentVolumeClaimVolumeSource: corev1.PersistentVolumeClaimVolumeSource{
+								ClaimName: backendstorage.PVCForVM(vm, virtClient),
+							},
+						},
+					},
+				})
+				createAndVerifyVMSnapshot(vm, 1)
+			} else {
+				By("The RWX FS storage class doesn't support snapshot, the persistent state PVC should not be backed up")
+				createAndVerifyVMSnapshot(vm, 0)
+			}
 		})
 	})
 

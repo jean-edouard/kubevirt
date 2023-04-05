@@ -20,8 +20,31 @@ const (
 	PVCSize   = "10Mi"
 )
 
+// PVCForVM returns the backend storage PCV name for a given VM only if it was actually created (if the VM was ever started)
+func PVCForVM(vm *corev1.VirtualMachine, client kubecli.KubevirtClient) string {
+	pvcName := PVCPrefix + vm.Name
+	if vm.Annotations != nil {
+		newName, exists := vm.Annotations[corev1.BackendStoragePVCAnnotation]
+		if exists {
+			pvcName = newName
+		}
+	}
+	_, err := client.CoreV1().PersistentVolumeClaims(vm.Namespace).Get(context.Background(), pvcName, metav1.GetOptions{})
+	if err != nil {
+		return ""
+	}
+	return pvcName
+}
+
 func PVCForVMI(vmi *corev1.VirtualMachineInstance) string {
-	return PVCPrefix + vmi.Name
+	pvcName := PVCPrefix + vmi.Name
+	if vmi.Annotations != nil {
+		newName, exists := vmi.Annotations[corev1.BackendStoragePVCAnnotation]
+		if exists {
+			pvcName = newName
+		}
+	}
+	return pvcName
 }
 
 func HasPersistentTPMDevice(vmi *corev1.VirtualMachineInstance) bool {

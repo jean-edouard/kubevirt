@@ -431,6 +431,7 @@ func (t *vmRestoreTarget) reconcileSpec() (bool, error) {
 	var newTemplates = make([]kubevirtv1.DataVolumeTemplateSpec, len(snapshotVM.Spec.DataVolumeTemplates))
 	var newVolumes []kubevirtv1.Volume
 	var deletedDataVolumes []string
+	var backendStoragePVC string
 	updatedStatus := false
 
 	for i, t := range snapshotVM.Spec.DataVolumeTemplates {
@@ -512,7 +513,11 @@ func (t *vmRestoreTarget) reconcileSpec() (bool, error) {
 			// don't restore memory dump volume in the new spec
 			continue
 		}
-		newVolumes = append(newVolumes, *nv)
+		if nv.Name != "backend-storage" {
+			newVolumes = append(newVolumes, *nv)
+		} else {
+			backendStoragePVC = nv.PersistentVolumeClaim.ClaimName
+		}
 	}
 
 	if t.doesTargetVMExist() && updatedStatus {
@@ -563,6 +568,10 @@ func (t *vmRestoreTarget) reconcileSpec() (bool, error) {
 	newVM.Spec.DataVolumeTemplates = newTemplates
 	newVM.Spec.Template.Spec.Volumes = newVolumes
 	setLastRestoreAnnotation(t.vmRestore, newVM)
+
+	if backendStoragePVC != "" {
+		setBackendStorageAnnotation(backendStoragePVC, newVM)
+	}
 
 	newVM, err = patchVM(newVM, t.vmRestore.Spec.Patches)
 	if err != nil {
@@ -1045,6 +1054,13 @@ func setLastRestoreAnnotation(restore *snapshotv1.VirtualMachineRestore, obj met
 		obj.SetAnnotations(make(map[string]string))
 	}
 	obj.GetAnnotations()[lastRestoreAnnotation] = getRestoreAnnotationValue(restore)
+}
+
+func setBackendStorageAnnotation(backendStoragePVC string, obj metav1.Object) {
+	if obj.GetAnnotations() == nil {
+		obj.SetAnnotations(make(map[string]string))
+	}
+	obj.GetAnnotations()[kubevirtv1.BackendStoragePVCAnnotation] = backendStoragePVC
 }
 
 func CreateRestorePVCDefFromVMRestore(vmRestoreName, restorePVCName string, volumeSnapshot *vsv1.VolumeSnapshot, volumeBackup *snapshotv1.VolumeBackup, sourceVmName, sourceVmNamespace string) *corev1.PersistentVolumeClaim {

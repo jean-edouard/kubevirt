@@ -911,6 +911,7 @@ func (c *VMController) startVMI(vm *virtv1.VirtualMachine) error {
 	vmi.Status.VirtualMachineRevisionName = vmRevisionName
 
 	setGenerationAnnotationOnVmi(vm.Generation, vmi)
+	setBackendStorageAnnotationOnVmi(vm, vmi)
 
 	// add a finalizer to ensure the VM controller has a chance to see
 	// the VMI before it is deleted
@@ -962,6 +963,23 @@ func setGenerationAnnotationOnVmi(generation int64, vmi *virtv1.VirtualMachineIn
 	}
 
 	annotations[virtv1.VirtualMachineGenerationAnnotation] = strconv.FormatInt(generation, 10)
+	vmi.SetAnnotations(annotations)
+}
+
+func setBackendStorageAnnotationOnVmi(vm *virtv1.VirtualMachine, vmi *virtv1.VirtualMachineInstance) {
+	if vm.Annotations == nil {
+		return
+	}
+	value, exists := vm.Annotations[virtv1.BackendStoragePVCAnnotation]
+	if !exists {
+		return
+	}
+	annotations := vmi.GetAnnotations()
+	if annotations == nil {
+		annotations = make(map[string]string)
+	}
+
+	annotations[virtv1.BackendStoragePVCAnnotation] = value
 	vmi.SetAnnotations(annotations)
 }
 
