@@ -510,6 +510,7 @@ func (t *templateService) renderLaunchManifest(vmi *v1.VirtualMachineInstance, i
 		}
 
 	}
+	nsr := t.newNodeSelectorRenderer(vmi)
 	pod := k8sv1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			GenerateName: "virt-launcher-" + domain + "-",
@@ -527,7 +528,7 @@ func (t *templateService) renderLaunchManifest(vmi *v1.VirtualMachineInstance, i
 			RestartPolicy:                 k8sv1.RestartPolicyNever,
 			Containers:                    containers,
 			InitContainers:                initContainers,
-			NodeSelector:                  t.newNodeSelectorRenderer(vmi).Render(),
+			NodeSelector:                  nsr.Render(),
 			Volumes:                       volumeRenderer.Volumes(),
 			ImagePullSecrets:              imagePullSecrets,
 			DNSConfig:                     vmi.Spec.DNSConfig,
@@ -538,6 +539,24 @@ func (t *templateService) renderLaunchManifest(vmi *v1.VirtualMachineInstance, i
 			Tolerations:                   vmi.Spec.Tolerations,
 			TopologySpreadConstraints:     vmi.Spec.TopologySpreadConstraints,
 		},
+	}
+	tscFrequencies := nsr.AllowableTSCFrequencies()
+	if tscFrequencies != nil && len(tscFrequencies) > 0 {
+		pod.Spec.Affinity = &k8sv1.Affinity{
+			NodeAffinity: &k8sv1.NodeAffinity{
+				RequiredDuringSchedulingIgnoredDuringExecution: &k8sv1.NodeSelector{
+					NodeSelectorTerms: []k8sv1.NodeSelectorTerm{{
+						MatchExpressions: []k8sv1.NodeSelectorRequirement{
+							{
+								Key:      topology.TSCFrequencyLabel,
+								Operator: "In",
+								Values:   tscFrequencies,
+							},
+						},
+					}},
+				},
+			},
+		}
 	}
 
 	alignPodMultiCategorySecurity(&pod, vmi, t.clusterConfig.GetSELinuxLauncherType(), t.clusterConfig.DockerSELinuxMCSWorkaroundEnabled(), t.clusterConfig.CustomSELinuxPolicyDisabled())

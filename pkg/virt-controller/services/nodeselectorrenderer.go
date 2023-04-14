@@ -2,10 +2,9 @@ package services
 
 import (
 	"fmt"
+	"strconv"
 
 	v1 "kubevirt.io/api/core/v1"
-
-	"kubevirt.io/kubevirt/pkg/virt-controller/watch/topology"
 )
 
 type NodeSelectorRenderer struct {
@@ -50,11 +49,21 @@ func (nsr *NodeSelectorRenderer) Render() map[string]string {
 		nsr.enableSelectorLabel(cpuFeatureLabel)
 	}
 
-	if nsr.isManualTSCFrequencyRequired() {
-		nsr.enableSelectorLabel(topology.ToTSCSchedulableLabel(*nsr.tscFrequency))
-	}
-
 	return nsr.podNodeSelectors
+}
+
+func (nsr *NodeSelectorRenderer) AllowableTSCFrequencies() []string {
+	if !nsr.isManualTSCFrequencyRequired() {
+		return nil
+	}
+	freq := *nsr.tscFrequency
+	return []string{
+		strconv.FormatInt(freq-2000, 10),
+		strconv.FormatInt(freq-1000, 10),
+		strconv.FormatInt(freq, 10),
+		strconv.FormatInt(freq+1000, 10),
+		strconv.FormatInt(freq+2000, 10),
+	}
 }
 
 func (nsr *NodeSelectorRenderer) enableSelectorLabel(label string) {
