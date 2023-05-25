@@ -1816,9 +1816,13 @@ func Convert_v1_VirtualMachineInstance_To_api_Domain(vmi *v1.VirtualMachineInsta
 	}
 
 	if vmi.Spec.Domain.Devices.TPM != nil {
+		model := "tpm-tis"
+		if vmi.Spec.Domain.Devices.TPM.Model != "" {
+			model = vmi.Spec.Domain.Devices.TPM.Model
+		}
 		domain.Spec.Devices.TPMs = []api.TPM{
 			{
-				Model: "tpm-tis",
+				Model: model,
 				Backend: api.TPMBackend{
 					Type:    "emulator",
 					Version: "2.0",

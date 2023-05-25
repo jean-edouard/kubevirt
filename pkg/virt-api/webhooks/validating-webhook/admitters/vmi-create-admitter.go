@@ -225,6 +225,7 @@ func ValidateVirtualMachineInstanceSpec(field *k8sfield.Path, spec *v1.VirtualMa
 	causes = append(causes, validateVSOCK(field, spec, config)...)
 	causes = append(causes, validatePersistentReservation(field, spec, config)...)
 	causes = append(causes, validatePersistentState(field, spec, config)...)
+	causes = append(causes, validateTPM(field, spec)...)
 
 	return causes
 }
@@ -2653,6 +2654,21 @@ func validatePersistentState(field *k8sfield.Path, spec *v1.VirtualMachineInstan
 			Type:    metav1.CauseTypeFieldValueInvalid,
 			Message: fmt.Sprintf("%s feature gate is not enabled in kubevirt-config", virtconfig.VMPersistentState),
 			Field:   field.Child("domain", "devices", "tpm", "persistent").String(),
+		})
+	}
+
+	return
+}
+
+func validateTPM(field *k8sfield.Path, spec *v1.VirtualMachineInstanceSpec) (causes []metav1.StatusCause) {
+	if spec.Domain.Devices.TPM != nil &&
+		spec.Domain.Devices.TPM.Model != "" &&
+		spec.Domain.Devices.TPM.Model != "tpm-tis" &&
+		spec.Domain.Devices.TPM.Model != "tpm-crb" {
+		causes = append(causes, metav1.StatusCause{
+			Type:    metav1.CauseTypeFieldValueInvalid,
+			Message: fmt.Sprintf("%s is not a valid TPM model", spec.Domain.Devices.TPM.Model),
+			Field:   field.Child("domain", "devices", "tpm", "model").String(),
 		})
 	}
 

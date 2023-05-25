@@ -683,6 +683,29 @@ var _ = Describe("Validating VMICreate Admitter", func() {
 			Expect(causes).To(HaveLen(1))
 			Expect(causes[0].Field).To(Equal("fake.domain.devices.disks[1].name"))
 		})
+		It("should allow supported TPM models", func() {
+			supportedModels := [...]string{"", "tpm-tis", "tpm-crb"}
+			vmi := api.NewMinimalVMI("testvmi")
+
+			for _, modelName := range supportedModels {
+				vmi.Spec.Domain.Devices.TPM = &v1.TPMDevice{
+					Model: modelName,
+				}
+				causes := ValidateVirtualMachineInstanceSpec(k8sfield.NewPath("fake"), &vmi.Spec, config)
+				Expect(causes).To(BeEmpty())
+			}
+		})
+		It("should reject unsupported TPM models", func() {
+			vmi := api.NewMinimalVMI("testvmi")
+
+			vmi.Spec.Domain.Devices.TPM = &v1.TPMDevice{
+				Model: "tpm-notsupported",
+			}
+
+			causes := ValidateVirtualMachineInstanceSpec(k8sfield.NewPath("fake"), &vmi.Spec, config)
+			Expect(causes).To(HaveLen(1))
+			Expect(causes[0].Field).To(Equal("fake.domain.devices.tpm.model"))
+		})
 		It("should generate multiple causes", func() {
 			vmi := api.NewMinimalVMI("testvmi")
 

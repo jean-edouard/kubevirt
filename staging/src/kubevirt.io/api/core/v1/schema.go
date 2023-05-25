@@ -496,6 +496,8 @@ type TPMDevice struct {
 	// Persistent indicates the state of the TPM device should be kept accross reboots
 	// Defaults to false
 	Persistent *bool `json:"persistent,omitempty"`
+	// Model can either be tpm-tis or tpm-crb. The default is tpm-tis.
+	Model string `json:"model,omitempty"`
 }
 
 type InputBus string

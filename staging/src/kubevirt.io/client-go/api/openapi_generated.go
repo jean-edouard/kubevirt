@@ -20292,6 +20292,13 @@ func schema_kubevirtio_api_core_v1_TPMDevice(ref common.ReferenceCallback) commo
 							Format:      "",
 						},
 					},
+					"model": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Model can either be tpm-tis or tpm-crb. The default is tpm-tis.",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
 				},
 			},
 		},

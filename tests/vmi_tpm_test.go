@@ -152,7 +152,7 @@ var _ = Describe("[sig-storage]vTPM", decorators.SigStorage, func() {
 			}, 300)).To(Succeed(), "the state of the TPM did not persist")
 		}
 
-		DescribeTable("[Serial]should persist TPM secrets across", Serial, func(ops ...string) {
+		DescribeTable("[Serial]should persist TPM secrets across", Serial, func(model string, ops ...string) {
 			By("Setting the backend storage class to the default for RWX FS")
 			storageClass, exists := libstorage.GetRWXFileSystemStorageClass()
 			Expect(exists).To(BeTrue(), "No RWX FS storage class found")
@@ -164,6 +164,7 @@ var _ = Describe("[sig-storage]vTPM", decorators.SigStorage, func() {
 			vmi := tests.NewRandomFedoraVMI()
 			vmi.Namespace = util.NamespaceTestDefault
 			vmi.Spec.Domain.Devices.TPM = &v1.TPMDevice{
+				Model:      model,
 				Persistent: pointer.BoolPtr(true),
 			}
 			vm := tests.NewRandomVirtualMachine(vmi, true)
@@ -213,8 +214,9 @@ var _ = Describe("[sig-storage]vTPM", decorators.SigStorage, func() {
 			err = virtClient.VirtualMachine(util.NamespaceTestDefault).Delete(context.Background(), vm.Name, &k8smetav1.DeleteOptions{})
 			Expect(err).ToNot(HaveOccurred())
 		},
-			Entry("migration and restart", "migrate", "restart"),
-			Entry("restart and migration", "restart", "migrate"),
+			Entry("migration and restart", "tpm-tis", "migrate", "restart"),
+			Entry("restart and migration", "tpm-tis", "restart", "migrate"),
+			Entry("restart and migration with tpm-crb", "tpm-crb", "restart", "migrate"),
 		)
 		It("[Serial]should remove persistent storage PVC if VMI is not owned by a VM", Serial, func() {
 			By("Setting the backend storage class to the default for RWX FS")

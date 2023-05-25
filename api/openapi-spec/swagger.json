@@ -18314,6 +18314,10 @@
    "v1.TPMDevice": {
     "type": "object",
     "properties": {
+     "model": {
+      "description": "Model can either be tpm-tis or tpm-crb. The default is tpm-tis.",
+      "type": "string"
+     },
      "persistent": {
       "description": "Persistent indicates the state of the TPM device should be kept accross reboots Defaults to false",
       "type": "boolean"

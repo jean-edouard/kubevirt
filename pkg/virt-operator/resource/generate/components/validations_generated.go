@@ -5510,6 +5510,10 @@ var CRDsValidation map[string]string = map[string]string{
                         tpm:
                           description: Whether to emulate a TPM device.
                           properties:
+                            model:
+                              description: Model can either be tpm-tis or tpm-crb.
+                                The default is tpm-tis.
+                              type: string
                             persistent:
                               description: Persistent indicates the state of the TPM
                                 device should be kept accross reboots Defaults to
@@ -7736,6 +7740,10 @@ var CRDsValidation map[string]string = map[string]string{
               description: PreferredTPM optionally defines the preferred TPM device
                 to be used.
               properties:
+                model:
+                  description: Model can either be tpm-tis or tpm-crb. The default
+                    is tpm-tis.
+                  type: string
                 persistent:
                   description: Persistent indicates the state of the TPM device should
                     be kept accross reboots Defaults to false
@@ -9798,6 +9806,10 @@ var CRDsValidation map[string]string = map[string]string{
                 tpm:
                   description: Whether to emulate a TPM device.
                   properties:
+                    model:
+                      description: Model can either be tpm-tis or tpm-crb. The default
+                        is tpm-tis.
+                      type: string
                     persistent:
                       description: Persistent indicates the state of the TPM device
                         should be kept accross reboots Defaults to false
@@ -12327,6 +12339,10 @@ var CRDsValidation map[string]string = map[string]string{
                 tpm:
                   description: Whether to emulate a TPM device.
                   properties:
+                    model:
+                      description: Model can either be tpm-tis or tpm-crb. The default
+                        is tpm-tis.
+                      type: string
                     persistent:
                       description: Persistent indicates the state of the TPM device
                         should be kept accross reboots Defaults to false
@@ -14447,6 +14463,10 @@ var CRDsValidation map[string]string = map[string]string{
                         tpm:
                           description: Whether to emulate a TPM device.
                           properties:
+                            model:
+                              description: Model can either be tpm-tis or tpm-crb.
+                                The default is tpm-tis.
+                              type: string
                             persistent:
                               description: Persistent indicates the state of the TPM
                                 device should be kept accross reboots Defaults to
@@ -18450,6 +18470,10 @@ var CRDsValidation map[string]string = map[string]string{
                                 tpm:
                                   description: Whether to emulate a TPM device.
                                   properties:
+                                    model:
+                                      description: Model can either be tpm-tis or
+                                        tpm-crb. The default is tpm-tis.
+                                      type: string
                                     persistent:
                                       description: Persistent indicates the state
                                         of the TPM device should be kept accross reboots
@@ -20103,6 +20127,10 @@ var CRDsValidation map[string]string = map[string]string{
               description: PreferredTPM optionally defines the preferred TPM device
                 to be used.
               properties:
+                model:
+                  description: Model can either be tpm-tis or tpm-crb. The default
+                    is tpm-tis.
+                  type: string
                 persistent:
                   description: Persistent indicates the state of the TPM device should
                     be kept accross reboots Defaults to false
@@ -23183,6 +23211,10 @@ var CRDsValidation map[string]string = map[string]string{
                                     tpm:
                                       description: Whether to emulate a TPM device.
                                       properties:
+                                        model:
+                                          description: Model can either be tpm-tis
+                                            or tpm-crb. The default is tpm-tis.
+                                          type: string
                                         persistent:
                                           description: Persistent indicates the state
                                             of the TPM device should be kept accross
