@@ -1240,6 +1240,11 @@ func (in *EFI) DeepCopyInto(out *EFI) {
 		*out = new(bool)
 		**out = **in
 	}
+	if in.Persistent != nil {
+		in, out := &in.Persistent, &out.Persistent
+		*out = new(bool)
+		**out = **in
+	}
 	return
 }
 

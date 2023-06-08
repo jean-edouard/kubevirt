@@ -6208,6 +6208,10 @@ var CRDsValidation map[string]string = map[string]string{
                             efi:
                               description: If set, EFI will be used instead of BIOS.
                               properties:
+                                persistent:
+                                  description: If set to true, Persistent will persist
+                                    the EFI NVRAM across reboots. Defaults to false
+                                  type: boolean
                                 secureBoot:
                                   description: If set, SecureBoot will be enabled
                                     and the OVMF roms will be swapped for SecureBoot-enabled
@@ -10649,6 +10653,10 @@ var CRDsValidation map[string]string = map[string]string{
                     efi:
                       description: If set, EFI will be used instead of BIOS.
                       properties:
+                        persistent:
+                          description: If set to true, Persistent will persist the
+                            EFI NVRAM across reboots. Defaults to false
+                          type: boolean
                         secureBoot:
                           description: If set, SecureBoot will be enabled and the
                             OVMF roms will be swapped for SecureBoot-enabled ones.
@@ -13300,6 +13308,10 @@ var CRDsValidation map[string]string = map[string]string{
                     efi:
                       description: If set, EFI will be used instead of BIOS.
                       properties:
+                        persistent:
+                          description: If set to true, Persistent will persist the
+                            EFI NVRAM across reboots. Defaults to false
+                          type: boolean
                         secureBoot:
                           description: If set, SecureBoot will be enabled and the
                             OVMF roms will be swapped for SecureBoot-enabled ones.
@@ -15459,6 +15471,10 @@ var CRDsValidation map[string]string = map[string]string{
                             efi:
                               description: If set, EFI will be used instead of BIOS.
                               properties:
+                                persistent:
+                                  description: If set to true, Persistent will persist
+                                    the EFI NVRAM across reboots. Defaults to false
+                                  type: boolean
                                 secureBoot:
                                   description: If set, SecureBoot will be enabled
                                     and the OVMF roms will be swapped for SecureBoot-enabled
@@ -19747,6 +19763,11 @@ var CRDsValidation map[string]string = map[string]string{
                                       description: If set, EFI will be used instead
                                         of BIOS.
                                       properties:
+                                        persistent:
+                                          description: If set to true, Persistent
+                                            will persist the EFI NVRAM across reboots.
+                                            Defaults to false
+                                          type: boolean
                                         secureBoot:
                                           description: If set, SecureBoot will be
                                             enabled and the OVMF roms will be swapped
@@ -24826,6 +24847,11 @@ var CRDsValidation map[string]string = map[string]string{
                                           description: If set, EFI will be used instead
                                             of BIOS.
                                           properties:
+                                            persistent:
+                                              description: If set to true, Persistent
+                                                will persist the EFI NVRAM across
+                                                reboots. Defaults to false
+                                              type: boolean
                                             secureBoot:
                                               description: If set, SecureBoot will
                                                 be enabled and the OVMF roms will
