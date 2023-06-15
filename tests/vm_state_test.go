@@ -116,14 +116,7 @@ var _ = Describe("[sig-storage]VM state", decorators.SigStorage, func() {
 			}, 10)).To(Succeed(), "expected efivar is missing")
 		}
 
-		DescribeTable("[Serial]should persist VM state of", Serial, func(withTPM, withEFI bool, ops ...string) {
-			By("Setting the backend storage class to the default for RWX FS")
-			storageClass, exists := libstorage.GetRWXFileSystemStorageClass()
-			Expect(exists).To(BeTrue(), "No RWX FS storage class found")
-			kv := util.GetCurrentKv(virtClient)
-			kv.Spec.Configuration.VMStateStorageClass = storageClass
-			tests.UpdateKubeVirtConfigValueAndWait(kv.Spec.Configuration)
-
+		DescribeTable("should persist VM state of", func(withTPM, withEFI bool, ops ...string) {
 			By("Creating a migratable Fedora VM with UEFI")
 			vmi := libvmi.NewFedora(
 				libvmi.WithInterface(libvmi.InterfaceDeviceWithMasqueradeBinding()),
