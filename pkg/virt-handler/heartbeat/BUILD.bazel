@@ -28,10 +28,12 @@ go_test(
     srcs = [
         "heartbeat_suite_test.go",
         "heartbeat_test.go",
+        "ksm_test.go",
     ],
     data = glob(["testdata/**"]),
     embed = [":go_default_library"],
     deps = [
+        "//pkg/ephemeral-disk-utils:go_default_library",
         "//pkg/testutils:go_default_library",
         "//pkg/virt-config:go_default_library",
         "//pkg/virt-handler/device-manager:go_default_library",
