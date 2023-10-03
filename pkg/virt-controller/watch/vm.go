@@ -981,19 +981,8 @@ func (c *VMController) startStop(vm *virtv1.VirtualMachine, vmi *virtv1.VirtualM
 
 	case virtv1.RunStrategyHalted:
 		// For this runStrategy, no VMI should be running under any circumstances.
-		// Set RunStrategyAlways/running = true if VM has StartRequest(start paused case).
 		if vmi == nil {
 			if hasStartRequest(vm) {
-				vmCopy := vm.DeepCopy()
-				runStrategy := virtv1.RunStrategyAlways
-				running := true
-
-				if vmCopy.Spec.RunStrategy != nil {
-					vmCopy.Spec.RunStrategy = &runStrategy
-				} else {
-					vmCopy.Spec.Running = &running
-				}
-				_, err := c.clientset.VirtualMachine(vmCopy.Namespace).Update(context.Background(), vmCopy)
 				return &syncErrorImpl{fmt.Errorf(startingVMIFailureFmt, err), FailedCreateReason}
 			}
 			return nil
