@@ -64,14 +64,14 @@ var _ = Describe("Apply Instancetypes", func() {
 		It("should create instancetype", func() {
 			getCalled := expectGetReturnNotFound(fakeClient, apiinstancetype.ClusterPluralResourceName)
 			createCalled := expectCreate(fakeClient, apiinstancetype.ClusterPluralResourceName, instancetype)
-			Expect(reconciler.createOrUpdateInstancetype(instancetype)).To(Succeed())
+			Expect(reconciler.createOrUpdateObject(instancetype)).To(Succeed())
 			Expect(*getCalled).To(BeTrue())
 			Expect(*createCalled).To(BeTrue())
 		})
 
 		It("should not update instancetypes on sync when they are equal", func() {
 			getCalled := expectGet(fakeClient, apiinstancetype.ClusterPluralResourceName, instancetype)
-			Expect(reconciler.createOrUpdateInstancetype(instancetype)).To(Succeed())
+			Expect(reconciler.createOrUpdateObject(instancetype)).To(Succeed())
 			Expect(*getCalled).To(BeTrue())
 		})
 
@@ -80,7 +80,7 @@ var _ = Describe("Apply Instancetypes", func() {
 			modifyFn(modifiedInstancetype)
 			getCalled := expectGet(fakeClient, apiinstancetype.ClusterPluralResourceName, modifiedInstancetype)
 			updateCalled := expectUpdate(fakeClient, apiinstancetype.ClusterPluralResourceName, instancetype)
-			Expect(reconciler.createOrUpdateInstancetype(instancetype)).To(Succeed())
+			Expect(reconciler.createOrUpdateObject(instancetype)).To(Succeed())
 			Expect(*getCalled).To(BeTrue())
 			Expect(*updateCalled).To(BeTrue())
 		},

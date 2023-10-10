@@ -6,16 +6,28 @@ import (
 
 	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/dynamic"
 	v1 "kubevirt.io/api/core/v1"
-	instancetypev1beta1 "kubevirt.io/api/instancetype/v1beta1"
+	"kubevirt.io/api/instancetype/v1beta1"
 	"kubevirt.io/client-go/log"
 )
 
 func (r *Reconciler) createOrUpdateInstancetypes() error {
 	for _, instancetype := range r.targetStrategy.Instancetypes() {
-		if err := r.createOrUpdateInstancetype(instancetype.DeepCopy()); err != nil {
+		gvk := instancetype.GroupVersionKind()
+		gvr := schema.GroupVersionResource{
+			Group:    gvk.Group,
+			Version:  gvk.Version,
+			Resource: "virtualmachineclusterinstancetypes",
+		}
+		object := instancetype.DeepCopy()
+		if err := r.createOrUpdateObject(r.clientset.DynamicClient().Resource(gvr), object, object); err != nil {
 			return err
 		}
 	}
@@ -23,37 +35,60 @@ func (r *Reconciler) createOrUpdateInstancetypes() error {
 	return nil
 }
 
-func (r *Reconciler) createOrUpdateInstancetype(instancetype *instancetypev1beta1.VirtualMachineClusterInstancetype) error {
-	instancetypeClient := r.clientset.VirtualMachineClusterInstancetype()
+func specsAreEqual(object1, object2 runtime.Object) bool {
+	switch object1.(type) {
+	case *v1beta1.VirtualMachineClusterInstancetype:
+		instancetype1 := object1.(*v1beta1.VirtualMachineClusterInstancetype)
+		instancetype2, success := object2.(*v1beta1.VirtualMachineClusterInstancetype)
+		if !success {
+			return false
+		}
+		return equality.Semantic.DeepEqual(instancetype1.Spec, instancetype2.Spec)
+	case *v1beta1.VirtualMachinePreference:
+		preference1 := object1.(*v1beta1.VirtualMachinePreference)
+		preference2, success := object2.(*v1beta1.VirtualMachinePreference)
+		if !success {
+			return false
+		}
+		return equality.Semantic.DeepEqual(preference1.Spec, preference2.Spec)
+	}
+	return false
+}
 
-	foundObj, err := instancetypeClient.Get(context.Background(), instancetype.Name, metav1.GetOptions{})
+func (r *Reconciler) createOrUpdateObject(client dynamic.NamespaceableResourceInterface, object metav1.Object, rObj runtime.Object) error {
+	accessor, err := meta.Accessor(object)
+	if err != nil {
+		return err
+	}
+	objectMetaAcessor := meta.AsPartialObjectMetadata(object)
+	foundObj, err := client.Get(context.Background(), accessor.GetName(), metav1.GetOptions{})
 	if err != nil && !errors.IsNotFound(err) {
 		return err
 	}
 
 	imageTag, imageRegistry, id := getTargetVersionRegistryID(r.kv)
-	injectOperatorMetadata(r.kv, &instancetype.ObjectMeta, imageTag, imageRegistry, id, true)
+	injectOperatorMetadata(r.kv, &objectMetaAcessor.ObjectMeta, imageTag, imageRegistry, id, true)
 
 	if errors.IsNotFound(err) {
-		if _, err := instancetypeClient.Create(context.Background(), instancetype, metav1.CreateOptions{}); err != nil {
-			return fmt.Errorf("unable to create instancetype %+v: %v", instancetype, err)
+		if _, err := client.Create(context.Background(), object.(*unstructured.Unstructured), metav1.CreateOptions{}); err != nil {
+			return fmt.Errorf("unable to create object %s: %s", accessor.GetName(), err.Error())
 		}
-		log.Log.V(2).Infof("instancetype %v created", instancetype.GetName())
+		log.Log.V(2).Infof("object %s created", accessor.GetName())
 		return nil
 	}
 
-	if equality.Semantic.DeepEqual(foundObj.Annotations, instancetype.Annotations) &&
-		equality.Semantic.DeepEqual(foundObj.Labels, instancetype.Labels) &&
-		equality.Semantic.DeepEqual(foundObj.Spec, instancetype.Spec) {
-		log.Log.V(4).Infof("instancetype %v is up-to-date", instancetype.GetName())
+	if equality.Semantic.DeepEqual(foundObj.GetAnnotations(), accessor.GetAnnotations()) &&
+		equality.Semantic.DeepEqual(foundObj.GetLabels(), accessor.GetLabels()) &&
+		specsAreEqual(foundObj.DeepCopyObject(), rObj) {
+		log.Log.V(4).Infof("object %s is up-to-date", accessor.GetName())
 		return nil
 	}
 
-	instancetype.ResourceVersion = foundObj.ResourceVersion
-	if _, err := instancetypeClient.Update(context.Background(), instancetype, metav1.UpdateOptions{}); err != nil {
-		return fmt.Errorf("unable to update instancetype %+v: %v", instancetype, err)
+	accessor.SetResourceVersion(foundObj.GetResourceVersion())
+	if _, err := client.Update(context.Background(), object.(*unstructured.Unstructured), metav1.UpdateOptions{}); err != nil {
+		return fmt.Errorf("unable to update object %s: %s", accessor.GetName(), err.Error())
 	}
-	log.Log.V(2).Infof("instancetype %v updated", instancetype.GetName())
+	log.Log.V(2).Infof("object %s updated", accessor.GetName())
 
 	return nil
 }
@@ -75,45 +110,17 @@ func (r *Reconciler) deleteInstancetypes() error {
 
 func (r *Reconciler) createOrUpdatePreferences() error {
 	for _, preference := range r.targetStrategy.Preferences() {
-		if err := r.createOrUpdatePreference(preference.DeepCopy()); err != nil {
+		gvk := preference.GroupVersionKind()
+		gvr := schema.GroupVersionResource{
+			Group:    gvk.Group,
+			Version:  gvk.Version,
+			Resource: "virtualmachineclusterinstancetypes",
+		}
+		object := preference.DeepCopy()
+		if err := r.createOrUpdateObject(r.clientset.DynamicClient().Resource(gvr), object, object); err != nil {
 			return err
 		}
 	}
-
-	return nil
-}
-
-func (r *Reconciler) createOrUpdatePreference(preference *instancetypev1beta1.VirtualMachineClusterPreference) error {
-	preferenceClient := r.clientset.VirtualMachineClusterPreference()
-
-	foundObj, err := preferenceClient.Get(context.Background(), preference.Name, metav1.GetOptions{})
-	if err != nil && !errors.IsNotFound(err) {
-		return err
-	}
-
-	imageTag, imageRegistry, id := getTargetVersionRegistryID(r.kv)
-	injectOperatorMetadata(r.kv, &preference.ObjectMeta, imageTag, imageRegistry, id, true)
-
-	if errors.IsNotFound(err) {
-		if _, err := preferenceClient.Create(context.Background(), preference, metav1.CreateOptions{}); err != nil {
-			return fmt.Errorf("unable to create preference %+v: %v", preference, err)
-		}
-		log.Log.V(2).Infof("preference %v created", preference.GetName())
-		return nil
-	}
-
-	if equality.Semantic.DeepEqual(foundObj.Annotations, preference.Annotations) &&
-		equality.Semantic.DeepEqual(foundObj.Labels, preference.Labels) &&
-		equality.Semantic.DeepEqual(foundObj.Spec, preference.Spec) {
-		log.Log.V(4).Infof("preference %v is up-to-date", preference.GetName())
-		return nil
-	}
-
-	preference.ResourceVersion = foundObj.ResourceVersion
-	if _, err := preferenceClient.Update(context.Background(), preference, metav1.UpdateOptions{}); err != nil {
-		return fmt.Errorf("unable to update preference %+v: %v", preference, err)
-	}
-	log.Log.V(2).Infof("preference %v updated", preference.GetName())
 
 	return nil
 }
