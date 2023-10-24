@@ -111,7 +111,7 @@ func PermanentHostDevicePlugins(maxDevices int, permissions string) []Device {
 
 	ret := make([]Device, 0, len(permanentDevicePluginPaths))
 	for name, path := range permanentDevicePluginPaths {
-		ret = append(ret, NewGenericDevicePlugin(name, path, maxDevices, permissions, (name != "kvm")))
+		ret = append(ret, NewGenericDevicePlugin(name, path, maxDevices, permissions, name != "kvm"))
 	}
 	return ret
 }
@@ -166,7 +166,7 @@ func NewDeviceController(
 func (c *DeviceController) NodeHasDevice(devicePath string) bool {
 	_, err := os.Stat(devicePath)
 	// Since this is a boolean question, any error means "no"
-	return (err == nil)
+	return err == nil
 }
 
 // updatePermittedHostDevicePlugins returns a slice of device plugins for permitted devices which are present on the node
@@ -247,7 +247,7 @@ func (c *DeviceController) updatePermittedHostDevicePlugins() []Device {
 func removeSelectorSpaces(selectorName string) string {
 	// The name usually contain spaces which should be replaced with _
 	// Such as GRID T4-1Q
-	typeNameStr := strings.Replace(string(selectorName), " ", "_", -1)
+	typeNameStr := strings.Replace(selectorName, " ", "_", -1)
 	typeNameStr = strings.TrimSpace(typeNameStr)
 	return typeNameStr
 
@@ -303,16 +303,15 @@ func (c *DeviceController) refreshMediatedDeviceTypes() bool {
 		return false
 	}
 
-	requiresDevicePluginsUpdate := false
 	node, err := c.clientset.Nodes().Get(context.Background(), c.host, metav1.GetOptions{})
 	if err != nil {
 		log.Log.Reason(err).Errorf("failed to configure the desired mdev types, failed to get node details")
-		return requiresDevicePluginsUpdate
+		return false
 	}
 	externallyProvidedMdevMap := c.getExternallyProvidedMdevs()
 
 	nodeDesiredMdevTypesList := c.virtConfig.GetDesiredMDEVTypes(node)
-	requiresDevicePluginsUpdate, err = c.mdevTypesManager.updateMDEVTypesConfiguration(nodeDesiredMdevTypesList, externallyProvidedMdevMap)
+	requiresDevicePluginsUpdate, err := c.mdevTypesManager.updateMDEVTypesConfiguration(nodeDesiredMdevTypesList, externallyProvidedMdevMap)
 	if err != nil {
 		log.Log.Reason(err).Errorf("failed to configure the desired mdev types: %s", strings.Join(nodeDesiredMdevTypesList, ", "))
 	}
@@ -320,9 +319,10 @@ func (c *DeviceController) refreshMediatedDeviceTypes() bool {
 }
 
 func (c *DeviceController) refreshPermittedDevices() {
+	var debugDevAdded []string
+	var debugDevRemoved []string
+
 	logger := log.DefaultLogger()
-	debugDevAdded := []string{}
-	debugDevRemoved := []string{}
 
 	// This function can be called multiple times in parallel, either because of multiple
 	//   informer callbacks for the same event, or because the configmap was quickly updated
@@ -370,7 +370,7 @@ func (c *DeviceController) stopDevice(resourceName string) {
 	}
 }
 
-func (c *DeviceController) Run(stop chan struct{}) error {
+func (c *DeviceController) Run(stop chan struct{}) {
 	logger := log.DefaultLogger()
 
 	// start the permanent DevicePlugins
@@ -401,7 +401,6 @@ func (c *DeviceController) Run(stop chan struct{}) error {
 		}
 	}()
 	logger.Info("Shutting down device plugin controller")
-	return nil
 }
 
 func (c *DeviceController) Initialized() bool {

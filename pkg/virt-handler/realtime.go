@@ -36,8 +36,8 @@ var (
 
 // configureRealTimeVCPUs parses the realtime mask value and configured the selected vcpus
 // for real time workloads by setting the scheduler to FIFO and process priority equal to 1.
-func (d *VirtualMachineController) configureVCPUScheduler(vmi *v1.VirtualMachineInstance) error {
-	res, err := d.podIsolationDetector.Detect(vmi)
+func (vmc *VirtualMachineController) configureVCPUScheduler(vmi *v1.VirtualMachineInstance) error {
+	res, err := vmc.podIsolationDetector.Detect(vmi)
 	if err != nil {
 		return err
 	}
@@ -62,7 +62,7 @@ func (d *VirtualMachineController) configureVCPUScheduler(vmi *v1.VirtualMachine
 			}
 			err = schedSetScheduler(tid, schedFIFO, param)
 			if err != nil {
-				return fmt.Errorf("failed to set FIFO scheduling and priority 1 for thread %d: %w", tid, err)
+				return fmt.Errorf("failed to set FIFO scheduling and priority 1 for thread %vmc: %w", tid, err)
 			}
 		}
 	}

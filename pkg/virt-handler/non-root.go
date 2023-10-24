@@ -99,7 +99,7 @@ func changeOwnershipOfHostDisks(vmiWithAllPVCs *v1.VirtualMachineInstance, res i
 	return nil
 }
 
-func (d *VirtualMachineController) prepareStorage(vmi *v1.VirtualMachineInstance, res isolation.IsolationResult) error {
+func (vmc *VirtualMachineController) prepareStorage(vmi *v1.VirtualMachineInstance, res isolation.IsolationResult) error {
 	if err := changeOwnershipOfBlockDevices(vmi, res); err != nil {
 		return err
 	}
@@ -127,7 +127,7 @@ func getTapDevices(vmi *v1.VirtualMachineInstance) (map[string]string, error) {
 	return tapDevices, nil
 }
 
-func (d *VirtualMachineController) prepareTap(vmi *v1.VirtualMachineInstance, res isolation.IsolationResult) error {
+func (vmc *VirtualMachineController) prepareTap(vmi *v1.VirtualMachineInstance, res isolation.IsolationResult) error {
 	networkToTapDeviceNames, err := getTapDevices(vmi)
 	if err != nil {
 		return err
@@ -154,7 +154,7 @@ func (d *VirtualMachineController) prepareTap(vmi *v1.VirtualMachineInstance, re
 			return err
 		}
 
-		pathToTap, err := isolation.SafeJoin(res, "dev", fmt.Sprintf("tap%d", index))
+		pathToTap, err := isolation.SafeJoin(res, "dev", fmt.Sprintf("tap%vmc", index))
 		if err != nil {
 			return err
 		}
@@ -235,18 +235,18 @@ func (*VirtualMachineController) prepareVFIO(vmi *v1.VirtualMachineInstance, res
 	return nil
 }
 
-func (d *VirtualMachineController) nonRootSetup(origVMI, vmi *v1.VirtualMachineInstance) error {
-	res, err := d.podIsolationDetector.Detect(origVMI)
+func (vmc *VirtualMachineController) nonRootSetup(origVMI, vmi *v1.VirtualMachineInstance) error {
+	res, err := vmc.podIsolationDetector.Detect(origVMI)
 	if err != nil {
 		return err
 	}
-	if err := d.prepareStorage(origVMI, res); err != nil {
+	if err := vmc.prepareStorage(origVMI, res); err != nil {
 		return err
 	}
-	if err := d.prepareTap(origVMI, res); err != nil {
+	if err := vmc.prepareTap(origVMI, res); err != nil {
 		return err
 	}
-	if err := d.prepareVFIO(origVMI, res); err != nil {
+	if err := vmc.prepareVFIO(origVMI, res); err != nil {
 		return err
 	}
 	return nil

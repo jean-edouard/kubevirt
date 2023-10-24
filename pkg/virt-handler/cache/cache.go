@@ -143,12 +143,12 @@ func LastKnownUIDFromGhostRecordCache(key string) types.UID {
 	ghostRecordGlobalMutex.Lock()
 	defer ghostRecordGlobalMutex.Unlock()
 
-	record, ok := ghostRecordGlobalCache[key]
+	rec, ok := ghostRecordGlobalCache[key]
 	if !ok {
 		return ""
 	}
 
-	return record.UID
+	return rec.UID
 }
 
 func getGhostRecords() ([]ghostRecord, error) {
@@ -157,8 +157,8 @@ func getGhostRecords() ([]ghostRecord, error) {
 
 	var records []ghostRecord
 
-	for _, record := range ghostRecordGlobalCache {
-		records = append(records, record)
+	for _, rec := range ghostRecordGlobalCache {
+		records = append(records, rec)
 	}
 
 	return records, nil
@@ -168,9 +168,9 @@ func findGhostRecordBySocket(socketFile string) (ghostRecord, bool) {
 	ghostRecordGlobalMutex.Lock()
 	defer ghostRecordGlobalMutex.Unlock()
 
-	for _, record := range ghostRecordGlobalCache {
-		if record.SocketFile == socketFile {
-			return record, true
+	for _, rec := range ghostRecordGlobalCache {
+		if rec.SocketFile == socketFile {
+			return rec, true
 		}
 	}
 
@@ -195,25 +195,25 @@ func AddGhostRecord(namespace string, name string, socketFile string, uid types.
 	} else if namespace == "" {
 		return fmt.Errorf("can not add ghost record when 'namespace' is not provided")
 	} else if string(uid) == "" {
-		return fmt.Errorf("Unable to add ghost record with empty UID")
+		return fmt.Errorf("unable to add ghost record with empty UID")
 	} else if socketFile == "" {
-		return fmt.Errorf("Unable to add ghost record without a socketFile")
+		return fmt.Errorf("unable to add ghost record without a socketFile")
 	}
 
 	key := namespace + "/" + name
 	recordPath := filepath.Join(ghostRecordDir, string(uid))
 
-	record, ok := ghostRecordGlobalCache[key]
+	rec, ok := ghostRecordGlobalCache[key]
 	if !ok {
 		// record doesn't exist, so add new one.
-		record := ghostRecord{
+		newRecord := ghostRecord{
 			Name:       name,
 			Namespace:  namespace,
 			SocketFile: socketFile,
 			UID:        uid,
 		}
 
-		fileBytes, err := json.Marshal(&record)
+		fileBytes, err := json.Marshal(&newRecord)
 		if err != nil {
 			return err
 		}
@@ -227,18 +227,18 @@ func AddGhostRecord(namespace string, name string, socketFile string, uid types.
 		if err != nil {
 			return err
 		}
-		ghostRecordGlobalCache[key] = record
+		ghostRecordGlobalCache[key] = newRecord
 	}
 
 	// This protects us from stomping on a previous ghost record
 	// that was not cleaned up properly. A ghost record that was
 	// not deleted indicates that the VMI shutdown process did not
 	// properly handle cleanup of local data.
-	if ok && record.UID != uid {
+	if ok && rec.UID != uid {
 		return fmt.Errorf("can not add ghost record when entry already exists with differing UID")
 	}
 
-	if ok && record.SocketFile != socketFile {
+	if ok && rec.SocketFile != socketFile {
 		return fmt.Errorf("can not add ghost record when entry already exists with differing socket file location")
 	}
 
@@ -249,17 +249,17 @@ func DeleteGhostRecord(namespace string, name string) error {
 	ghostRecordGlobalMutex.Lock()
 	defer ghostRecordGlobalMutex.Unlock()
 	key := namespace + "/" + name
-	record, ok := ghostRecordGlobalCache[key]
+	rec, ok := ghostRecordGlobalCache[key]
 	if !ok {
 		// already deleted
 		return nil
 	}
 
-	if string(record.UID) == "" {
-		return fmt.Errorf("Unable to remove ghost record with empty UID")
+	if string(rec.UID) == "" {
+		return fmt.Errorf("unable to remove ghost record with empty UID")
 	}
 
-	recordPath := filepath.Join(ghostRecordDir, string(record.UID))
+	recordPath := filepath.Join(ghostRecordDir, string(rec.UID))
 	err := os.RemoveAll(recordPath)
 	if err != nil {
 		return nil
@@ -284,16 +284,16 @@ func listSockets() ([]string, error) {
 
 	sockets = append(sockets, knownSocketFiles...)
 
-	for _, record := range ghostRecords {
+	for _, rec := range ghostRecords {
 		exists := false
 		for _, socket := range knownSocketFiles {
-			if record.SocketFile == socket {
+			if rec.SocketFile == socket {
 				exists = true
 				break
 			}
 		}
 		if !exists {
-			sockets = append(sockets, record.SocketFile)
+			sockets = append(sockets, rec.SocketFile)
 		}
 	}
 
@@ -339,8 +339,8 @@ func (d *DomainWatcher) startBackground() error {
 			case <-resyncTickerChan:
 				d.handleResync()
 			case <-expiredWatchdogTickerChan:
-				d.handleStaleWatchdogFiles()
-				d.handleStaleSocketConnections()
+				_ = d.handleStaleWatchdogFiles()
+				_ = d.handleStaleSocketConnections()
 			case err := <-srvErr:
 				if err != nil {
 					log.Log.Reason(err).Errorf("Unexpected err encountered with Domain Notify aggregation server")
@@ -375,7 +375,6 @@ func (d *DomainWatcher) handleStaleWatchdogFiles() error {
 }
 
 func (d *DomainWatcher) handleResync() {
-
 	socketFiles, err := listSockets()
 	if err != nil {
 		log.Log.Reason(err).Error("failed to list sockets")
@@ -393,9 +392,9 @@ func (d *DomainWatcher) handleResync() {
 			// end listening.
 			continue
 		}
-		defer client.Close()
 
 		domain, exists, err := client.GetDomain()
+		client.Close()
 		if err != nil {
 			// this resync is best effort only.
 			log.Log.Reason(err).Errorf("unable to retrieve domain at socket %s during resync", socket)
@@ -428,7 +427,7 @@ func (d *DomainWatcher) handleStaleSocketConnections() error {
 		sock, err := net.DialTimeout("unix", socket, time.Duration(socketDialTimeout)*time.Second)
 		if err == nil {
 			// socket is alive still
-			sock.Close()
+			_ = sock.Close()
 			continue
 		}
 		unresponsive = append(unresponsive, socket)
@@ -466,16 +465,16 @@ func (d *DomainWatcher) handleStaleSocketConnections() error {
 
 		if diff > int64(d.watchdogTimeout) {
 
-			record, exists := findGhostRecordBySocket(key)
+			rec, exists := findGhostRecordBySocket(key)
 
 			if !exists {
 				// ignore if info file doesn't exist
 				// this is possible with legacy VMIs that haven't
 				// been updated. The watchdog file will catch these.
 			} else {
-				domain := api.NewMinimalDomainWithNS(record.Namespace, record.Name)
-				domain.ObjectMeta.UID = record.UID
-				domain.Spec.Metadata.KubeVirt.UID = record.UID
+				domain := api.NewMinimalDomainWithNS(rec.Namespace, rec.Name)
+				domain.ObjectMeta.UID = rec.UID
+				domain.Spec.Metadata.KubeVirt.UID = rec.UID
 				now := k8sv1.Now()
 				domain.ObjectMeta.DeletionTimestamp = &now
 				log.Log.Object(domain).Warningf("detected unresponsive virt-launcher command socket (%s) for domain", key)
@@ -508,10 +507,10 @@ func (d *DomainWatcher) listAllKnownDomains() ([]*api.Domain, error) {
 		}
 
 		if !exists {
-			record, recordExists := findGhostRecordBySocket(socketFile)
+			rec, recordExists := findGhostRecordBySocket(socketFile)
 			if recordExists {
-				domain := api.NewMinimalDomainWithNS(record.Namespace, record.Name)
-				domain.ObjectMeta.UID = record.UID
+				domain := api.NewMinimalDomainWithNS(rec.Namespace, rec.Name)
+				domain.ObjectMeta.UID = rec.UID
 				now := k8sv1.Now()
 				domain.ObjectMeta.DeletionTimestamp = &now
 				log.Log.Object(domain).Warning("detected stale domain from ghost record")
@@ -530,9 +529,9 @@ func (d *DomainWatcher) listAllKnownDomains() ([]*api.Domain, error) {
 			// end listening.
 			continue
 		}
-		defer client.Close()
 
 		domain, exists, err := client.GetDomain()
+		client.Close()
 		if err != nil {
 			log.Log.Reason(err).Error("failed to list domains on cmd client socket")
 			// Failure to get domain list means that client
