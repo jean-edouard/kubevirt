@@ -33,6 +33,7 @@ import (
 
 	cmdv1 "kubevirt.io/kubevirt/pkg/handler-launcher-com/cmd/v1"
 	"kubevirt.io/kubevirt/pkg/virt-launcher/virtwrap/api"
+	"kubevirt.io/kubevirt/pkg/virt-launcher/virtwrap/converter"
 
 	"kubevirt.io/kubevirt/pkg/virt-launcher/virtwrap/converter/vcpu"
 
@@ -377,29 +378,40 @@ func classifyVolumesForMigration(vmi *v1.VirtualMachineInstance) *migrationDisks
 	for _, v := range vmi.Status.MigratedVolumes {
 		migrateDisks[v.SourcePvc] = true
 	}
+	fmt.Printf("XXX migrateDisk: %v volumes: %v \n", migrateDisks, vmi.Spec.Volumes)
 	for _, volume := range vmi.Spec.Volumes {
 		volSrc := volume.VolumeSource
-		if volSrc.PersistentVolumeClaim != nil || volSrc.DataVolume != nil {
+		fmt.Printf("XXX vol name:%s", volume.Name)
+		if volSrc.HostDisk != nil {
+			fmt.Printf("XXX is a hostdisk\n")
+		}
+		switch {
+		case volSrc.PersistentVolumeClaim != nil || volSrc.DataVolume != nil || volSrc.HostDisk != nil:
 			var name string
 			if volSrc.PersistentVolumeClaim != nil {
 				name = volSrc.PersistentVolumeClaim.PersistentVolumeClaimVolumeSource.ClaimName
 			} else {
 				name = volSrc.DataVolume.Name
 			}
+			fmt.Printf("XXX add vol name:%s -> %s ", name, volume.Name)
 			if _, ok := migrateDisks[name]; ok {
-				disks.localToMigrate[name] = true
+				fmt.Printf("XXX add name:%s ", volume.Name)
+				disks.localToMigrate[volume.Name] = true
+			} else {
+				fmt.Printf("XXX shared vol name:%s", volume.Name)
+				disks.shared[volume.Name] = true
 			}
-		}
-		if volSrc.PersistentVolumeClaim != nil || volSrc.DataVolume != nil ||
-			(volSrc.HostDisk != nil && *volSrc.HostDisk.Shared) {
+		case volSrc.HostDisk != nil && *volSrc.HostDisk.Shared:
 			disks.shared[volume.Name] = true
-		}
-		if volSrc.ConfigMap != nil || volSrc.Secret != nil || volSrc.DownwardAPI != nil ||
+		case volSrc.ConfigMap != nil || volSrc.Secret != nil || volSrc.DownwardAPI != nil ||
 			volSrc.ServiceAccount != nil || volSrc.CloudInitNoCloud != nil ||
-			volSrc.CloudInitConfigDrive != nil || volSrc.ContainerDisk != nil {
+			volSrc.CloudInitConfigDrive != nil || volSrc.ContainerDisk != nil:
 			disks.generated[volume.Name] = true
+		default:
+			fmt.Printf("XXX None of the options\n")
 		}
 	}
+	fmt.Printf("XXX disks: %v\n", disks)
 	return disks
 }
 
@@ -888,6 +900,49 @@ func generateMigrationParams(dom cli.VirDomain, vmi *v1.VirtualMachineInstance, 
 	return params, nil
 }
 
+// calculateStorageMigrateDiskSize return the size of a local volume to migrate.
+// See suggestion in: https://issues.redhat.com/browse/RHEL-4607
+func getDiskVirtualSize(disk *api.Disk) (int64, error) {
+	var path string
+	switch {
+	case disk.Source.Dev != "":
+		path = disk.Source.Dev
+	case disk.Source.File != "":
+		path = disk.Source.File
+	default:
+		return -1, fmt.Errorf("not path set")
+	}
+	info, err := converter.GetImageInfo(path)
+	if err != nil {
+		return -1, err
+	}
+	return info.VirtualSize, nil
+}
+
+func setDiskSizeForLocalDiskToMigrate(domSpec *api.DomainSpec, vmi *v1.VirtualMachineInstance) {
+	migDisks := classifyVolumesForMigration(vmi)
+	fmt.Printf("XXXX set slice local to migrate: %v \n", migDisks.localToMigrate)
+	fmt.Printf("XXXXmigrated disks in Status: %v \n", vmi.Status.MigratedVolumes)
+	for i, d := range domSpec.Devices.Disks {
+		name := d.Alias.GetName()
+		if !migDisks.isLocalVolumeToMigrate(name) {
+			fmt.Printf("XXXX Skip disk %s \n", name)
+			continue
+		}
+		size, err := getDiskVirtualSize(&d)
+		if err != nil {
+			// TODO afrosi: report an error
+			continue
+		}
+		fmt.Printf("XXXX set slice for disk %s size=%d\n", name, size)
+		domSpec.Devices.Disks[i].Slice = &api.Slice{
+			Type:   "storage",
+			Offset: 0,
+			Size:   size,
+		}
+	}
+}
+
 func (l *LibvirtDomainManager) migrateHelper(vmi *v1.VirtualMachineInstance, options *cmdclient.MigrationOptions) error {
 
 	var err error
@@ -919,6 +974,8 @@ func (l *LibvirtDomainManager) migrateHelper(vmi *v1.VirtualMachineInstance, opt
 		if err != nil {
 			return fmt.Errorf("failed to get domain spec: %v", err)
 		}
+		// TODO afrosi: set size fot local disk to migrate
+		setDiskSizeForLocalDiskToMigrate(domSpec, vmi)
 		params, err = generateMigrationParams(dom, vmi, options, l.virtShareDir, domSpec)
 		if err != nil {
 			return fmt.Errorf("error encountered while generating migration parameters: %v", err)

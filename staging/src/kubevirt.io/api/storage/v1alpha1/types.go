@@ -24,7 +24,7 @@ import (
 )
 
 // StorageMigration defines the operation of moving the storage to another
-// storage backend
+// storage backend.
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type StorageMigration struct {
@@ -46,40 +46,34 @@ type StorageMigrationList struct {
 	Items []StorageMigration `json:"items"`
 }
 
-type MigratedVolume struct {
-	SourcePvc      string `json:"sourcePvc,omitempty" valid:"required"`
-	DestinationPvc string `json:"destinationPvc,omitempty" valid:"required"`
-}
-
-type MigrationStorageClass struct {
-	SourceStorageClass      string `json:"sourceStorageClass,omitempty" valid:"required"`
-	DestinationStorageClass string `json:"destinationStorageClass,omitempty" valid:"required"`
-}
-
+// ReclaimPolicySourcePvc describes how the source PVC will be treated after the storage migration completes.
+// The policies follows the same behavior as the RetainPolicy for PVs: https://kubernetes.io/docs/concepts/storage/persistent-volumes/#reclaiming
 type ReclaimPolicySourcePvc string
 
 const (
 	DeleteReclaimPolicySourcePvc ReclaimPolicySourcePvc = "Delete"
+	RetainReclaimPolicySourcePvc ReclaimPolicySourcePvc = "Retain"
 )
 
-// StorageMigrationSpec is the spec for a StorageMigration resource
-type StorageMigrationSpec struct {
-	VMIName string `json:"vmiName,omitempty" valid:"required"`
-	// MigratedVolumes is a list of volumes to be migrated
-	// +optional
-	MigratedVolume []MigratedVolume `json:"migratedVolume,omitempty"`
-	// MigrationStorageClass contains the information for relocating the
-	// volumes of the source storage class to the destination storage class
-	// +optional
-	MigrationStorageClass *MigrationStorageClass `json:"migrationStorageClass,omitempty"`
+type MigratedVolume struct {
+	//	VMIName        string `json:"vmiName,omitempty" valid:"required"`
+	SourcePvc      string `json:"sourcePvc,omitempty" valid:"required"`
+	DestinationPvc string `json:"destinationPvc,omitempty" valid:"required"`
 	// ReclaimPolicySourcePvc describes how the source volumes will be
 	// treated after a successful migration
 	// +optional
 	ReclaimPolicySourcePvc ReclaimPolicySourcePvc `json:"reclaimPolicySourcePvc,omitempty"`
 }
 
-// StorageMigrationStatus is the status for a StorageMigration resource
-type StorageMigrationStatus struct {
+// StorageMigrationSpec is the spec for a StorageMigration resource
+type StorageMigrationSpec struct {
+	// MigratedVolumes is a list of volumes to be migrated
+	// +optional
+	MigratedVolume []MigratedVolume `json:"migratedVolume,omitempty"`
+}
+
+// StorageMigrationState is the status for a StorageMigration resource
+type StorageMigrationState struct {
 	// MigratedVolumes is a list of volumes to be migrated
 	// +optional
 	MigratedVolume []MigratedVolume `json:"migratedVolume,omitempty"`
@@ -91,4 +85,8 @@ type StorageMigrationStatus struct {
 	Completed bool `json:"completed,omitempty"`
 	// +optional
 	Failed bool `json:"failed,omitempty"`
+}
+
+type StorageMigrationStatus struct {
+	StorageMigrationStates []StorageMigrationState `json:"storageMigrationStates,omitempty"`
 }

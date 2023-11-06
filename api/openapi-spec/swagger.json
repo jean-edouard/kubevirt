@@ -20997,7 +20997,14 @@
      "destinationPvc": {
       "type": "string"
      },
+     "reclaimPolicySourcePvc": {
+      "description": "ReclaimPolicySourcePvc describes how the source volumes will be treated after a successful migration",
+      "type": "string"
+     },
      "sourcePvc": {
+      "type": "string"
+     },
+     "vmiName": {
       "type": "string"
      }
     }

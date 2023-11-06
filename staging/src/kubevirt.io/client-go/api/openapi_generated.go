@@ -642,10 +642,10 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"kubevirt.io/api/snapshot/v1alpha1.VolumeRestore":                                            schema_kubevirtio_api_snapshot_v1alpha1_VolumeRestore(ref),
 		"kubevirt.io/api/snapshot/v1alpha1.VolumeSnapshotStatus":                                     schema_kubevirtio_api_snapshot_v1alpha1_VolumeSnapshotStatus(ref),
 		"kubevirt.io/api/storage/v1alpha1.MigratedVolume":                                            schema_kubevirtio_api_storage_v1alpha1_MigratedVolume(ref),
-		"kubevirt.io/api/storage/v1alpha1.MigrationStorageClass":                                     schema_kubevirtio_api_storage_v1alpha1_MigrationStorageClass(ref),
 		"kubevirt.io/api/storage/v1alpha1.StorageMigration":                                          schema_kubevirtio_api_storage_v1alpha1_StorageMigration(ref),
 		"kubevirt.io/api/storage/v1alpha1.StorageMigrationList":                                      schema_kubevirtio_api_storage_v1alpha1_StorageMigrationList(ref),
 		"kubevirt.io/api/storage/v1alpha1.StorageMigrationSpec":                                      schema_kubevirtio_api_storage_v1alpha1_StorageMigrationSpec(ref),
+		"kubevirt.io/api/storage/v1alpha1.StorageMigrationState":                                     schema_kubevirtio_api_storage_v1alpha1_StorageMigrationState(ref),
 		"kubevirt.io/api/storage/v1alpha1.StorageMigrationStatus":                                    schema_kubevirtio_api_storage_v1alpha1_StorageMigrationStatus(ref),
 		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.CDI":                      schema_pkg_apis_core_v1beta1_CDI(ref),
 		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.CDICertConfig":            schema_pkg_apis_core_v1beta1_CDICertConfig(ref),
@@ -30205,6 +30205,12 @@ func schema_kubevirtio_api_storage_v1alpha1_MigratedVolume(ref common.ReferenceC
 			SchemaProps: spec.SchemaProps{
 				Type: []string{"object"},
 				Properties: map[string]spec.Schema{
+					"vmiName": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
 					"sourcePvc": {
 						SchemaProps: spec.SchemaProps{
 							Type:   []string{"string"},
@@ -30217,28 +30223,11 @@ func schema_kubevirtio_api_storage_v1alpha1_MigratedVolume(ref common.ReferenceC
 							Format: "",
 						},
 					},
-				},
-			},
-		},
-	}
-}
-
-func schema_kubevirtio_api_storage_v1alpha1_MigrationStorageClass(ref common.ReferenceCallback) common.OpenAPIDefinition {
-	return common.OpenAPIDefinition{
-		Schema: spec.Schema{
-			SchemaProps: spec.SchemaProps{
-				Type: []string{"object"},
-				Properties: map[string]spec.Schema{
-					"sourceStorageClass": {
+					"reclaimPolicySourcePvc": {
 						SchemaProps: spec.SchemaProps{
-							Type:   []string{"string"},
-							Format: "",
-						},
-					},
-					"destinationStorageClass": {
-						SchemaProps: spec.SchemaProps{
-							Type:   []string{"string"},
-							Format: "",
+							Description: "ReclaimPolicySourcePvc describes how the source volumes will be treated after a successful migration",
+							Type:        []string{"string"},
+							Format:      "",
 						},
 					},
 				},
@@ -30251,7 +30240,7 @@ func schema_kubevirtio_api_storage_v1alpha1_StorageMigration(ref common.Referenc
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Description: "StorageMigration defines the operation of moving the storage to another storage backend",
+				Description: "StorageMigration defines the operation of moving the storage to another storage backend.",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"kind": {
@@ -30355,12 +30344,6 @@ func schema_kubevirtio_api_storage_v1alpha1_StorageMigrationSpec(ref common.Refe
 				Description: "StorageMigrationSpec is the spec for a StorageMigration resource",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
-					"vmiName": {
-						SchemaProps: spec.SchemaProps{
-							Type:   []string{"string"},
-							Format: "",
-						},
-					},
 					"migratedVolume": {
 						SchemaProps: spec.SchemaProps{
 							Description: "MigratedVolumes is a list of volumes to be migrated",
@@ -30375,32 +30358,19 @@ func schema_kubevirtio_api_storage_v1alpha1_StorageMigrationSpec(ref common.Refe
 							},
 						},
 					},
-					"migrationStorageClass": {
-						SchemaProps: spec.SchemaProps{
-							Description: "MigrationStorageClass contains the information for relocating the volumes of the source storage class to the destination storage class",
-							Ref:         ref("kubevirt.io/api/storage/v1alpha1.MigrationStorageClass"),
-						},
-					},
-					"reclaimPolicySourcePvc": {
-						SchemaProps: spec.SchemaProps{
-							Description: "ReclaimPolicySourcePvc describes how the source volumes will be treated after a successful migration",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
 				},
 			},
 		},
 		Dependencies: []string{
-			"kubevirt.io/api/storage/v1alpha1.MigratedVolume", "kubevirt.io/api/storage/v1alpha1.MigrationStorageClass"},
+			"kubevirt.io/api/storage/v1alpha1.MigratedVolume"},
 	}
 }
 
-func schema_kubevirtio_api_storage_v1alpha1_StorageMigrationStatus(ref common.ReferenceCallback) common.OpenAPIDefinition {
+func schema_kubevirtio_api_storage_v1alpha1_StorageMigrationState(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Description: "StorageMigrationStatus is the status for a StorageMigration resource",
+				Description: "StorageMigrationState is the status for a StorageMigration resource",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"migratedVolume": {
@@ -30441,6 +30411,33 @@ func schema_kubevirtio_api_storage_v1alpha1_StorageMigrationStatus(ref common.Re
 		},
 		Dependencies: []string{
 			"kubevirt.io/api/storage/v1alpha1.MigratedVolume"},
+	}
+}
+
+func schema_kubevirtio_api_storage_v1alpha1_StorageMigrationStatus(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"storageMigrationStates": {
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("kubevirt.io/api/storage/v1alpha1.StorageMigrationState"),
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		Dependencies: []string{
+			"kubevirt.io/api/storage/v1alpha1.StorageMigrationState"},
 	}
 }
 

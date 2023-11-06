@@ -3590,7 +3590,7 @@ var CRDsValidation map[string]string = map[string]string{
 `,
 	"storagemigration": `openAPIV3Schema:
   description: StorageMigration defines the operation of moving the storage to another
-    storage backend
+    storage backend.
   properties:
     apiVersion:
       description: 'APIVersion defines the versioned schema of this representation
@@ -3613,47 +3613,50 @@ var CRDsValidation map[string]string = map[string]string{
             properties:
               destinationPvc:
                 type: string
+              reclaimPolicySourcePvc:
+                description: ReclaimPolicySourcePvc describes how the source volumes
+                  will be treated after a successful migration
+                type: string
               sourcePvc:
+                type: string
+              vmiName:
                 type: string
             type: object
           type: array
-        migrationStorageClass:
-          description: MigrationStorageClass contains the information for relocating
-            the volumes of the source storage class to the destination storage class
-          properties:
-            destinationStorageClass:
-              type: string
-            sourceStorageClass:
-              type: string
-          type: object
-        reclaimPolicySourcePvc:
-          description: ReclaimPolicySourcePvc describes how the source volumes will
-            be treated after a successful migration
-          type: string
-        vmiName:
-          type: string
       type: object
     status:
-      description: StorageMigrationStatus is the status for a StorageMigration resource
       properties:
-        completed:
-          type: boolean
-        failed:
-          type: boolean
-        migratedVolume:
-          description: MigratedVolumes is a list of volumes to be migrated
+        storageMigrationStates:
           items:
+            description: StorageMigrationState is the status for a StorageMigration
+              resource
             properties:
-              destinationPvc:
-                type: string
-              sourcePvc:
+              completed:
+                type: boolean
+              failed:
+                type: boolean
+              migratedVolume:
+                description: MigratedVolumes is a list of volumes to be migrated
+                items:
+                  properties:
+                    destinationPvc:
+                      type: string
+                    reclaimPolicySourcePvc:
+                      description: ReclaimPolicySourcePvc describes how the source
+                        volumes will be treated after a successful migration
+                      type: string
+                    sourcePvc:
+                      type: string
+                    vmiName:
+                      type: string
+                  type: object
+                type: array
+              virtualMachineMigrationName:
+                description: VirtualMachineMigrationState state of the virtual machine
+                  migration triggered by the storage migration
                 type: string
             type: object
           type: array
-        virtualMachineMigrationName:
-          description: VirtualMachineMigrationState state of the virtual machine migration
-            triggered by the storage migration
-          type: string
       type: object
   required:
   - spec
@@ -12169,7 +12172,13 @@ var CRDsValidation map[string]string = map[string]string{
             properties:
               destinationPvc:
                 type: string
+              reclaimPolicySourcePvc:
+                description: ReclaimPolicySourcePvc describes how the source volumes
+                  will be treated after a successful migration
+                type: string
               sourcePvc:
+                type: string
+              vmiName:
                 type: string
             type: object
           type: array

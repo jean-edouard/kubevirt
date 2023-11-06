@@ -4,7 +4,7 @@ package v1alpha1
 
 func (StorageMigration) SwaggerDoc() map[string]string {
 	return map[string]string{
-		"":       "StorageMigration defines the operation of moving the storage to another\nstorage backend\n+genclient\n+k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object",
+		"":       "StorageMigration defines the operation of moving the storage to another\nstorage backend.\n+genclient\n+k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object",
 		"status": "+optional",
 	}
 }
@@ -17,28 +17,28 @@ func (StorageMigrationList) SwaggerDoc() map[string]string {
 }
 
 func (MigratedVolume) SwaggerDoc() map[string]string {
-	return map[string]string{}
-}
-
-func (MigrationStorageClass) SwaggerDoc() map[string]string {
-	return map[string]string{}
-}
-
-func (StorageMigrationSpec) SwaggerDoc() map[string]string {
 	return map[string]string{
-		"":                       "StorageMigrationSpec is the spec for a StorageMigration resource",
-		"migratedVolume":         "MigratedVolumes is a list of volumes to be migrated\n+optional",
-		"migrationStorageClass":  "MigrationStorageClass contains the information for relocating the\nvolumes of the source storage class to the destination storage class\n+optional",
 		"reclaimPolicySourcePvc": "ReclaimPolicySourcePvc describes how the source volumes will be\ntreated after a successful migration\n+optional",
 	}
 }
 
-func (StorageMigrationStatus) SwaggerDoc() map[string]string {
+func (StorageMigrationSpec) SwaggerDoc() map[string]string {
 	return map[string]string{
-		"":                            "StorageMigrationStatus is the status for a StorageMigration resource",
+		"":               "StorageMigrationSpec is the spec for a StorageMigration resource",
+		"migratedVolume": "MigratedVolumes is a list of volumes to be migrated\n+optional",
+	}
+}
+
+func (StorageMigrationState) SwaggerDoc() map[string]string {
+	return map[string]string{
+		"":                            "StorageMigrationState is the status for a StorageMigration resource",
 		"migratedVolume":              "MigratedVolumes is a list of volumes to be migrated\n+optional",
 		"virtualMachineMigrationName": "VirtualMachineMigrationState state of the virtual machine migration\ntriggered by the storage migration\n+optional",
 		"completed":                   "+optional",
 		"failed":                      "+optional",
 	}
+}
+
+func (StorageMigrationStatus) SwaggerDoc() map[string]string {
+	return map[string]string{}
 }
