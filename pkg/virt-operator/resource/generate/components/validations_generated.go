@@ -3618,8 +3618,8 @@ var CRDsValidation map[string]string = map[string]string{
                   will be treated after a successful migration
                 type: string
               sourcePvc:
-                type: string
-              vmiName:
+                description: "\tVMIName        string 'json:\"vmiName,omitempty\"
+                  valid:\"required\"'"
                 type: string
             type: object
           type: array
@@ -3646,8 +3646,8 @@ var CRDsValidation map[string]string = map[string]string{
                         volumes will be treated after a successful migration
                       type: string
                     sourcePvc:
-                      type: string
-                    vmiName:
+                      description: "\tVMIName        string 'json:\"vmiName,omitempty\"
+                        valid:\"required\"'"
                       type: string
                   type: object
                 type: array
@@ -12177,8 +12177,8 @@ var CRDsValidation map[string]string = map[string]string{
                   will be treated after a successful migration
                 type: string
               sourcePvc:
-                type: string
-              vmiName:
+                description: "\tVMIName        string 'json:\"vmiName,omitempty\"
+                  valid:\"required\"'"
                 type: string
             type: object
           type: array
@@ -12472,6 +12472,8 @@ var CRDsValidation map[string]string = map[string]string{
                     description: Capacity represents the capacity set on the corresponding
                       PVC status
                     type: object
+                  claimName:
+                    type: string
                   filesystemOverhead:
                     description: Percentage of filesystem's size to be reserved when
                       resizing the PVC

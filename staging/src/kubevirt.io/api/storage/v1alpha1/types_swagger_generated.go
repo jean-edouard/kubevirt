@@ -18,6 +18,7 @@ func (StorageMigrationList) SwaggerDoc() map[string]string {
 
 func (MigratedVolume) SwaggerDoc() map[string]string {
 	return map[string]string{
+		"sourcePvc":              "VMIName        string `json:\"vmiName,omitempty\" valid:\"required\"`",
 		"reclaimPolicySourcePvc": "ReclaimPolicySourcePvc describes how the source volumes will be\ntreated after a successful migration\n+optional",
 	}
 }
