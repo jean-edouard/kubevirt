@@ -280,6 +280,24 @@ func migratableDomXML(dom cli.VirDomain, vmi *v1.VirtualMachineInstance, domSpec
 		log.Log.Object(vmi).Reason(err).Error("Live migration failed. Failed to get XML.")
 		return "", err
 	}
+	// set slice size for local disks to migrate
+	err = xml.Unmarshal([]byte(xmlstr), &domain)
+	if err != nil {
+		return "", err
+	}
+	setDiskSize, err := setDiskSizeForLocalDiskToMigrate(domSpec, domain, vmi)
+	if err != nil {
+		log.Log.Object(vmi).Reason(err).Error("Failed to set size for local disk.")
+		return "", err
+	}
+	if setDiskSize {
+		xmlByte, err := xml.Marshal(domain)
+		if err != nil {
+			return "", err
+		}
+		xmlstr = string(xmlByte)
+		fmt.Printf("XXXX Marshalled XML \n%s\n", xmlstr)
+	}
 
 	if vmi.IsCPUDedicated() {
 		// If the VMI has dedicated CPUs, we need to replace the old CPUs that were
@@ -364,6 +382,15 @@ func (d *migrationDisks) isLocalVolumeToMigrate(name string) bool {
 	return migrate
 }
 
+func getClaimNameFromVMIStatus(name string, vmiStatus v1.VirtualMachineInstanceStatus) (string, error) {
+	for _, vStatus := range vmiStatus.VolumeStatus {
+		if vStatus.PersistentVolumeClaimInfo != nil && name == vStatus.Name {
+			return vStatus.PersistentVolumeClaimInfo.ClaimName, nil
+		}
+	}
+	return "", fmt.Errorf("claim name for volume %s not found", name)
+}
+
 func classifyVolumesForMigration(vmi *v1.VirtualMachineInstance) *migrationDisks {
 	// This method collects all VMI volumes that should not be copied during
 	// live migration. It also collects all generated disks suck as cloudinit, secrets, ServiceAccount and ConfigMaps
@@ -378,40 +405,41 @@ func classifyVolumesForMigration(vmi *v1.VirtualMachineInstance) *migrationDisks
 	for _, v := range vmi.Status.MigratedVolumes {
 		migrateDisks[v.SourcePvc] = true
 	}
-	fmt.Printf("XXX migrateDisk: %v volumes: %v \n", migrateDisks, vmi.Spec.Volumes)
 	for _, volume := range vmi.Spec.Volumes {
 		volSrc := volume.VolumeSource
-		fmt.Printf("XXX vol name:%s", volume.Name)
-		if volSrc.HostDisk != nil {
-			fmt.Printf("XXX is a hostdisk\n")
-		}
 		switch {
-		case volSrc.PersistentVolumeClaim != nil || volSrc.DataVolume != nil || volSrc.HostDisk != nil:
+		case volSrc.PersistentVolumeClaim != nil || volSrc.DataVolume != nil:
 			var name string
 			if volSrc.PersistentVolumeClaim != nil {
 				name = volSrc.PersistentVolumeClaim.PersistentVolumeClaimVolumeSource.ClaimName
 			} else {
 				name = volSrc.DataVolume.Name
 			}
-			fmt.Printf("XXX add vol name:%s -> %s ", name, volume.Name)
 			if _, ok := migrateDisks[name]; ok {
-				fmt.Printf("XXX add name:%s ", volume.Name)
 				disks.localToMigrate[volume.Name] = true
 			} else {
-				fmt.Printf("XXX shared vol name:%s", volume.Name)
 				disks.shared[volume.Name] = true
 			}
-		case volSrc.HostDisk != nil && *volSrc.HostDisk.Shared:
-			disks.shared[volume.Name] = true
+		case volSrc.HostDisk != nil:
+			if *volSrc.HostDisk.Shared {
+				disks.shared[volume.Name] = true
+			} else {
+				// Filesystem DVs and PVCs are replaced by hostdisk in virt-launcher
+				name, err := getClaimNameFromVMIStatus(volume.Name, vmi.Status)
+				if err != nil {
+					continue
+				}
+				if _, ok := migrateDisks[name]; ok {
+					disks.localToMigrate[volume.Name] = true
+				}
+
+			}
 		case volSrc.ConfigMap != nil || volSrc.Secret != nil || volSrc.DownwardAPI != nil ||
 			volSrc.ServiceAccount != nil || volSrc.CloudInitNoCloud != nil ||
 			volSrc.CloudInitConfigDrive != nil || volSrc.ContainerDisk != nil:
 			disks.generated[volume.Name] = true
-		default:
-			fmt.Printf("XXX None of the options\n")
 		}
 	}
-	fmt.Printf("XXX disks: %v\n", disks)
 	return disks
 }
 
@@ -862,6 +890,7 @@ func generateMigrationParams(dom cli.VirDomain, vmi *v1.VirtualMachineInstance, 
 	if err != nil {
 		return nil, err
 	}
+	fmt.Printf("XXX mig XML:%s\n", xmlstr)
 
 	parallelMigrationSet := false
 	var parallelMigrationThreads int
@@ -916,31 +945,32 @@ func getDiskVirtualSize(disk *api.Disk) (int64, error) {
 	if err != nil {
 		return -1, err
 	}
+	fmt.Printf("XXX size %d", info.VirtualSize)
 	return info.VirtualSize, nil
 }
 
-func setDiskSizeForLocalDiskToMigrate(domSpec *api.DomainSpec, vmi *v1.VirtualMachineInstance) {
+func setDiskSizeForLocalDiskToMigrate(domSpec *api.DomainSpec, dom *api.Domain, vmi *v1.VirtualMachineInstance) (bool, error) {
+	found := false
 	migDisks := classifyVolumesForMigration(vmi)
-	fmt.Printf("XXXX set slice local to migrate: %v \n", migDisks.localToMigrate)
-	fmt.Printf("XXXXmigrated disks in Status: %v \n", vmi.Status.MigratedVolumes)
 	for i, d := range domSpec.Devices.Disks {
 		name := d.Alias.GetName()
 		if !migDisks.isLocalVolumeToMigrate(name) {
-			fmt.Printf("XXXX Skip disk %s \n", name)
+			fmt.Printf("XXX Skip volume %s\n", name)
 			continue
 		}
 		size, err := getDiskVirtualSize(&d)
 		if err != nil {
-			// TODO afrosi: report an error
-			continue
+			return found, err
 		}
 		fmt.Printf("XXXX set slice for disk %s size=%d\n", name, size)
-		domSpec.Devices.Disks[i].Slice = &api.Slice{
+		dom.Spec.Devices.Disks[i].Slice = &api.Slice{
 			Type:   "storage",
 			Offset: 0,
 			Size:   size,
 		}
+		found = true
 	}
+	return found, nil
 }
 
 func (l *LibvirtDomainManager) migrateHelper(vmi *v1.VirtualMachineInstance, options *cmdclient.MigrationOptions) error {
@@ -974,8 +1004,6 @@ func (l *LibvirtDomainManager) migrateHelper(vmi *v1.VirtualMachineInstance, opt
 		if err != nil {
 			return fmt.Errorf("failed to get domain spec: %v", err)
 		}
-		// TODO afrosi: set size fot local disk to migrate
-		setDiskSizeForLocalDiskToMigrate(domSpec, vmi)
 		params, err = generateMigrationParams(dom, vmi, options, l.virtShareDir, domSpec)
 		if err != nil {
 			return fmt.Errorf("error encountered while generating migration parameters: %v", err)
