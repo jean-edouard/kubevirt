@@ -280,36 +280,23 @@ func migratableDomXML(dom cli.VirDomain, vmi *v1.VirtualMachineInstance, domSpec
 		log.Log.Object(vmi).Reason(err).Error("Live migration failed. Failed to get XML.")
 		return "", err
 	}
-	// set slice size for local disks to migrate
 	err = xml.Unmarshal([]byte(xmlstr), &domain)
 	if err != nil {
 		return "", err
 	}
-	setDiskSize, err := setDiskSizeForLocalDiskToMigrate(domSpec, domain, vmi)
-	if err != nil {
-		log.Log.Object(vmi).Reason(err).Error("Failed to set size for local disk.")
-		return "", err
-	}
-	if setDiskSize {
-		xmlByte, err := xml.Marshal(domain)
-		if err != nil {
-			return "", err
-		}
-		xmlstr = string(xmlByte)
-		fmt.Printf("XXXX Marshalled XML \n%s\n", xmlstr)
-	}
-
 	if vmi.IsCPUDedicated() {
 		// If the VMI has dedicated CPUs, we need to replace the old CPUs that were
 		// assigned in the source node with the new CPUs assigned in the target node
-		err = xml.Unmarshal([]byte(xmlstr), &domain)
-		if err != nil {
-			return "", err
-		}
 		domain, err = generateDomainForTargetCPUSetAndTopology(vmi, domSpec)
 		if err != nil {
 			return "", err
 		}
+	}
+	// set slice size for local disks to migrate
+	setDiskSize, err := setDiskSizeForLocalDiskToMigrate(domSpec, domain, vmi)
+	if err != nil {
+		log.Log.Object(vmi).Reason(err).Error("Failed to set size for local disk.")
+		return "", err
 	}
 
 	decoder := xml.NewDecoder(bytes.NewReader([]byte(xmlstr)))
@@ -340,7 +327,7 @@ func migratableDomXML(dom cli.VirDomain, vmi *v1.VirtualMachineInstance, domSpec
 
 			// If the VMI requires dedicated CPUs, we need to patch the domain with
 			// the new CPU/NUMA info calculated for the target node prior to migration
-			if vmi.IsCPUDedicated() && shouldOverrideForDedicatedCPUTarget(location, exactLocation) {
+			if vmi.IsCPUDedicated() && shouldOverrideForDedicatedCPUTarget(location, exactLocation) || setDiskSize {
 				err = injectNewSection(encoder, domain, location, log.Log.Object(vmi))
 				if err != nil {
 					return "", err
@@ -349,7 +336,7 @@ func migratableDomXML(dom cli.VirDomain, vmi *v1.VirtualMachineInstance, domSpec
 		case xml.EndElement:
 			newLocation = location[:len(location)-1]
 		}
-		if vmi.IsCPUDedicated() && shouldOverrideForDedicatedCPUTarget(location, insideBlock) {
+		if vmi.IsCPUDedicated() && shouldOverrideForDedicatedCPUTarget(location, insideBlock) || setDiskSize {
 			continue
 		}
 
@@ -945,7 +932,6 @@ func getDiskVirtualSize(disk *api.Disk) (int64, error) {
 	if err != nil {
 		return -1, err
 	}
-	fmt.Printf("XXX size %d", info.VirtualSize)
 	return info.VirtualSize, nil
 }
 
@@ -953,6 +939,7 @@ func setDiskSizeForLocalDiskToMigrate(domSpec *api.DomainSpec, dom *api.Domain, 
 	found := false
 	migDisks := classifyVolumesForMigration(vmi)
 	for i, d := range domSpec.Devices.Disks {
+		dom.Spec.Devices.Disks = append(dom.Spec.Devices.Disks, d)
 		name := d.Alias.GetName()
 		if !migDisks.isLocalVolumeToMigrate(name) {
 			fmt.Printf("XXX Skip volume %s\n", name)
@@ -963,11 +950,13 @@ func setDiskSizeForLocalDiskToMigrate(domSpec *api.DomainSpec, dom *api.Domain, 
 			return found, err
 		}
 		fmt.Printf("XXXX set slice for disk %s size=%d\n", name, size)
-		dom.Spec.Devices.Disks[i].Slice = &api.Slice{
-			Type:   "storage",
-			Offset: 0,
-			Size:   size,
-		}
+		dom.Spec.Devices.Disks[i].Slices = append(dom.Spec.Devices.Disks[i].Slices,
+			api.Slice{
+				Slice: api.SliceType{
+					Type:   "storage",
+					Offset: 0,
+					Size:   size,
+				}})
 		found = true
 	}
 	return found, nil

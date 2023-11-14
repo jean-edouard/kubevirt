@@ -349,6 +349,10 @@ type FeatureEnabled struct {
 type Shareable struct{}
 
 type Slice struct {
+	Slice SliceType `xml:"slice,omitempty"`
+}
+
+type SliceType struct {
 	Type   string `xml:"type,attr"`
 	Offset int64  `xml:"offset,attr"`
 	Size   int64  `xml:"size,attr"`
@@ -656,7 +660,7 @@ type Disk struct {
 	Capacity           *int64         `xml:"capacity,omitempty"`
 	ExpandDisksEnabled bool           `xml:"expandDisksEnabled,omitempty"`
 	Shareable          *Shareable     `xml:"shareable,omitempty"`
-	Slice              *Slice         `xml:"slice,omitempty"`
+	Slices             []Slice        `xml:"slices,omitempty"`
 }
 
 type DiskAuth struct {
