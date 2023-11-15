@@ -32,6 +32,8 @@ import (
 	"strings"
 	"time"
 
+	storagev1alpha1 "kubevirt.io/api/storage/v1alpha1"
+
 	"kubevirt.io/kubevirt/pkg/testutils"
 	virtconfig "kubevirt.io/kubevirt/pkg/virt-config"
 
@@ -2588,6 +2590,75 @@ var _ = Describe("migratableDomXML", func() {
 
 		By("ensuring the generated XML is accurate")
 		Expect(newXML).To(Equal(expectedXML), "the target XML is not as expected")
+	})
+	FIt("should add the slices section", func() {
+		retDiskSize := func(disk *api.Disk) (int64, error) {
+			return 2028994560, nil
+		}
+		getDiskVirtualSizeFunc = retDiskSize
+		const (
+			volName       = "datavolumedisk1"
+			sourcePvcName = "src-pvc"
+			destPvcName   = "dst-pvc"
+		)
+		domXML := `<domain type="kvm" id="1">
+  <name>kubevirt</name>
+    <devices>
+      <disk type='file' device='disk' model='virtio-non-transitional'>
+        <driver name='qemu' type='raw' cache='none' error_policy='stop' discard='unmap'/>
+        <source file='/var/run/kubevirt-private/vmi-disks/datavolumedisk1/disk.img' index='1'/>
+        <backingStore/>
+        <target dev='vda' bus='virtio'/>
+        <alias name='ua-datavolumedisk1'/>
+        <address type='pci' domain='0x0000' bus='0x07' slot='0x00' function='0x0'/>
+      </disk>
+    </devices>
+</domain>`
+		// migratableDomXML() removes the migration block but not its ident, which is its own token, hence the blank line below
+		expectedXML := `<domain type="kvm" id="1">
+  <name>kubevirt</name>
+    <devices>
+      <disk device="disk" type="file" model="virtio-non-transitional">
+        <source file="/var/run/kubevirt-private/vmi-disks/datavolumedisk1/disk.img">
+          <slices>
+            <slice type="storage" offset="0" size="2028994560"></slice>
+          </slices>
+        </source>
+        <target bus="virtio" dev="vda"></target>
+        <driver cache="none" error_policy="stop" name="qemu" type="raw" discard="unmap"></driver>
+        <alias name="ua-datavolumedisk1"></alias>
+        <backingStore></backingStore>
+      <target bus="virtio" dev="vda"></target>
+      <driver cache="none" error_policy="stop" name="qemu" type="raw" discard="unmap"></driver>
+      <alias name="ua-datavolumedisk1"></alias>
+      <backingStore></backingStore>
+      <address type="pci" domain="0x0000" bus="0x07" slot="0x00" function="0x0"></address>
+    </disk>
+  </devices>
+</domain>`
+		vmi := newVMI("testns", "kubevirt")
+		vmi.Spec.Volumes = append(vmi.Spec.Volumes,
+			v1.Volume{
+				Name: volName,
+				VolumeSource: v1.VolumeSource{
+					DataVolume: &v1.DataVolumeSource{
+						Name: sourcePvcName,
+					},
+				},
+			})
+		vmi.Status.MigratedVolumes = []storagev1alpha1.MigratedVolume{
+			{
+				SourcePvc:      sourcePvcName,
+				DestinationPvc: destPvcName,
+			},
+		}
+		mockDomain.EXPECT().GetXMLDesc(libvirt.DOMAIN_XML_MIGRATABLE).MaxTimes(1).Return(domXML, nil)
+		domSpec := &api.DomainSpec{}
+		Expect(xml.Unmarshal([]byte(domXML), domSpec)).To(Succeed())
+		newXML, err := migratableDomXML(mockDomain, vmi, domSpec)
+		fmt.Printf("XXX newXML:\n%s\n", newXML)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(newXML).To(Equal(expectedXML))
 	})
 })
 

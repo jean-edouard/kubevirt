@@ -181,6 +181,7 @@ func generateDomainForTargetCPUSetAndTopology(vmi *v1.VirtualMachineInstance, do
 func injectNewSection(encoder *xml.Encoder, domain *api.Domain, section []string, logger *log.FilteredLogger) error {
 	// Marshalling the whole domain, even if we just need the cputune section, for indentation purposes
 	xmlstr, err := xml.MarshalIndent(domain.Spec, "", "  ")
+	fmt.Printf("XXX initial xml:\n%s\n", xmlstr)
 	if err != nil {
 		logger.Reason(err).Error("Live migration failed. Failed to get XML.")
 		return err
@@ -203,7 +204,6 @@ func injectNewSection(encoder *xml.Encoder, domain *api.Domain, section []string
 			logger.Errorf("error getting token: %v\n", err)
 			return err
 		}
-
 		switch v := token.(type) {
 		case xml.StartElement:
 			location = append(location, v.Name.Local)
@@ -265,6 +265,18 @@ func shouldOverrideForDedicatedCPUTarget(section []string, strict bool) bool {
 	return false
 }
 
+func shouldOverrideForSourceDiskSection(section []string, strict bool) bool {
+	if (!strict || len(section) == 4) &&
+		len(section) == 4 &&
+		section[0] == "domain" &&
+		section[1] == "devices" &&
+		section[2] == "disk" &&
+		section[3] == "source" {
+		return true
+	}
+	return false
+}
+
 // This returns domain xml without the metadata section, as it is only relevant to the source domain
 // Note: Unfortunately we can't just use UnMarshall + Marshall here, as that leads to unwanted XML alterations
 func migratableDomXML(dom cli.VirDomain, vmi *v1.VirtualMachineInstance, domSpec *api.DomainSpec) (string, error) {
@@ -293,7 +305,7 @@ func migratableDomXML(dom cli.VirDomain, vmi *v1.VirtualMachineInstance, domSpec
 		}
 	}
 	// set slice size for local disks to migrate
-	setDiskSize, err := setDiskSizeForLocalDiskToMigrate(domSpec, domain, vmi)
+	migVols, err := setDiskSizeForLocalDiskToMigrate(domSpec, domain, vmi)
 	if err != nil {
 		log.Log.Object(vmi).Reason(err).Error("Failed to set size for local disk.")
 		return "", err
@@ -305,7 +317,9 @@ func migratableDomXML(dom cli.VirDomain, vmi *v1.VirtualMachineInstance, domSpec
 
 	var location = make([]string, 0)
 	var newLocation []string = nil
-
+	currDisk := 0
+	nextMigVol := 0
+	setMigVol := len(migVols) > 0
 	for {
 		if newLocation != nil {
 			// Postpone popping end elements from `location` to ensure their removal
@@ -320,26 +334,43 @@ func migratableDomXML(dom cli.VirDomain, vmi *v1.VirtualMachineInstance, domSpec
 			log.Log.Object(vmi).Errorf("error getting token: %v\n", err)
 			return "", err
 		}
-
+		fmt.Printf("XXX token=%v location=%v\n", token, location)
 		switch v := token.(type) {
 		case xml.StartElement:
 			location = append(location, v.Name.Local)
 
 			// If the VMI requires dedicated CPUs, we need to patch the domain with
 			// the new CPU/NUMA info calculated for the target node prior to migration
-			if vmi.IsCPUDedicated() && shouldOverrideForDedicatedCPUTarget(location, exactLocation) || setDiskSize {
+			if vmi.IsCPUDedicated() && shouldOverrideForDedicatedCPUTarget(location, exactLocation) {
 				err = injectNewSection(encoder, domain, location, log.Log.Object(vmi))
 				if err != nil {
 					return "", err
 				}
 			}
+			if setMigVol && shouldOverrideForSourceDiskSection(location, exactLocation) {
+				if migVols[nextMigVol] == currDisk {
+					fmt.Printf("XXX is mig vol pos %d location=%v\n", currDisk, location)
+					err = injectNewSection(encoder, domain, location, log.Log.Object(vmi))
+					if err != nil {
+						return "", err
+					}
+					nextMigVol++
+					// We finish to check all the migrated volumes
+					if nextMigVol >= len(migVols) {
+						setMigVol = false
+					}
+				}
+				currDisk++
+			}
 		case xml.EndElement:
 			newLocation = location[:len(location)-1]
 		}
-		if vmi.IsCPUDedicated() && shouldOverrideForDedicatedCPUTarget(location, insideBlock) || setDiskSize {
+		if vmi.IsCPUDedicated() && shouldOverrideForDedicatedCPUTarget(location, insideBlock) {
 			continue
 		}
-
+		if shouldOverrideForSourceDiskSection(location, insideBlock) {
+			continue
+		}
 		if err := encoder.EncodeToken(xml.CopyToken(token)); err != nil {
 			log.Log.Object(vmi).Reason(err).Errorf("Failed to encode token %v", token)
 			return "", err
@@ -877,7 +908,6 @@ func generateMigrationParams(dom cli.VirDomain, vmi *v1.VirtualMachineInstance, 
 	if err != nil {
 		return nil, err
 	}
-	fmt.Printf("XXX mig XML:%s\n", xmlstr)
 
 	parallelMigrationSet := false
 	var parallelMigrationThreads int
@@ -916,6 +946,15 @@ func generateMigrationParams(dom cli.VirDomain, vmi *v1.VirtualMachineInstance, 
 	return params, nil
 }
 
+// ClientCreator is a function to return the Kubernetes client
+type getDiskVirtualSizeFuncType func(disk *api.Disk) (int64, error)
+
+var getDiskVirtualSizeFunc getDiskVirtualSizeFuncType
+
+func init() {
+	getDiskVirtualSizeFunc = getDiskVirtualSize
+}
+
 // calculateStorageMigrateDiskSize return the size of a local volume to migrate.
 // See suggestion in: https://issues.redhat.com/browse/RHEL-4607
 func getDiskVirtualSize(disk *api.Disk) (int64, error) {
@@ -935,31 +974,29 @@ func getDiskVirtualSize(disk *api.Disk) (int64, error) {
 	return info.VirtualSize, nil
 }
 
-func setDiskSizeForLocalDiskToMigrate(domSpec *api.DomainSpec, dom *api.Domain, vmi *v1.VirtualMachineInstance) (bool, error) {
-	found := false
+func setDiskSizeForLocalDiskToMigrate(domSpec *api.DomainSpec, dom *api.Domain, vmi *v1.VirtualMachineInstance) ([]int, error) {
+	var migVols []int
 	migDisks := classifyVolumesForMigration(vmi)
 	for i, d := range domSpec.Devices.Disks {
 		dom.Spec.Devices.Disks = append(dom.Spec.Devices.Disks, d)
 		name := d.Alias.GetName()
 		if !migDisks.isLocalVolumeToMigrate(name) {
-			fmt.Printf("XXX Skip volume %s\n", name)
 			continue
 		}
-		size, err := getDiskVirtualSize(&d)
+		size, err := getDiskVirtualSizeFunc(&d)
 		if err != nil {
-			return found, err
+			return migVols, err
 		}
-		fmt.Printf("XXXX set slice for disk %s size=%d\n", name, size)
-		dom.Spec.Devices.Disks[i].Slices = append(dom.Spec.Devices.Disks[i].Slices,
+		dom.Spec.Devices.Disks[i].Source.Slices = append(dom.Spec.Devices.Disks[i].Source.Slices,
 			api.Slice{
 				Slice: api.SliceType{
 					Type:   "storage",
 					Offset: 0,
 					Size:   size,
 				}})
-		found = true
+		migVols = append(migVols, i)
 	}
-	return found, nil
+	return migVols, nil
 }
 
 func (l *LibvirtDomainManager) migrateHelper(vmi *v1.VirtualMachineInstance, options *cmdclient.MigrationOptions) error {

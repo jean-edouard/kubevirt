@@ -660,7 +660,6 @@ type Disk struct {
 	Capacity           *int64         `xml:"capacity,omitempty"`
 	ExpandDisksEnabled bool           `xml:"expandDisksEnabled,omitempty"`
 	Shareable          *Shareable     `xml:"shareable,omitempty"`
-	Slices             []Slice        `xml:"slices,omitempty"`
 }
 
 type DiskAuth struct {
@@ -684,6 +683,7 @@ type DiskSource struct {
 	Name          string          `xml:"name,attr,omitempty"`
 	Host          *DiskSourceHost `xml:"host,omitempty"`
 	Reservations  *Reservations   `xml:"reservations,omitempty"`
+	Slices        []Slice         `xml:"slices,omitempty"`
 }
 
 type DiskTarget struct {

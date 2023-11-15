@@ -855,11 +855,6 @@ func (in *Disk) DeepCopyInto(out *Disk) {
 		*out = new(Shareable)
 		**out = **in
 	}
-	if in.Slices != nil {
-		in, out := &in.Slices, &out.Slices
-		*out = make([]Slice, len(*in))
-		copy(*out, *in)
-	}
 	return
 }
 
@@ -948,6 +943,11 @@ func (in *DiskSource) DeepCopyInto(out *DiskSource) {
 		in, out := &in.Reservations, &out.Reservations
 		*out = new(Reservations)
 		(*in).DeepCopyInto(*out)
+	}
+	if in.Slices != nil {
+		in, out := &in.Slices, &out.Slices
+		*out = make([]Slice, len(*in))
+		copy(*out, *in)
 	}
 	return
 }
