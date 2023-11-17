@@ -2603,35 +2603,31 @@ var _ = Describe("migratableDomXML", func() {
 		)
 		domXML := `<domain type="kvm" id="1">
   <name>kubevirt</name>
-    <devices>
-      <disk type='file' device='disk' model='virtio-non-transitional'>
-        <driver name='qemu' type='raw' cache='none' error_policy='stop' discard='unmap'/>
-        <source file='/var/run/kubevirt-private/vmi-disks/datavolumedisk1/disk.img' index='1'/>
-        <backingStore/>
-        <target dev='vda' bus='virtio'/>
-        <alias name='ua-datavolumedisk1'/>
-        <address type='pci' domain='0x0000' bus='0x07' slot='0x00' function='0x0'/>
-      </disk>
-    </devices>
+  <devices>
+    <disk type='file' device='disk' model='virtio-non-transitional'>
+      <driver name='qemu' type='raw' cache='none' error_policy='stop' discard='unmap'/>
+      <source file='/var/run/kubevirt-private/vmi-disks/datavolumedisk1/disk.img' index='1'/>
+      <backingStore/>
+      <target dev='vda' bus='virtio'/>
+      <alias name='ua-datavolumedisk1'/>
+      <address type='pci' domain='0x0000' bus='0x07' slot='0x00' function='0x0'/>
+    </disk>
+  </devices>
 </domain>`
 		// migratableDomXML() removes the migration block but not its ident, which is its own token, hence the blank line below
 		expectedXML := `<domain type="kvm" id="1">
   <name>kubevirt</name>
-    <devices>
-      <disk device="disk" type="file" model="virtio-non-transitional">
-        <source file="/var/run/kubevirt-private/vmi-disks/datavolumedisk1/disk.img">
-          <slices>
-            <slice type="storage" offset="0" size="2028994560"></slice>
-          </slices>
-        </source>
-        <target bus="virtio" dev="vda"></target>
-        <driver cache="none" error_policy="stop" name="qemu" type="raw" discard="unmap"></driver>
-        <alias name="ua-datavolumedisk1"></alias>
-        <backingStore></backingStore>
-      <target bus="virtio" dev="vda"></target>
-      <driver cache="none" error_policy="stop" name="qemu" type="raw" discard="unmap"></driver>
-      <alias name="ua-datavolumedisk1"></alias>
+  <devices>
+    <disk type="file" device="disk" model="virtio-non-transitional">
+      <driver name="qemu" type="raw" cache="none" error_policy="stop" discard="unmap"></driver>
+      <source file="/var/run/kubevirt-private/vmi-disks/datavolumedisk1/disk.img">
+        <slices>
+          <slice type="storage" offset="0" size="2028994560"></slice>
+        </slices>
+      </source>
       <backingStore></backingStore>
+      <target dev="vda" bus="virtio"></target>
+      <alias name="ua-datavolumedisk1"></alias>
       <address type="pci" domain="0x0000" bus="0x07" slot="0x00" function="0x0"></address>
     </disk>
   </devices>

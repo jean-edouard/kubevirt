@@ -267,7 +267,7 @@ func shouldOverrideForDedicatedCPUTarget(section []string, strict bool) bool {
 
 func shouldOverrideForSourceDiskSection(section []string, strict bool) bool {
 	if (!strict || len(section) == 4) &&
-		len(section) == 4 &&
+		len(section) >= 4 &&
 		section[0] == "domain" &&
 		section[1] == "devices" &&
 		section[2] == "disk" &&
