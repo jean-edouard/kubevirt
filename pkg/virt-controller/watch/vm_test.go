@@ -4931,11 +4931,7 @@ var _ = Describe("VirtualMachine", func() {
 			Context("CPU", func() {
 				It("should honour the maximum CPU sockets from VM spec", func() {
 					vm, _ := DefaultVirtualMachine(true)
-					vm.Spec.LiveUpdateFeatures = &virtv1.LiveUpdateFeatures{
-						CPU: &virtv1.LiveUpdateCPU{
-							MaxSockets: kvpointer.P(maxSocketsFromSpec),
-						},
-					}
+					vm.Spec.Template.Spec.Domain.CPU.MaxSockets = maxSocketsFromSpec
 
 					vmi := controller.setupVMIFromVM(vm)
 					Expect(vmi.Spec.Domain.CPU.MaxSockets).To(Equal(maxSocketsFromSpec))
@@ -4943,11 +4939,7 @@ var _ = Describe("VirtualMachine", func() {
 
 				It("should prefer maximum CPU sockets from VM spec rather than from cluster config", func() {
 					vm, _ := DefaultVirtualMachine(true)
-					vm.Spec.LiveUpdateFeatures = &virtv1.LiveUpdateFeatures{
-						CPU: &virtv1.LiveUpdateCPU{
-							MaxSockets: kvpointer.P(maxSocketsFromSpec),
-						},
-					}
+					vm.Spec.Template.Spec.Domain.CPU.MaxSockets = maxSocketsFromSpec
 					testutils.UpdateFakeKubeVirtClusterConfig(kvInformer, &v1.KubeVirt{
 						Spec: v1.KubeVirtSpec{
 							Configuration: v1.KubeVirtConfiguration{
@@ -4964,9 +4956,6 @@ var _ = Describe("VirtualMachine", func() {
 
 				It("should use maximum sockets configured in cluster config when its not set in VM spec", func() {
 					vm, _ := DefaultVirtualMachine(true)
-					vm.Spec.LiveUpdateFeatures = &virtv1.LiveUpdateFeatures{
-						CPU: &virtv1.LiveUpdateCPU{},
-					}
 					testutils.UpdateFakeKubeVirtClusterConfig(kvInformer, &v1.KubeVirt{
 						Spec: v1.KubeVirtSpec{
 							Configuration: v1.KubeVirtConfiguration{
@@ -4984,9 +4973,6 @@ var _ = Describe("VirtualMachine", func() {
 				It("should calculate max sockets to be 4x times the configured sockets when no max sockets defined ", func() {
 					const cpuSockets uint32 = 4
 					vm, _ := DefaultVirtualMachine(true)
-					vm.Spec.LiveUpdateFeatures = &virtv1.LiveUpdateFeatures{
-						CPU: &virtv1.LiveUpdateCPU{},
-					}
 					vm.Spec.Template.Spec.Domain.CPU = &virtv1.CPU{
 						Sockets: cpuSockets,
 					}
@@ -4998,9 +4984,6 @@ var _ = Describe("VirtualMachine", func() {
 				It("should calculate max sockets to be 4x times the default sockets when default CPU topology used", func() {
 					const defaultSockets uint32 = 1
 					vm, _ := DefaultVirtualMachine(true)
-					vm.Spec.LiveUpdateFeatures = &virtv1.LiveUpdateFeatures{
-						CPU: &virtv1.LiveUpdateCPU{},
-					}
 
 					vmi := controller.setupVMIFromVM(vm)
 					Expect(vmi.Spec.Domain.CPU.MaxSockets).To(Equal(defaultSockets * 4))
@@ -5011,11 +4994,9 @@ var _ = Describe("VirtualMachine", func() {
 				It("should honour the max guest memory from VM spec", func() {
 					vm, _ := DefaultVirtualMachine(true)
 					guestMemory := resource.MustParse("64Mi")
-					vm.Spec.Template.Spec.Domain.Memory = &virtv1.Memory{Guest: &guestMemory}
-					vm.Spec.LiveUpdateFeatures = &virtv1.LiveUpdateFeatures{
-						Memory: &virtv1.LiveUpdateMemory{
-							MaxGuest: &maxGuestFromSpec,
-						},
+					vm.Spec.Template.Spec.Domain.Memory = &virtv1.Memory{
+						Guest:    &guestMemory,
+						MaxGuest: &maxGuestFromSpec,
 					}
 
 					vmi := controller.setupVMIFromVM(vm)
@@ -5025,11 +5006,9 @@ var _ = Describe("VirtualMachine", func() {
 				It("should prefer maxGuest from VM spec rather than from cluster config", func() {
 					vm, _ := DefaultVirtualMachine(true)
 					guestMemory := resource.MustParse("64Mi")
-					vm.Spec.Template.Spec.Domain.Memory = &virtv1.Memory{Guest: &guestMemory}
-					vm.Spec.LiveUpdateFeatures = &virtv1.LiveUpdateFeatures{
-						Memory: &virtv1.LiveUpdateMemory{
-							MaxGuest: &maxGuestFromSpec,
-						},
+					vm.Spec.Template.Spec.Domain.Memory = &virtv1.Memory{
+						Guest:    &guestMemory,
+						MaxGuest: &maxGuestFromSpec,
 					}
 					testutils.UpdateFakeKubeVirtClusterConfig(kvInformer, &v1.KubeVirt{
 						Spec: v1.KubeVirtSpec{
@@ -5049,9 +5028,6 @@ var _ = Describe("VirtualMachine", func() {
 					vm, _ := DefaultVirtualMachine(true)
 					guestMemory := resource.MustParse("64Mi")
 					vm.Spec.Template.Spec.Domain.Memory = &virtv1.Memory{Guest: &guestMemory}
-					vm.Spec.LiveUpdateFeatures = &virtv1.LiveUpdateFeatures{
-						Memory: &virtv1.LiveUpdateMemory{},
-					}
 					testutils.UpdateFakeKubeVirtClusterConfig(kvInformer, &v1.KubeVirt{
 						Spec: v1.KubeVirtSpec{
 							Configuration: v1.KubeVirtConfiguration{
@@ -5070,9 +5046,6 @@ var _ = Describe("VirtualMachine", func() {
 					vm, _ := DefaultVirtualMachine(true)
 					guestMemory := resource.MustParse("0")
 					vm.Spec.Template.Spec.Domain.Memory = &virtv1.Memory{Guest: &guestMemory}
-					vm.Spec.LiveUpdateFeatures = &virtv1.LiveUpdateFeatures{
-						Memory: nil,
-					}
 					testutils.UpdateFakeKubeVirtClusterConfig(kvInformer, &v1.KubeVirt{
 						Spec: v1.KubeVirtSpec{
 							Configuration: v1.KubeVirtConfiguration{
@@ -5091,9 +5064,6 @@ var _ = Describe("VirtualMachine", func() {
 					vm, _ := DefaultVirtualMachine(true)
 					guestMemory := resource.MustParse("64Mi")
 					vm.Spec.Template.Spec.Domain.Memory = &virtv1.Memory{Guest: &guestMemory}
-					vm.Spec.LiveUpdateFeatures = &virtv1.LiveUpdateFeatures{
-						Memory: &virtv1.LiveUpdateMemory{},
-					}
 
 					vmi := controller.setupVMIFromVM(vm)
 					Expect(vmi.Spec.Domain.Memory.MaxGuest.Value()).To(Equal(guestMemory.Value() * int64(config.GetMaxHotplugRatio())))
@@ -5102,11 +5072,9 @@ var _ = Describe("VirtualMachine", func() {
 				It("should patch VMI when memory hotplug is requested", func() {
 					vm, _ := DefaultVirtualMachine(true)
 					newMemory := resource.MustParse("128Mi")
-					vm.Spec.Template.Spec.Domain.Memory = &virtv1.Memory{Guest: &newMemory}
-					vm.Spec.LiveUpdateFeatures = &virtv1.LiveUpdateFeatures{
-						Memory: &virtv1.LiveUpdateMemory{
-							MaxGuest: &maxGuestFromSpec,
-						},
+					vm.Spec.Template.Spec.Domain.Memory = &virtv1.Memory{
+						Guest:    &newMemory,
+						MaxGuest: &maxGuestFromSpec,
 					}
 
 					vmi := api.NewMinimalVMI(vm.Name)
@@ -5154,11 +5122,9 @@ var _ = Describe("VirtualMachine", func() {
 				It("should not patch VMI if memory hotplug is already in progress", func() {
 					vm, _ := DefaultVirtualMachine(true)
 					newMemory := resource.MustParse("128Mi")
-					vm.Spec.Template.Spec.Domain.Memory = &virtv1.Memory{Guest: &newMemory}
-					vm.Spec.LiveUpdateFeatures = &virtv1.LiveUpdateFeatures{
-						Memory: &virtv1.LiveUpdateMemory{
-							MaxGuest: &maxGuestFromSpec,
-						},
+					vm.Spec.Template.Spec.Domain.Memory = &virtv1.Memory{
+						Guest:    &newMemory,
+						MaxGuest: &maxGuestFromSpec,
 					}
 
 					vmi := api.NewMinimalVMI(vm.Name)
@@ -5184,11 +5150,9 @@ var _ = Describe("VirtualMachine", func() {
 				It("should not patch VMI if a migration is in progress", func() {
 					vm, _ := DefaultVirtualMachine(true)
 					newMemory := resource.MustParse("128Mi")
-					vm.Spec.Template.Spec.Domain.Memory = &virtv1.Memory{Guest: &newMemory}
-					vm.Spec.LiveUpdateFeatures = &virtv1.LiveUpdateFeatures{
-						Memory: &virtv1.LiveUpdateMemory{
-							MaxGuest: &maxGuestFromSpec,
-						},
+					vm.Spec.Template.Spec.Domain.Memory = &virtv1.Memory{
+						Guest:    &newMemory,
+						MaxGuest: &maxGuestFromSpec,
 					}
 
 					vmi := api.NewMinimalVMI(vm.Name)
@@ -5211,11 +5175,9 @@ var _ = Describe("VirtualMachine", func() {
 				It("should not patch VMI if guest memory did not change", func() {
 					guestMemory := resource.MustParse("64Mi")
 					vm, _ := DefaultVirtualMachine(true)
-					vm.Spec.Template.Spec.Domain.Memory = &virtv1.Memory{Guest: &guestMemory}
-					vm.Spec.LiveUpdateFeatures = &virtv1.LiveUpdateFeatures{
-						Memory: &virtv1.LiveUpdateMemory{
-							MaxGuest: &maxGuestFromSpec,
-						},
+					vm.Spec.Template.Spec.Domain.Memory = &virtv1.Memory{
+						Guest:    &guestMemory,
+						MaxGuest: &maxGuestFromSpec,
 					}
 
 					vmi := api.NewMinimalVMI(vm.Name)
