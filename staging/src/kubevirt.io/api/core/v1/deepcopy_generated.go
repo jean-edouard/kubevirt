@@ -2550,6 +2550,11 @@ func (in *KubeVirtConfiguration) DeepCopyInto(out *KubeVirtConfiguration) {
 		*out = new(LiveUpdateConfiguration)
 		(*in).DeepCopyInto(*out)
 	}
+	if in.VmRolloutStrategy != nil {
+		in, out := &in.VmRolloutStrategy, &out.VmRolloutStrategy
+		*out = new(VmRolloutStrategy)
+		**out = **in
+	}
 	return
 }
 

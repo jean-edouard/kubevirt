@@ -19316,6 +19316,13 @@ func schema_kubevirtio_api_core_v1_KubeVirtConfiguration(ref common.ReferenceCal
 							Ref:         ref("kubevirt.io/api/core/v1.LiveUpdateConfiguration"),
 						},
 					},
+					"vmRolloutStrategy": {
+						SchemaProps: spec.SchemaProps{
+							Description: "VmRolloutStrategy defines how changes to a VM object propapate to its VMI",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
 				},
 			},
 		},

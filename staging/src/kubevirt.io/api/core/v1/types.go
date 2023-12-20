@@ -1651,6 +1651,9 @@ const (
 	// VirtualMachinePaused is added in a virtual machine when its vmi
 	// signals with its own condition that it is paused.
 	VirtualMachinePaused VirtualMachineConditionType = "Paused"
+
+	// VirtualMachineRestartRequired is added when changes made to the VM can't be live-propagated to the VMI
+	VirtualMachineRestartRequired VirtualMachineConditionType = "RestartRequired"
 )
 
 type HostDiskType string
@@ -2401,7 +2404,19 @@ type KubeVirtConfiguration struct {
 	AutoCPULimitNamespaceLabelSelector *metav1.LabelSelector `json:"autoCPULimitNamespaceLabelSelector,omitempty"`
 	// LiveUpdateConfiguration holds defaults for live update features
 	LiveUpdateConfiguration *LiveUpdateConfiguration `json:"liveUpdateConfiguration,omitempty"`
+
+	// VmRolloutStrategy defines how changes to a VM object propapate to its VMI
+	VmRolloutStrategy *VmRolloutStrategy `json:"vmRolloutStrategy,omitempty"`
 }
+
+type VmRolloutStrategy string
+
+const (
+	// VmRolloutStrategyLiveUpdate means changes to VM objects will directly propagate to the VMI when possible
+	VmRolloutStrategyLiveUpdate VmRolloutStrategy = "LiveUpdate"
+	// VmRolloutStrategyStage means changes to VM objects will propagate to the VMI next time the VM is rebooted
+	VmRolloutStrategyStage VmRolloutStrategy = "Stage"
+)
 
 type ArchConfiguration struct {
 	Amd64               *ArchSpecificConfiguration `json:"amd64,omitempty"`
