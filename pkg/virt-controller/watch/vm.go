@@ -382,6 +382,16 @@ func (c *VMController) execute(key string) error {
 		logger.Reason(syncErr).Error("Reconciling the VirtualMachine failed.")
 	}
 
+	// Get the updated VMI object, in case something was propagated by sync()
+	// TODO: have sync() (and all the hotplug/propagation functions) return the VMI object
+	if vmi != nil {
+		vmi, err = c.clientset.VirtualMachineInstance(vmi.Namespace).Get(context.Background(), vmi.Name, &v1.GetOptions{})
+		log.Log.Object(vm).Errorf("JED VMI %v %v", vmi, err)
+		if err != nil {
+			return err
+		}
+	}
+
 	err = c.updateStatus(vm, vmi, syncErr, logger)
 	if err != nil {
 		logger.Reason(err).Error("Updating the VirtualMachine status failed.")
@@ -2477,6 +2487,11 @@ func (c *VMController) syncConditions(vm *virtv1.VirtualMachine, vmi *virtv1.Vir
 		return
 	}
 
+	// add the RestartRequired condition if the vm template spec does not match the VMI spec
+	if syncErr == nil {
+		c.processRestartRequiredCondition(vm, vmi)
+	}
+
 	// sync VMI conditions, ignore list represents conditions that are not synced generically
 	syncIgnoreMap := map[string]interface{}{
 		string(virtv1.VirtualMachineReady):           nil,
@@ -2537,6 +2552,24 @@ func (c *VMController) processFailureCondition(vm *virtv1.VirtualMachine, vmi *v
 	})
 
 	return
+}
+
+func (c *VMController) processRestartRequiredCondition(vm *virtv1.VirtualMachine, vmi *virtv1.VirtualMachineInstance) {
+	vmConditionManager := controller.NewVirtualMachineConditionManager()
+
+	if !equality.Semantic.DeepEqual(vm.Spec.Template.Spec, vmi.Spec) {
+		log.Log.Object(vm).Errorf("JED UNEQ %#v %#v", vm.Spec.Template.Spec, vmi.Spec)
+		// Everything that we know how to propagate to the VMI was propagated above.
+		// If the VM template spec still doesn't match the VMI spec, a restart is required.
+		vmConditionManager.UpdateCondition(vm, &virtv1.VirtualMachineCondition{
+			// TODO: add field that triggered restartRequired to message/reason?
+			Type:               virtv1.VirtualMachineRestartRequired,
+			LastTransitionTime: v1.Now(),
+			Status:             k8score.ConditionTrue,
+		})
+		log.Log.Object(vm).Errorf("JED ADDED CONDITION %v", vm.Status.Conditions)
+	}
+
 }
 
 func (c *VMController) isTrimFirstChangeRequestNeeded(vm *virtv1.VirtualMachine, vmi *virtv1.VirtualMachineInstance) (clearChangeRequest bool) {
@@ -2771,12 +2804,16 @@ func (c *VMController) sync(vm *virtv1.VirtualMachine, vmi *virtv1.VirtualMachin
 		}
 	}
 
+	vmConditionManager := controller.NewVirtualMachineConditionManager()
+	restartRequired := vmConditionManager.HasCondition(vm, virtv1.VirtualMachineRestartRequired)
+	// TODO: maybe deepEqual vm.spec.template.spec and vmi.spec and remove condition if true? (i.e. changes that triggered restartRequired got reverted)
+
 	// Must check needsSync again here because a VMI can be created or
 	// deleted in the startStop function which impacts how we process
 	// hotplugged volumes and interfaces
 	if c.needsSync(key) && syncErr == nil {
 		vmCopy := vm.DeepCopy()
-		if c.clusterConfig.HotplugNetworkInterfacesEnabled() &&
+		if !restartRequired && c.clusterConfig.HotplugNetworkInterfacesEnabled() &&
 			vmi != nil && vmi.DeletionTimestamp == nil {
 			vmiCopy := vmi.DeepCopy()
 
@@ -2815,34 +2852,39 @@ func (c *VMController) sync(vm *virtv1.VirtualMachine, vmi *virtv1.VirtualMachin
 			}
 		}
 
-		err = c.handleCPUChangeRequest(vmCopy, vmi)
-		if err != nil {
-			syncErr = &syncErrorImpl{fmt.Errorf("Error encountered while handling CPU change request: %v", err), HotPlugCPUErrorReason}
-		}
+		if !restartRequired {
+			err = c.handleCPUChangeRequest(vmCopy, vmi)
+			if err != nil {
+				syncErr = &syncErrorImpl{fmt.Errorf("Error encountered while handling CPU change request: %v", err), HotPlugCPUErrorReason}
+			}
 
-		if err := c.handleAffinityChangeRequest(vmCopy, vmi); err != nil {
-			syncErr = &syncErrorImpl{fmt.Errorf("Error encountered while handling node affinity change request: %v", err), AffinityChangeErrorReason}
-		}
+			if err := c.handleAffinityChangeRequest(vmCopy, vmi); err != nil {
+				syncErr = &syncErrorImpl{fmt.Errorf("Error encountered while handling node affinity change request: %v", err), AffinityChangeErrorReason}
+			}
 
-		if err := c.handleMemoryHotplugRequest(vmCopy, vmi); err != nil {
-			syncErr = &syncErrorImpl{
-				err:    fmt.Errorf("error encountered while handling memory hotplug requests: %v", err),
-				reason: HotPlugMemoryErrorReason,
+			if err := c.handleMemoryHotplugRequest(vmCopy, vmi); err != nil {
+				syncErr = &syncErrorImpl{
+					err:    fmt.Errorf("error encountered while handling memory hotplug requests: %v", err),
+					reason: HotPlugMemoryErrorReason,
+				}
 			}
 		}
 
 		if syncErr == nil {
 			if !equality.Semantic.DeepEqual(vm, vmCopy) {
+				log.Log.Object(vm).Errorf("JED %v", vmCopy.Status.Conditions)
+				log.Log.Object(vm).Errorf("JED2 %v", vm.Status.Conditions)
 				vm, err = c.clientset.VirtualMachine(vmCopy.Namespace).Update(context.Background(), vmCopy)
 				if err != nil {
 					syncErr = &syncErrorImpl{fmt.Errorf("Error encountered when trying to update vm according to add volume and/or memory dump requests: %v", err), FailedUpdateErrorReason}
 				}
+				log.Log.Object(vm).Errorf("JED3 %v %v", vm.Status.Conditions, syncErr)
 			}
 		}
 	}
 	virtControllerVMWorkQueueTracer.StepTrace(key, "sync", trace.Field{Key: "VM Name", Value: vm.Name})
 
-	return vm, syncErr, nil
+	return vm, syncErr, err
 }
 
 // resolveControllerRef returns the controller referenced by a ControllerRef,

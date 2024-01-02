@@ -702,16 +702,18 @@ func (admitter *VMsAdmitter) validateVMUpdate(oldVM, newVM *v1.VirtualMachine) [
 		}
 
 		// Memory Hotplug
-		oldGuestMemory := oldVM.Spec.Template.Spec.Domain.Memory.Guest
-		newGuestMemory := newVM.Spec.Template.Spec.Domain.Memory.Guest
+		if oldVM.Spec.Template.Spec.Domain.Memory != nil && newVM.Spec.Template.Spec.Domain.Memory != nil {
+			oldGuestMemory := oldVM.Spec.Template.Spec.Domain.Memory.Guest
+			newGuestMemory := newVM.Spec.Template.Spec.Domain.Memory.Guest
 
-		if !oldGuestMemory.Equal(*newGuestMemory) {
-			if causeErr := admitter.shouldAllowMemoryHotPlug(newVM); causeErr != nil {
-				return []metav1.StatusCause{{
-					Type:    metav1.CauseTypeFieldValueNotSupported,
-					Message: causeErr.Error(),
-					Field:   k8sfield.NewPath("spec.template.spec.domain.memory.guest").String(),
-				}}
+			if !oldGuestMemory.Equal(*newGuestMemory) {
+				if causeErr := admitter.shouldAllowMemoryHotPlug(newVM); causeErr != nil {
+					return []metav1.StatusCause{{
+						Type:    metav1.CauseTypeFieldValueNotSupported,
+						Message: causeErr.Error(),
+						Field:   k8sfield.NewPath("spec.template.spec.domain.memory.guest").String(),
+					}}
+				}
 			}
 		}
 	}
