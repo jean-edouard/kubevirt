@@ -305,6 +305,8 @@ var _ = Describe("VirtualMachine", func() {
 			syncCaches(stop)
 			mockQueue.ExpectAdds(1)
 			vmSource.Add(vm)
+			rev := createVMRevision(vm)
+			Expect(crInformer.GetStore().Add(rev)).To(Succeed())
 			mockQueue.Wait()
 		}
 
