@@ -219,6 +219,12 @@ func (p *authProxy) GetDataSource(namespace, name string) (*cdiv1.DataSource, er
 	return ds, nil
 }
 
+type queueItem struct {
+	key     string
+	gen     int64
+	prevGen int64
+}
+
 type VMController struct {
 	clientset              kubecli.KubevirtClient
 	Queue                  workqueue.RateLimitingInterface
@@ -268,34 +274,34 @@ func (c *VMController) needsSync(key string) bool {
 var virtControllerVMWorkQueueTracer = &traceUtils.Tracer{Threshold: time.Second}
 
 func (c *VMController) Execute() bool {
-	key, quit := c.Queue.Get()
+	item, quit := c.Queue.Get()
 	if quit {
 		return false
 	}
+	key := item.(queueItem).key
 
-	virtControllerVMWorkQueueTracer.StartTrace(key.(string), "virt-controller VM workqueue", trace.Field{Key: "Workqueue Key", Value: key})
-	defer virtControllerVMWorkQueueTracer.StopTrace(key.(string))
+	virtControllerVMWorkQueueTracer.StartTrace(key, "virt-controller VM workqueue", trace.Field{Key: "Workqueue Key", Value: key})
+	defer virtControllerVMWorkQueueTracer.StopTrace(key)
 
-	defer c.Queue.Done(key)
-	if err := c.execute(key.(string)); err != nil {
-		log.Log.Reason(err).Infof("re-enqueuing VirtualMachine %v", key)
-		c.Queue.AddRateLimited(key)
+	defer c.Queue.Done(item)
+	if err := c.execute(item.(queueItem)); err != nil {
+		log.Log.Reason(err).Infof("re-enqueuing VirtualMachine %s", key)
+		c.Queue.AddRateLimited(item)
 	} else {
-		log.Log.V(4).Infof("processed VirtualMachine %v", key)
-		c.Queue.Forget(key)
+		log.Log.V(4).Infof("processed VirtualMachine %s", key)
+		c.Queue.Forget(item)
 	}
 	return true
 }
 
-func (c *VMController) execute(key string) error {
-
-	obj, exists, err := c.vmInformer.GetStore().GetByKey(key)
+func (c *VMController) execute(item queueItem) error {
+	obj, exists, err := c.vmInformer.GetStore().GetByKey(item.key)
 	if err != nil {
 		return nil
 	}
 	if !exists {
 		// nothing we need to do. It should always be possible to re-create this type of controller
-		c.expectations.DeleteExpectations(key)
+		c.expectations.DeleteExpectations(item.key)
 		return nil
 	}
 	vm := obj.(*virtv1.VirtualMachine)
@@ -347,7 +353,7 @@ func (c *VMController) execute(key string) error {
 		return err
 	}
 	if !exist {
-		logger.V(4).Infof("VirtualMachineInstance not found in cache %s", key)
+		logger.V(4).Infof("VirtualMachineInstance not found in cache %s", item.key)
 		vmi = nil
 	} else {
 		vmi = vmiObj.(*virtv1.VirtualMachineInstance)
@@ -373,13 +379,17 @@ func (c *VMController) execute(key string) error {
 
 	var syncErr syncError
 
-	vm, syncErr, err = c.sync(vm, vmi, key, dataVolumes)
+	vm, syncErr, err = c.sync(vm, vmi, item, dataVolumes)
 	if err != nil {
 		return err
 	}
 
 	if syncErr != nil {
 		logger.Reason(syncErr).Error("Reconciling the VirtualMachine failed.")
+	}
+
+	if syncErr == nil && item.prevGen > 1 {
+		c.deleteVMRevision(vm, item.prevGen-1)
 	}
 
 	err = c.updateStatus(vm, vmi, syncErr, logger)
@@ -918,7 +928,7 @@ func (c *VMController) startStop(vm *virtv1.VirtualMachine, vmi *virtv1.VirtualM
 		timeLeft := startFailureBackoffTimeLeft(vm)
 		if timeLeft > 0 {
 			log.Log.Object(vm).Infof("Delaying start of VM %s with 'runStrategy: %s' due to start failure backoff. Waiting %d more seconds before starting.", startingVmMsg, runStrategy, timeLeft)
-			c.Queue.AddAfter(vmKey, time.Duration(timeLeft)*time.Second)
+			c.Queue.AddAfter(queueItem{key: vmKey}, time.Duration(timeLeft)*time.Second)
 			return nil
 		}
 
@@ -967,7 +977,7 @@ func (c *VMController) startStop(vm *virtv1.VirtualMachine, vmi *virtv1.VirtualM
 		timeLeft := startFailureBackoffTimeLeft(vm)
 		if timeLeft > 0 {
 			log.Log.Object(vm).Infof("Delaying start of VM %s with 'runStrategy: %s' due to start failure backoff. Waiting %d more seconds before starting.", startingVmMsg, runStrategy, timeLeft)
-			c.Queue.AddAfter(vmKey, time.Duration(timeLeft)*time.Second)
+			c.Queue.AddAfter(queueItem{key: vmKey}, time.Duration(timeLeft)*time.Second)
 			return nil
 		}
 
@@ -1123,12 +1133,7 @@ func (c *VMController) startVMI(vm *virtv1.VirtualMachine) error {
 
 	// start it
 	vmi := c.setupVMIFromVM(vm)
-	vmRevisionName, err := c.createVMRevision(vm)
-	if err != nil {
-		log.Log.Object(vm).Reason(err).Error(failedCreateCRforVmErrMsg)
-		return err
-	}
-	vmi.Status.VirtualMachineRevisionName = vmRevisionName
+	vmi.Status.VirtualMachineRevisionName = getVMRevisionName(vm.UID, vm.ObjectMeta.Generation)
 
 	setGenerationAnnotationOnVmi(vm.Generation, vmi)
 
@@ -1497,39 +1502,8 @@ func patchVMRevision(vm *virtv1.VirtualMachine) ([]byte, error) {
 	return patch, err
 }
 
-func (c *VMController) deleteOlderVMRevision(vm *virtv1.VirtualMachine) (bool, error) {
-	keys, err := c.crInformer.GetIndexer().IndexKeys("vm", string(vm.UID))
-	if err != nil {
-		return false, err
-	}
-
-	createNotNeeded := false
-	for _, key := range keys {
-		storeObj, exists, err := c.crInformer.GetStore().GetByKey(key)
-		if !exists || err != nil {
-			return false, err
-		}
-
-		cr, ok := storeObj.(*appsv1.ControllerRevision)
-		if !ok {
-			return false, fmt.Errorf("unexpected resource %+v", storeObj)
-		}
-
-		// check the revision is of the revisions that are created in the vm startup
-		if !strings.HasPrefix(cr.Name, vmRevisionNamePrefix(vm.UID)) {
-			continue
-		}
-		if cr.Revision == vm.ObjectMeta.Generation {
-			createNotNeeded = true
-			continue
-		}
-		err = c.clientset.AppsV1().ControllerRevisions(vm.Namespace).Delete(context.Background(), cr.Name, v1.DeleteOptions{})
-		if err != nil {
-			return false, err
-		}
-	}
-
-	return createNotNeeded, nil
+func (c *VMController) deleteVMRevision(vm *virtv1.VirtualMachine, gen int64) {
+	_ = c.clientset.AppsV1().ControllerRevisions(vm.Namespace).Delete(context.Background(), getVMRevisionName(vm.UID, gen), v1.DeleteOptions{})
 }
 
 // getControllerRevision attempts to get the controller revision by name and
@@ -1548,8 +1522,11 @@ func (c *VMController) getControllerRevision(namespace string, name string) (*ap
 
 func (c *VMController) createVMRevision(vm *virtv1.VirtualMachine) (string, error) {
 	vmRevisionName := getVMRevisionName(vm.UID, vm.ObjectMeta.Generation)
-	createNotNeeded, err := c.deleteOlderVMRevision(vm)
-	if err != nil || createNotNeeded {
+	_, err := c.clientset.AppsV1().ControllerRevisions(vm.Namespace).Get(context.Background(), vmRevisionName, v1.GetOptions{})
+	if err != nil && !apiErrors.IsNotFound(err) {
+		return "", err
+	}
+	if err == nil {
 		return vmRevisionName, err
 	}
 	patch, err := patchVMRevision(vm)
@@ -1571,6 +1548,39 @@ func (c *VMController) createVMRevision(vm *virtv1.VirtualMachine) (string, erro
 	}
 
 	return cr.Name, nil
+}
+
+func (c *VMController) getVMSpecAtGeneration(namespace string, uid types.UID, gen int64) (virtv1.VirtualMachineSpec, error) {
+	emptySpec := virtv1.VirtualMachineSpec{}
+
+	obj, exists, err := c.crInformer.GetStore().GetByKey(controller.NamespacedKey(namespace, getVMRevisionName(uid, gen)))
+	if err != nil {
+		return emptySpec, err
+	}
+	if !exists {
+		return emptySpec, fmt.Errorf("could not find VM %s at generation %v", uid, gen)
+	}
+
+	cr, ok := obj.(*appsv1.ControllerRevision)
+	if !ok {
+		return emptySpec, fmt.Errorf("unexpected resource %+v", obj)
+	}
+
+	raw := map[string]interface{}{}
+	err = json.Unmarshal(cr.Data.Raw, &raw)
+	if err != nil {
+		return emptySpec, err
+	}
+	patch, err := json.Marshal(raw["spec"])
+	if err != nil {
+		return emptySpec, err
+	}
+	vmSpec := virtv1.VirtualMachineSpec{}
+	err = json.Unmarshal(patch, &vmSpec)
+	if err != nil {
+		return emptySpec, err
+	}
+	return vmSpec, nil
 }
 
 func hasCompletedMemoryDump(vm *virtv1.VirtualMachine) bool {
@@ -2087,18 +2097,35 @@ func (c *VMController) queueVMsForDataVolume(dataVolume *cdiv1.DataVolume) {
 }
 
 func (c *VMController) addVirtualMachine(obj interface{}) {
-	c.enqueueVm(obj)
+	vm := obj.(*virtv1.VirtualMachine)
+	_, err := c.createVMRevision(vm)
+	if err != nil {
+		log.Log.Object(vm).Reason(err).Error(failedCreateCRforVmErrMsg)
+	}
+
+	c.enqueueVm(obj, vm.Generation)
 }
 
 func (c *VMController) deleteVirtualMachine(obj interface{}) {
 	c.enqueueVm(obj)
 }
 
-func (c *VMController) updateVirtualMachine(_, curr interface{}) {
-	c.enqueueVm(curr)
+func (c *VMController) updateVirtualMachine(prev, curr interface{}) {
+	vmCurr := curr.(*virtv1.VirtualMachine)
+	currGen := vmCurr.Generation
+	vmPrev := prev.(*virtv1.VirtualMachine)
+	prevGen := vmPrev.Generation
+
+	_, err := c.createVMRevision(vmCurr)
+	if err != nil {
+		log.Log.Object(vmCurr).Reason(err).Error(failedCreateCRforVmErrMsg)
+	}
+
+	c.enqueueVm(curr, currGen, prevGen)
 }
 
-func (c *VMController) enqueueVm(obj interface{}) {
+func (c *VMController) enqueueVm(obj interface{}, gens ...int64) {
+	item := queueItem{}
 	logger := log.Log
 	vm := obj.(*virtv1.VirtualMachine)
 	key, err := controller.KeyFunc(vm)
@@ -2106,7 +2133,15 @@ func (c *VMController) enqueueVm(obj interface{}) {
 		logger.Object(vm).Reason(err).Error(failedExtractVmkeyFromVmErrMsg)
 		return
 	}
-	c.Queue.Add(key)
+	item.key = key
+	gensLen := len(gens)
+	if gensLen >= 1 {
+		item.gen = gens[0]
+	}
+	if gensLen >= 2 {
+		item.prevGen = gens[1]
+	}
+	c.Queue.Add(item)
 }
 
 func (c *VMController) getPatchFinalizerOps(oldObj, newObj v1.Object) ([]string, error) {
@@ -2759,11 +2794,11 @@ func (c *VMController) trimDoneVolumeRequests(vm *virtv1.VirtualMachine) {
 	vm.Status.VolumeRequests = tmpVolRequests
 }
 
-func (c *VMController) sync(vm *virtv1.VirtualMachine, vmi *virtv1.VirtualMachineInstance, key string, dataVolumes []*cdiv1.DataVolume) (*virtv1.VirtualMachine, syncError, error) {
+func (c *VMController) sync(vm *virtv1.VirtualMachine, vmi *virtv1.VirtualMachineInstance, item queueItem, dataVolumes []*cdiv1.DataVolume) (*virtv1.VirtualMachine, syncError, error) {
 	var syncErr syncError
 	var err error
 
-	if !c.needsSync(key) {
+	if !c.needsSync(item.key) {
 		return vm, nil, nil
 	}
 
@@ -2839,7 +2874,7 @@ func (c *VMController) sync(vm *virtv1.VirtualMachine, vmi *virtv1.VirtualMachin
 	// Must check needsSync again here because a VMI can be created or
 	// deleted in the startStop function which impacts how we process
 	// hotplugged volumes and interfaces
-	if c.needsSync(key) && syncErr == nil {
+	if c.needsSync(item.key) && syncErr == nil {
 		vmCopy := vm.DeepCopy()
 		if c.clusterConfig.HotplugNetworkInterfacesEnabled() &&
 			vmi != nil && vmi.DeletionTimestamp == nil {
@@ -2905,7 +2940,7 @@ func (c *VMController) sync(vm *virtv1.VirtualMachine, vmi *virtv1.VirtualMachin
 			}
 		}
 	}
-	virtControllerVMWorkQueueTracer.StepTrace(key, "sync", trace.Field{Key: "VM Name", Value: vm.Name})
+	virtControllerVMWorkQueueTracer.StepTrace(item.key, "sync", trace.Field{Key: "VM Name", Value: vm.Name})
 
 	return vm, syncErr, nil
 }
