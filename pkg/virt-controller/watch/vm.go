@@ -311,7 +311,7 @@ func (c *VMController) execute(item queueItem) error {
 	if item.gen != 0 {
 		vm.Spec, err = c.getVMSpecAtGeneration(vm.Namespace, vm.UID, item.gen)
 		if err != nil {
-			return fmt.Errorf("couldn't find VM %s at generation %v (%v)", item.key, item.gen, err)
+			return fmt.Errorf("couldn't find VM %s at generation %v: %v", item.key, item.gen, err)
 		}
 	}
 
@@ -384,9 +384,10 @@ func (c *VMController) execute(item queueItem) error {
 		}
 	}
 
+	var reEnqueued bool
 	var syncErr syncError
 
-	vm, syncErr, err = c.sync(vm, vmi, item, dataVolumes)
+	vm, syncErr, reEnqueued, err = c.sync(vm, vmi, item, dataVolumes)
 	if err != nil {
 		return err
 	}
@@ -395,7 +396,9 @@ func (c *VMController) execute(item queueItem) error {
 		logger.Reason(syncErr).Error("Reconciling the VirtualMachine failed.")
 	}
 
-	if syncErr == nil && item.gen > 1 {
+	// FIXME: This is too aggressive, as VMs can get re-enqueued by start-stop.
+	//   Once this is fixed, we can fail on generation not found above
+	if syncErr == nil && !reEnqueued && item.gen > 1 {
 		c.deleteVMRevision(vm, item.gen-1)
 	}
 
@@ -892,15 +895,15 @@ func (c *VMController) addStartRequest(vm *virtv1.VirtualMachine) error {
 	return nil
 }
 
-func (c *VMController) startStop(vm *virtv1.VirtualMachine, vmi *virtv1.VirtualMachineInstance) syncError {
+func (c *VMController) startStop(vm *virtv1.VirtualMachine, vmi *virtv1.VirtualMachineInstance) (syncError, bool) {
 	runStrategy, err := vm.RunStrategy()
 	if err != nil {
-		return &syncErrorImpl{fmt.Errorf(fetchingRunStrategyErrFmt, err), FailedCreateReason}
+		return &syncErrorImpl{fmt.Errorf(fetchingRunStrategyErrFmt, err), FailedCreateReason}, false
 	}
 	vmKey, err := controller.KeyFunc(vm)
 	if err != nil {
 		log.Log.Object(vm).Errorf(fetchingVMKeyErrFmt, err)
-		return &syncErrorImpl{err, FailedCreateReason}
+		return &syncErrorImpl{err, FailedCreateReason}, false
 	}
 	log.Log.Object(vm).V(4).Infof("VirtualMachine RunStrategy: %s", runStrategy)
 
@@ -924,27 +927,27 @@ func (c *VMController) startStop(vm *virtv1.VirtualMachine, vmi *virtv1.VirtualM
 				err := c.stopVMI(vm, vmi)
 				if err != nil {
 					log.Log.Object(vm).Errorf(failureDeletingVmiErrFormat, err)
-					return &syncErrorImpl{fmt.Errorf(failureDeletingVmiErrFormat, err), VMIFailedDeleteReason}
+					return &syncErrorImpl{fmt.Errorf(failureDeletingVmiErrFormat, err), VMIFailedDeleteReason}, false
 				}
 				// return to let the controller pick up the expected deletion
 			}
 			// VirtualMachineInstance is OK no need to do anything
-			return nil
+			return nil, false
 		}
 
 		timeLeft := startFailureBackoffTimeLeft(vm)
 		if timeLeft > 0 {
 			log.Log.Object(vm).Infof("Delaying start of VM %s with 'runStrategy: %s' due to start failure backoff. Waiting %d more seconds before starting.", startingVmMsg, runStrategy, timeLeft)
 			c.Queue.AddAfter(queueItem{key: vmKey}, time.Duration(timeLeft)*time.Second)
-			return nil
+			return nil, true
 		}
 
 		log.Log.Object(vm).Infof("%s due to runStrategy: %s", startingVmMsg, runStrategy)
 		err := c.startVMI(vm)
 		if err != nil {
-			return &syncErrorImpl{fmt.Errorf(startingVMIFailureFmt, err), FailedCreateReason}
+			return &syncErrorImpl{fmt.Errorf(startingVMIFailureFmt, err), FailedCreateReason}, false
 		}
-		return nil
+		return nil, false
 
 	case virtv1.RunStrategyRerunOnFailure:
 		// For this RunStrategy, a VMI should only be restarted if it failed.
@@ -963,37 +966,37 @@ func (c *VMController) startStop(vm *virtv1.VirtualMachine, vmi *virtv1.VirtualM
 				err := c.stopVMI(vm, vmi)
 				if err != nil {
 					log.Log.Object(vm).Errorf(failureDeletingVmiErrFormat, err)
-					return &syncErrorImpl{fmt.Errorf(failureDeletingVmiErrFormat, err), VMIFailedDeleteReason}
+					return &syncErrorImpl{fmt.Errorf(failureDeletingVmiErrFormat, err), VMIFailedDeleteReason}, false
 				}
 
 				if vmiFailed {
 					err = c.addStartRequest(vm)
 					if err != nil {
-						return &syncErrorImpl{fmt.Errorf("failed to patch VM with start action: %v", err), VMIFailedDeleteReason}
+						return &syncErrorImpl{fmt.Errorf("failed to patch VM with start action: %v", err), VMIFailedDeleteReason}, false
 					}
 				}
 			}
 			// return to let the controller pick up the expected deletion
-			return nil
+			return nil, false
 		}
 
 		if !hasStartRequest(vm) {
-			return nil
+			return nil, false
 		}
 
 		timeLeft := startFailureBackoffTimeLeft(vm)
 		if timeLeft > 0 {
 			log.Log.Object(vm).Infof("Delaying start of VM %s with 'runStrategy: %s' due to start failure backoff. Waiting %d more seconds before starting.", startingVmMsg, runStrategy, timeLeft)
 			c.Queue.AddAfter(queueItem{key: vmKey}, time.Duration(timeLeft)*time.Second)
-			return nil
+			return nil, true
 		}
 
 		log.Log.Object(vm).Infof("%s due to runStrategy: %s", startingVmMsg, runStrategy)
 		err := c.startVMI(vm)
 		if err != nil {
-			return &syncErrorImpl{fmt.Errorf(startingVMIFailureFmt, err), FailedCreateReason}
+			return &syncErrorImpl{fmt.Errorf(startingVMIFailureFmt, err), FailedCreateReason}, false
 		}
-		return nil
+		return nil, false
 
 	case virtv1.RunStrategyManual:
 		// For this RunStrategy, VMI's will be started/stopped/restarted using api endpoints only
@@ -1005,10 +1008,10 @@ func (c *VMController) startStop(vm *virtv1.VirtualMachine, vmi *virtv1.VirtualM
 				err := c.stopVMI(vm, vmi)
 				if err != nil {
 					log.Log.Object(vm).Errorf(failureDeletingVmiErrFormat, err)
-					return &syncErrorImpl{fmt.Errorf(failureDeletingVmiErrFormat, err), VMIFailedDeleteReason}
+					return &syncErrorImpl{fmt.Errorf(failureDeletingVmiErrFormat, err), VMIFailedDeleteReason}, false
 				}
 				// return to let the controller pick up the expected deletion
-				return nil
+				return nil, false
 			}
 		} else {
 			if hasStartRequest(vm) {
@@ -1016,11 +1019,11 @@ func (c *VMController) startStop(vm *virtv1.VirtualMachine, vmi *virtv1.VirtualM
 
 				err := c.startVMI(vm)
 				if err != nil {
-					return &syncErrorImpl{fmt.Errorf(startingVMIFailureFmt, err), FailedCreateReason}
+					return &syncErrorImpl{fmt.Errorf(startingVMIFailureFmt, err), FailedCreateReason}, false
 				}
 			}
 		}
-		return nil
+		return nil, false
 
 	case virtv1.RunStrategyHalted:
 		// For this runStrategy, no VMI should be running under any circumstances.
@@ -1037,28 +1040,28 @@ func (c *VMController) startStop(vm *virtv1.VirtualMachine, vmi *virtv1.VirtualM
 					vmCopy.Spec.Running = &running
 				}
 				_, err := c.clientset.VirtualMachine(vmCopy.Namespace).Update(context.Background(), vmCopy)
-				return &syncErrorImpl{fmt.Errorf(startingVMIFailureFmt, err), FailedCreateReason}
+				return &syncErrorImpl{fmt.Errorf(startingVMIFailureFmt, err), FailedCreateReason}, false
 			}
-			return nil
+			return nil, false
 		}
 		log.Log.Object(vm).Infof("%s with VMI in phase %s due to runStrategy: %s", stoppingVmMsg, vmi.Status.Phase, runStrategy)
 		if err := c.stopVMI(vm, vmi); err != nil {
-			return &syncErrorImpl{fmt.Errorf(failureDeletingVmiErrFormat, err), VMIFailedDeleteReason}
+			return &syncErrorImpl{fmt.Errorf(failureDeletingVmiErrFormat, err), VMIFailedDeleteReason}, false
 		}
-		return nil
+		return nil, false
 	case virtv1.RunStrategyOnce:
 		if vmi == nil {
 			log.Log.Object(vm).Infof("%s due to start request and runStrategy: %s", startingVmMsg, runStrategy)
 
 			err := c.startVMI(vm)
 			if err != nil {
-				return &syncErrorImpl{fmt.Errorf(startingVMIFailureFmt, err), FailedCreateReason}
+				return &syncErrorImpl{fmt.Errorf(startingVMIFailureFmt, err), FailedCreateReason}, false
 			}
 		}
 
-		return nil
+		return nil, false
 	default:
-		return &syncErrorImpl{fmt.Errorf("unknown runstrategy: %s", runStrategy), FailedCreateReason}
+		return &syncErrorImpl{fmt.Errorf("unknown runstrategy: %s", runStrategy), FailedCreateReason}, false
 	}
 }
 
@@ -2801,25 +2804,26 @@ func (c *VMController) trimDoneVolumeRequests(vm *virtv1.VirtualMachine) {
 	vm.Status.VolumeRequests = tmpVolRequests
 }
 
-func (c *VMController) sync(vm *virtv1.VirtualMachine, vmi *virtv1.VirtualMachineInstance, item queueItem, dataVolumes []*cdiv1.DataVolume) (*virtv1.VirtualMachine, syncError, error) {
+func (c *VMController) sync(vm *virtv1.VirtualMachine, vmi *virtv1.VirtualMachineInstance, item queueItem, dataVolumes []*cdiv1.DataVolume) (*virtv1.VirtualMachine, syncError, bool, error) {
 	var syncErr syncError
+	var reEnqueued bool
 	var err error
 
 	if !c.needsSync(item.key) {
-		return vm, nil, nil
+		return vm, nil, reEnqueued, nil
 	}
 
 	conditionManager := controller.NewVirtualMachineConditionManager()
 	if !conditionManager.HasCondition(vm, virtv1.VirtualMachineInitialized) {
 		runStrategy, err := vm.RunStrategy()
 		if err != nil {
-			return vm, nil, err
+			return vm, nil, reEnqueued, err
 		}
 		if runStrategy == virtv1.RunStrategyRerunOnFailure {
 			// VM just got created with RerunOnFailure runStrategy, it needs to auto-start
 			err = c.addStartRequest(vm)
 			if err != nil {
-				return vm, nil, err
+				return vm, nil, reEnqueued, err
 			}
 		}
 		vm.Status.Conditions = append(vm.Status.Conditions, virtv1.VirtualMachineCondition{
@@ -2832,31 +2836,31 @@ func (c *VMController) sync(vm *virtv1.VirtualMachine, vmi *virtv1.VirtualMachin
 		if vmi == nil || controller.HasFinalizer(vm, v1.FinalizerOrphanDependents) {
 			vm, err = c.removeVMFinalizer(vm, virtv1.VirtualMachineControllerFinalizer)
 			if err != nil {
-				return vm, nil, err
+				return vm, nil, reEnqueued, err
 			}
 		} else {
 			err = c.stopVMI(vm, vmi)
 			if err != nil {
 				log.Log.Object(vm).Errorf(failureDeletingVmiErrFormat, err)
-				return vm, &syncErrorImpl{fmt.Errorf(failureDeletingVmiErrFormat, err), VMIFailedDeleteReason}, nil
+				return vm, &syncErrorImpl{fmt.Errorf(failureDeletingVmiErrFormat, err), VMIFailedDeleteReason}, reEnqueued, nil
 			}
 		}
-		return vm, nil, nil
+		return vm, nil, reEnqueued, nil
 	} else {
 		vm, err = c.addVMFinalizer(vm, virtv1.VirtualMachineControllerFinalizer)
 		if err != nil {
-			return vm, nil, err
+			return vm, nil, reEnqueued, err
 		}
 	}
 
 	if err := c.conditionallyBumpGenerationAnnotationOnVmi(vm, vmi); err != nil {
-		return nil, nil, err
+		return nil, nil, reEnqueued, err
 	}
 
 	// Scale up or down, if all expected creates and deletes were report by the listener
 	runStrategy, err := vm.RunStrategy()
 	if err != nil {
-		return vm, nil, err
+		return vm, nil, reEnqueued, err
 	}
 
 	// Ensure we have ControllerRevisions of any instancetype or preferences referenced by the VM
@@ -2872,7 +2876,7 @@ func (c *VMController) sync(vm *virtv1.VirtualMachine, vmi *virtv1.VirtualMachin
 		if err != nil {
 			syncErr = &syncErrorImpl{fmt.Errorf("Error encountered while creating DataVolumes: %v", err), FailedCreateReason}
 		} else if dataVolumesReady || runStrategy == virtv1.RunStrategyHalted {
-			syncErr = c.startStop(vm, vmi)
+			syncErr, reEnqueued = c.startStop(vm, vmi)
 		} else {
 			log.Log.Object(vm).V(3).Infof("Waiting on DataVolumes to be ready. %d datavolumes found", len(dataVolumes))
 		}
@@ -2940,6 +2944,7 @@ func (c *VMController) sync(vm *virtv1.VirtualMachine, vmi *virtv1.VirtualMachin
 
 		if syncErr == nil {
 			if !equality.Semantic.DeepEqual(vm, vmCopy) {
+
 				vm, err = c.clientset.VirtualMachine(vmCopy.Namespace).Update(context.Background(), vmCopy)
 				if err != nil {
 					syncErr = &syncErrorImpl{fmt.Errorf("Error encountered when trying to update vm according to add volume and/or memory dump requests: %v", err), FailedUpdateErrorReason}
@@ -2949,7 +2954,7 @@ func (c *VMController) sync(vm *virtv1.VirtualMachine, vmi *virtv1.VirtualMachin
 	}
 	virtControllerVMWorkQueueTracer.StepTrace(item.key, "sync", trace.Field{Key: "VM Name", Value: vm.Name})
 
-	return vm, syncErr, nil
+	return vm, syncErr, reEnqueued, nil
 }
 
 // resolveControllerRef returns the controller referenced by a ControllerRef,
