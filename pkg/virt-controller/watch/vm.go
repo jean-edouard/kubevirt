@@ -88,8 +88,6 @@ const (
 	failureDeletingVmiErrFormat           = "Failure attempting to delete VMI: %v"
 	failedMemoryDump                      = "Memory dump failed"
 	failedCleanupRestartRequired          = "Failed to delete RestartRequired condition or last-seen controller revisions"
-	failedGetLastSeenCRforVmErrMsg        = "Failed to get last-seen controller revision"
-	failedCreateLastSeenCRforVmErrMsg     = "Failed to create last-seen controller revision"
 
 	// UnauthorizedDataVolumeCreateReason is added in an event when the DataVolume
 	// ServiceAccount doesn't have permission to create a DataVolume
@@ -1123,7 +1121,7 @@ func (c *VMController) cleanupRestartRequired(vm *virtv1.VirtualMachine) error {
 		vmConditionManager.RemoveCondition(vm, virtv1.VirtualMachineRestartRequired)
 	}
 
-	return c.deleteVMRevisions(vm, revisionPrefixLastSeen)
+	return c.deleteVMRevisions(vm)
 }
 
 func (c *VMController) startVMI(vm *virtv1.VirtualMachine) error {
@@ -1497,12 +1495,12 @@ func (c *VMController) stopVMI(vm *virtv1.VirtualMachine, vmi *virtv1.VirtualMac
 	return nil
 }
 
-func vmRevisionNamePrefix(vmUID types.UID) string {
+func vmRevisionName(vmUID types.UID) string {
 	return fmt.Sprintf("revision-start-vm-%s", vmUID)
 }
 
 func getVMRevisionName(vmUID types.UID, generation int64) string {
-	return fmt.Sprintf("%s-%d", vmRevisionNamePrefix(vmUID), generation)
+	return fmt.Sprintf("%s-%d", vmRevisionName(vmUID), generation)
 }
 
 func patchVMRevision(vm *virtv1.VirtualMachine) ([]byte, error) {
@@ -1530,7 +1528,7 @@ func (c *VMController) deleteOlderVMRevision(vm *virtv1.VirtualMachine) (bool, e
 
 	createNotNeeded := false
 	for _, key := range keys {
-		if !strings.Contains(key, vmRevisionNamePrefix(vm.UID)) {
+		if !strings.Contains(key, vmRevisionName(vm.UID)) {
 			continue
 		}
 
@@ -1557,14 +1555,14 @@ func (c *VMController) deleteOlderVMRevision(vm *virtv1.VirtualMachine) (bool, e
 	return createNotNeeded, nil
 }
 
-func (c *VMController) deleteVMRevisions(vm *virtv1.VirtualMachine, prefix string) error {
+func (c *VMController) deleteVMRevisions(vm *virtv1.VirtualMachine) error {
 	keys, err := c.crInformer.GetIndexer().IndexKeys("vm", string(vm.UID))
 	if err != nil {
 		return err
 	}
 
 	for _, key := range keys {
-		if !strings.Contains(key, vmRevisionNamePrefix(vm.UID, prefix)) {
+		if !strings.Contains(key, vmRevisionName(vm.UID)) {
 			continue
 		}
 
@@ -1641,7 +1639,7 @@ func (c *VMController) getLastVMRevisionSpec(vm *virtv1.VirtualMachine) (*virtv1
 	var highestGen int64 = 0
 	var key string
 	for _, k := range keys {
-		if !strings.Contains(k, vmRevisionNamePrefix(vm.UID)) {
+		if !strings.Contains(k, vmRevisionName(vm.UID)) {
 			continue
 		}
 		gen, err := genFromKey(k)
@@ -1663,24 +1661,6 @@ func (c *VMController) getLastVMRevisionSpec(vm *virtv1.VirtualMachine) (*virtv1
 	}
 
 	return c.getVMSpecForKey(key)
-}
-
-func (c *VMController) hasLastSeenRevision(vm *virtv1.VirtualMachine) (bool, error) {
-	keys, err := c.crInformer.GetIndexer().IndexKeys("vm", string(vm.UID))
-	if err != nil {
-		return false, err
-	}
-	if len(keys) == 0 {
-		return false, nil
-	}
-
-	for _, k := range keys {
-		if strings.Contains(k, vmRevisionNamePrefix(vm.UID, revisionPrefixLastSeen)) {
-			return true, nil
-		}
-	}
-
-	return false, nil
 }
 
 func (c *VMController) createVMRevision(vm *virtv1.VirtualMachine) (string, error) {
@@ -2922,13 +2902,14 @@ func (c *VMController) addRestartRequiredIfNeeded(lastSeenVMSpec *virtv1.Virtual
 func (c *VMController) sync(vm *virtv1.VirtualMachine, vmi *virtv1.VirtualMachineInstance, key string, dataVolumes []*cdiv1.DataVolume) (*virtv1.VirtualMachine, syncError, error) {
 	var syncErr syncError
 	var err error
+	var startVMSpec *virtv1.VirtualMachineSpec
 
 	if !c.needsSync(key) {
 		return vm, nil, nil
 	}
 
-	if vm.Generation > 1 {
-		lastSeenVMSpec, err = c.getLastVMRevisionSpec(vm)
+	if vmi != nil {
+		startVMSpec, err = c.getLastVMRevisionSpec(vm)
 		if err != nil {
 			return vm, nil, err
 		}
@@ -3003,7 +2984,7 @@ func (c *VMController) sync(vm *virtv1.VirtualMachine, vmi *virtv1.VirtualMachin
 		}
 	}
 
-	restartRequired := c.addRestartRequiredIfNeeded(lastSeenVMSpec, vm)
+	restartRequired := c.addRestartRequiredIfNeeded(startVMSpec, vm)
 
 	// Must check needsSync again here because a VMI can be created or
 	// deleted in the startStop function which impacts how we process
@@ -3076,6 +3057,7 @@ func (c *VMController) sync(vm *virtv1.VirtualMachine, vmi *virtv1.VirtualMachin
 			}
 		}
 	}
+
 	virtControllerVMWorkQueueTracer.StepTrace(key, "sync", trace.Field{Key: "VM Name", Value: vm.Name})
 
 	return vm, syncErr, nil
