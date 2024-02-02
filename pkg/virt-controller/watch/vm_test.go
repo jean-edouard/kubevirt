@@ -5430,24 +5430,7 @@ var _ = Describe("VirtualMachine", func() {
 			var kv *virtv1.KubeVirt
 			var crList appsv1.ControllerRevisionList
 			var crListLock sync.Mutex
-
-			expectRestartRequired := func(shouldExpect bool) {
-				Eventually(func() {
-					for _, obj := range vmInformer.GetStore().List() {
-						vmObj := obj.(*virtv1.VirtualMachine)
-						if vmObj.ObjectMeta.UID == vm.ObjectMeta.UID {
-							found := false
-							for _, cond := range vmObj.Status.Conditions {
-								if cond.Type == virtv1.VirtualMachineRestartRequired {
-									found = true
-									break
-								}
-							}
-							Expect(found).To(Equal(shouldExpect), "unexpected state of the RestartRequired condition")
-						}
-					}
-				})
-			}
+			var restartRequired bool
 
 			expectVMUpdate := func() {
 				vmInterface.EXPECT().Update(context.Background(), gomock.Any()).DoAndReturn(func(ctx context.Context, arg interface{}) (interface{}, error) {
@@ -5456,7 +5439,18 @@ var _ = Describe("VirtualMachine", func() {
 			}
 
 			expectVMStatusUpdate := func() {
-				vmInterface.EXPECT().UpdateStatus(context.Background(), gomock.Any()).Return(nil, nil)
+				vmInterface.EXPECT().UpdateStatus(context.Background(), gomock.Any()).DoAndReturn(func(ctx context.Context, arg interface{}) (interface{}, error) {
+					vmObj := arg.(*virtv1.VirtualMachine)
+					if vmObj.ObjectMeta.UID == vm.ObjectMeta.UID {
+						for _, cond := range vmObj.Status.Conditions {
+							if cond.Type == virtv1.VirtualMachineRestartRequired {
+								restartRequired = true
+							}
+						}
+					}
+
+					return arg, nil
+				})
 			}
 
 			expectVMICreation := func() {
@@ -5547,6 +5541,8 @@ var _ = Describe("VirtualMachine", func() {
 						},
 					},
 				}
+
+				restartRequired = false
 			})
 
 			AfterEach(func() {
@@ -5567,7 +5563,7 @@ var _ = Describe("VirtualMachine", func() {
 				expectControllerRevisionList()
 				expectControllerRevisionCreation()
 				controller.Execute()
-				expectRestartRequired(false)
+				Expect(restartRequired).To(BeFalse())
 				markAsReady(vmi)
 				vmiFeeder.Add(vmi)
 
@@ -5582,7 +5578,7 @@ var _ = Describe("VirtualMachine", func() {
 				expectControllerRevisionCreation()
 				expectControllerRevisionDelete()
 				controller.Execute()
-				expectRestartRequired(true)
+				Expect(restartRequired).To(BeTrue())
 			})
 
 			It("should appear when VM doesn't specify maxSockets and sockets go above cluster-wide maxSockets", func() {
@@ -5603,7 +5599,7 @@ var _ = Describe("VirtualMachine", func() {
 				expectControllerRevisionList()
 				expectControllerRevisionCreation()
 				controller.Execute()
-				expectRestartRequired(false)
+				Expect(restartRequired).To(BeFalse())
 				markAsReady(vmi)
 				vmiFeeder.Add(vmi)
 
@@ -5619,7 +5615,7 @@ var _ = Describe("VirtualMachine", func() {
 				expectControllerRevisionCreation()
 				expectControllerRevisionDelete()
 				controller.Execute()
-				expectRestartRequired(true)
+				Expect(restartRequired).To(BeTrue())
 			})
 
 			It("should appear when VM doesn't specify maxGuest and guest memory goes above cluster-wide maxGuest", func() {
@@ -5640,7 +5636,7 @@ var _ = Describe("VirtualMachine", func() {
 				expectControllerRevisionList()
 				expectControllerRevisionCreation()
 				controller.Execute()
-				expectRestartRequired(false)
+				Expect(restartRequired).To(BeFalse())
 				markAsReady(vmi)
 				vmi.Status.Memory = &virtv1.MemoryStatus{
 					GuestAtBoot:  &maxGuest,
@@ -5661,7 +5657,7 @@ var _ = Describe("VirtualMachine", func() {
 				expectControllerRevisionCreation()
 				expectControllerRevisionDelete()
 				controller.Execute()
-				expectRestartRequired(true)
+				Expect(restartRequired).To(BeTrue())
 			})
 
 			DescribeTable("when changing a live-updatable field", func(fgs []string, strat *virtv1.VMRolloutStrategy, expectCond bool) {
@@ -5683,7 +5679,7 @@ var _ = Describe("VirtualMachine", func() {
 				Eventually(func() {
 					Expect(crListFor(string(vm.ObjectMeta.UID))).To(HaveLen(2))
 				})
-				expectRestartRequired(false)
+				Expect(restartRequired).To(BeFalse())
 				markAsReady(vmi)
 				vmiFeeder.Add(vmi)
 
@@ -5704,7 +5700,7 @@ var _ = Describe("VirtualMachine", func() {
 				Eventually(func() {
 					Expect(crListFor(string(vm.ObjectMeta.UID))).To(HaveLen(2))
 				})
-				expectRestartRequired(expectCond)
+				Expect(restartRequired).To(Equal(expectCond))
 			},
 				Entry("should appear if the feature gate is not set",
 					[]string{}, &liveUpdate, true),
