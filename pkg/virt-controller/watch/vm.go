@@ -629,7 +629,7 @@ func (c *VMController) VMICPUsPatch(vm *virtv1.VirtualMachine, vmi *virtv1.Virtu
 	return err
 }
 
-func (c *VMController) handleCPUChangeRequest(vm *virtv1.VirtualMachine, vmi *virtv1.VirtualMachineInstance) error {
+func (c *VMController) handleCPUChangeRequest(vm *virtv1.VirtualMachine, vmi *virtv1.VirtualMachineInstance, startVMSpec *virtv1.VirtualMachineSpec) error {
 	if vmi == nil || vmi.DeletionTimestamp != nil {
 		return nil
 	}
@@ -649,6 +649,18 @@ func (c *VMController) handleCPUChangeRequest(vm *virtv1.VirtualMachine, vmi *vi
 
 	if migrations.IsMigrating(vmi) {
 		return fmt.Errorf("CPU hotplug is not allowed while VMI is migrating")
+	}
+
+	if startVMSpec != nil && startVMSpec.Template.Spec.Domain.CPU != nil &&
+		vm.Spec.Template.Spec.Domain.CPU.Sockets < startVMSpec.Template.Spec.Domain.CPU.Sockets {
+		vmConditions := controller.NewVirtualMachineConditionManager()
+		vmConditions.UpdateCondition(vm, &virtv1.VirtualMachineCondition{
+			Type:               virtv1.VirtualMachineRestartRequired,
+			LastTransitionTime: v1.Now(),
+			Status:             k8score.ConditionTrue,
+			Message:            "CPU sockets updated in template spec to a value lower than what the VM started with",
+		})
+		return nil
 	}
 
 	// If the following is true, MaxSockets was calculated, not manually specified (or the validation webhook would have rejected the change).
@@ -3029,7 +3041,7 @@ func (c *VMController) sync(vm *virtv1.VirtualMachine, vmi *virtv1.VirtualMachin
 		}
 
 		if c.clusterConfig.IsVMRolloutStrategyLiveUpdate() && !restartRequired && !conditionManager.HasCondition(vm, virtv1.VirtualMachineRestartRequired) {
-			err = c.handleCPUChangeRequest(vmCopy, vmi)
+			err = c.handleCPUChangeRequest(vmCopy, vmi, startVMSpec)
 			if err != nil {
 				syncErr = &syncErrorImpl{fmt.Errorf("Error encountered while handling CPU change request: %v", err), HotPlugCPUErrorReason}
 			}
@@ -3038,7 +3050,7 @@ func (c *VMController) sync(vm *virtv1.VirtualMachine, vmi *virtv1.VirtualMachin
 				syncErr = &syncErrorImpl{fmt.Errorf("Error encountered while handling node affinity change request: %v", err), AffinityChangeErrorReason}
 			}
 
-			if err := c.handleMemoryHotplugRequest(vmCopy, vmi); err != nil {
+			if err := c.handleMemoryHotplugRequest(vmCopy, vmi, startVMSpec); err != nil {
 				syncErr = &syncErrorImpl{
 					err:    fmt.Errorf("error encountered while handling memory hotplug requests: %v", err),
 					reason: HotPlugMemoryErrorReason,
@@ -3129,7 +3141,7 @@ func (c *VMController) hasOrdinalNetworkInterfaces(vmi *virtv1.VirtualMachineIns
 	return hasOrdinalIfaces, nil
 }
 
-func (c *VMController) handleMemoryHotplugRequest(vm *virtv1.VirtualMachine, vmi *virtv1.VirtualMachineInstance) error {
+func (c *VMController) handleMemoryHotplugRequest(vm *virtv1.VirtualMachine, vmi *virtv1.VirtualMachineInstance, startVMSpec *virtv1.VirtualMachineSpec) error {
 	if vmi == nil || vmi.DeletionTimestamp != nil {
 		return nil
 	}
@@ -3154,6 +3166,20 @@ func (c *VMController) handleMemoryHotplugRequest(vm *virtv1.VirtualMachine, vmi
 
 	if migrations.IsMigrating(vmi) {
 		return fmt.Errorf("memory hotplug is not allowed while VMI is migrating")
+	}
+
+	if vm.Spec.Template.Spec.Domain.Memory.Guest != nil && startVMSpec != nil &&
+		startVMSpec.Template.Spec.Domain.Memory != nil &&
+		startVMSpec.Template.Spec.Domain.Memory.Guest != nil &&
+		vm.Spec.Template.Spec.Domain.Memory.Guest.Cmp(*startVMSpec.Template.Spec.Domain.Memory.Guest) == -1 {
+		vmConditions := controller.NewVirtualMachineConditionManager()
+		vmConditions.UpdateCondition(vm, &virtv1.VirtualMachineCondition{
+			Type:               virtv1.VirtualMachineRestartRequired,
+			LastTransitionTime: v1.Now(),
+			Status:             k8score.ConditionTrue,
+			Message:            "memory updated in template spec to a value lower than what the VM started with",
+		})
+		return nil
 	}
 
 	// If the following is true, MaxGuest was calculated, not manually specified (or the validation webhook would have rejected the change).
