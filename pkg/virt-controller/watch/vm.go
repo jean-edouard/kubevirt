@@ -2865,9 +2865,9 @@ func (c *VMController) trimDoneVolumeRequests(vm *virtv1.VirtualMachine) {
 }
 
 // addRestartRequiredIfNeeded adds the restartRequired condition to the VM if any non-live-updatable field was changed
-func (c *VMController) addRestartRequiredIfNeeded(lastSeenVMSpec *virtv1.VirtualMachineSpec, vm *virtv1.VirtualMachine) bool {
+func (c *VMController) addRestartRequiredIfNeeded(lastSeenVMSpec *virtv1.VirtualMachineSpec, vm *virtv1.VirtualMachine) (*virtv1.VirtualMachine, bool) {
 	if lastSeenVMSpec == nil {
-		return false
+		return vm, false
 	}
 	// Ignore all the live-updatable fields by copying them over. (If the feature gate is disabled, nothing is live-updatable)
 	// Note: this list needs to stay up-to-date with everything that can be live-updated
@@ -2886,6 +2886,7 @@ func (c *VMController) addRestartRequiredIfNeeded(lastSeenVMSpec *virtv1.Virtual
 	}
 
 	if !equality.Semantic.DeepEqual(lastSeenVMSpec.Template.Spec, vm.Spec.Template.Spec) {
+		vm = vm.DeepCopy()
 		vmConditionManager := controller.NewVirtualMachineConditionManager()
 		vmConditionManager.UpdateCondition(vm, &virtv1.VirtualMachineCondition{
 			Type:               virtv1.VirtualMachineRestartRequired,
@@ -2893,10 +2894,10 @@ func (c *VMController) addRestartRequiredIfNeeded(lastSeenVMSpec *virtv1.Virtual
 			Status:             k8score.ConditionTrue,
 			Message:            "a non-live-updatable field was changed in the template spec",
 		})
-		return true
+		return vm, true
 	}
 
-	return false
+	return vm, false
 }
 
 func (c *VMController) sync(vm *virtv1.VirtualMachine, vmi *virtv1.VirtualMachineInstance, key string, dataVolumes []*cdiv1.DataVolume) (*virtv1.VirtualMachine, syncError, error) {
@@ -2984,7 +2985,7 @@ func (c *VMController) sync(vm *virtv1.VirtualMachine, vmi *virtv1.VirtualMachin
 		}
 	}
 
-	restartRequired := c.addRestartRequiredIfNeeded(startVMSpec, vm)
+	vm, restartRequired := c.addRestartRequiredIfNeeded(startVMSpec, vm)
 
 	// Must check needsSync again here because a VMI can be created or
 	// deleted in the startStop function which impacts how we process
