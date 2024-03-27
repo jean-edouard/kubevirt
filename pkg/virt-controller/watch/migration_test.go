@@ -87,6 +87,7 @@ var _ = Describe("Migration watcher", func() {
 	var controller *MigrationController
 	var recorder *record.FakeRecorder
 	var mockQueue *testutils.MockWorkQueue
+	var mockPendingQueue *testutils.MockWorkQueue
 	var podFeeder *testutils.PodFeeder
 	var virtClient *kubecli.MockKubevirtClient
 	var kubeClient *fake.Clientset
@@ -312,6 +313,9 @@ var _ = Describe("Migration watcher", func() {
 		mockQueue = testutils.NewMockWorkQueue(controller.Queue)
 		controller.Queue = mockQueue
 		podFeeder = testutils.NewPodFeeder(mockQueue, podSource)
+
+		mockPendingQueue = testutils.NewMockWorkQueue(controller.pendingQueue)
+		controller.pendingQueue = mockPendingQueue
 	}
 
 	BeforeEach(func() {
@@ -723,7 +727,9 @@ var _ = Describe("Migration watcher", func() {
 
 			shouldExpectGenericMigrationUpdate()
 
+			mockPendingQueue.ExpectAdds(1)
 			controller.Execute()
+			mockPendingQueue.Wait()
 		})
 
 		It("should not overload the cluster and detect pending migrations as running if they have a target pod", func() {
