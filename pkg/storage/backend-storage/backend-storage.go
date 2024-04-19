@@ -22,6 +22,7 @@ package backendstorage
 import (
 	"context"
 	"fmt"
+	"sync"
 
 	virtconfig "kubevirt.io/kubevirt/pkg/virt-config"
 
@@ -68,7 +69,70 @@ func IsBackendStorageNeededForVM(vm *corev1.VirtualMachine) bool {
 	return HasPersistentTPMDevice(&vm.Spec.Template.Spec)
 }
 
-func CreateIfNeeded(vmi *corev1.VirtualMachineInstance, clusterConfig *virtconfig.ClusterConfig, client kubecli.KubevirtClient) error {
+func getStorageClass(clusterConfig *virtconfig.ClusterConfig) (string, error) {
+	storageClass := clusterConfig.GetVMStateStorageClass()
+	if storageClass != "" {
+		return storageClass, nil
+	}
+
+	// get default storage class for cluster and return that
+
+	return "", fmt.Errorf("no default storage class found")
+}
+
+type BackendStorage struct {
+	accessModeCache map[string]v1.PersistentVolumeAccessMode
+	cacheLock       sync.Mutex
+}
+
+func NewBackendStorage() *BackendStorage {
+	return &BackendStorage{}
+}
+
+func (bs *BackendStorage) getMode(client kubecli.KubevirtClient, storageClass string, mode v1.PersistentVolumeMode) v1.PersistentVolumeAccessMode {
+	bs.cacheLock.Lock()
+	defer bs.cacheLock.Unlock()
+	accessMode, exists := bs.accessModeCache[storageClass]
+	if exists {
+		return accessMode
+	}
+
+	sps, err := client.CdiClient().CdiV1beta1().StorageProfiles().List(context.Background(), metav1.ListOptions{
+		FieldSelector: "status.storageClass=" + storageClass,
+	})
+	if err != nil || len(sps.Items) != 1 {
+		return v1.ReadWriteMany
+	}
+
+	bs.accessModeCache[storageClass] = v1.ReadWriteMany
+	if sps.Items[0].Spec.ClaimPropertySets == nil || len(sps.Items[0].Spec.ClaimPropertySets) == 0 {
+		return v1.ReadWriteMany
+	}
+
+	foundrwo := false
+	for _, property := range sps.Items[0].Spec.ClaimPropertySets {
+		if property.VolumeMode != nil && *property.VolumeMode == mode {
+			if property.AccessModes != nil {
+				for _, accessMode = range property.AccessModes {
+					if accessMode == v1.ReadWriteMany {
+						return v1.ReadWriteMany
+					}
+					if accessMode == v1.ReadWriteOnce {
+						foundrwo = true
+					}
+				}
+			}
+		}
+	}
+	if foundrwo {
+		bs.accessModeCache[storageClass] = v1.ReadWriteOnce
+		return v1.ReadWriteOnce
+	}
+
+	return v1.ReadWriteMany
+}
+
+func (bs *BackendStorage) CreateIfNeeded(vmi *corev1.VirtualMachineInstance, clusterConfig *virtconfig.ClusterConfig, client kubecli.KubevirtClient) error {
 	if !IsBackendStorageNeededForVMI(&vmi.Spec) {
 		return nil
 	}
@@ -81,11 +145,12 @@ func CreateIfNeeded(vmi *corev1.VirtualMachineInstance, clusterConfig *virtconfi
 		return err
 	}
 
-	modeFile := v1.PersistentVolumeFilesystem
-	storageClass := clusterConfig.GetVMStateStorageClass()
-	if storageClass == "" {
-		return fmt.Errorf("backend VM storage requires a backend storage class defined in the custom resource")
+	storageClass, err := getStorageClass(clusterConfig)
+	if err != nil {
+		return err
 	}
+	mode := v1.PersistentVolumeFilesystem
+	accessMode := bs.getMode(client, storageClass, mode)
 	ownerReferences := vmi.OwnerReferences
 	if len(vmi.OwnerReferences) == 0 {
 		// If the VMI has no owner, then it did not originate from a VM.
@@ -102,12 +167,12 @@ func CreateIfNeeded(vmi *corev1.VirtualMachineInstance, clusterConfig *virtconfi
 			OwnerReferences: ownerReferences,
 		},
 		Spec: v1.PersistentVolumeClaimSpec{
-			AccessModes: []v1.PersistentVolumeAccessMode{v1.ReadWriteMany},
+			AccessModes: []v1.PersistentVolumeAccessMode{accessMode},
 			Resources: v1.ResourceRequirements{
 				Requests: v1.ResourceList{v1.ResourceStorage: resource.MustParse(PVCSize)},
 			},
 			StorageClassName: &storageClass,
-			VolumeMode:       &modeFile,
+			VolumeMode:       &mode,
 		},
 	}
 

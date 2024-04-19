@@ -166,6 +166,7 @@ func NewVMIController(templateService services.TemplateService,
 		clusterConfig:     clusterConfig,
 		topologyHinter:    topologyHinter,
 		cidsMap:           newCIDsMap(),
+		backendStorage:    backendstorage.NewBackendStorage(),
 	}
 
 	c.hasSynced = func() bool {
@@ -270,6 +271,7 @@ type VMIController struct {
 	cdiConfigStore    cache.Store
 	clusterConfig     *virtconfig.ClusterConfig
 	cidsMap           *cidsMap
+	backendStorage    *backendstorage.BackendStorage
 	hasSynced         func() bool
 }
 
@@ -1182,7 +1184,7 @@ func (c *VMIController) sync(vmi *virtv1.VirtualMachineInstance, pod *k8sv1.Pod,
 		return syncErr
 	}
 
-	err := backendstorage.CreateIfNeeded(vmi, c.clusterConfig, c.clientset)
+	err := c.backendStorage.CreateIfNeeded(vmi, c.clusterConfig, c.clientset)
 	if err != nil {
 		return &syncErrorImpl{
 			err:    err,
