@@ -160,7 +160,6 @@ func NewVMIController(templateService services.TemplateService,
 		vmStore:           vmInformer.GetStore(),
 		podIndexer:        podInformer.GetIndexer(),
 		pvcIndexer:        pvcInformer.GetIndexer(),
-		storageClassStore: storageClassInformer.GetStore(),
 		recorder:          recorder,
 		clientset:         clientset,
 		podExpectations:   controller.NewUIDTrackingControllerExpectations(controller.NewControllerExpectations()),
@@ -171,6 +170,7 @@ func NewVMIController(templateService services.TemplateService,
 		clusterConfig:     clusterConfig,
 		topologyHinter:    topologyHinter,
 		cidsMap:           newCIDsMap(),
+		backendStorage:    backendstorage.NewBackendStorage(clientset, clusterConfig, storageClassInformer.GetStore()),
 	}
 
 	c.hasSynced = func() bool {
@@ -276,6 +276,7 @@ type VMIController struct {
 	cdiConfigStore    cache.Store
 	clusterConfig     *virtconfig.ClusterConfig
 	cidsMap           *cidsMap
+	backendStorage    *backendstorage.BackendStorage
 	hasSynced         func() bool
 }
 
@@ -1183,7 +1184,7 @@ func (c *VMIController) sync(vmi *virtv1.VirtualMachineInstance, pod *k8sv1.Pod,
 		// do not return; just log the error
 	}
 
-	err := backendstorage.CreateIfNeeded(vmi, c.clusterConfig, c.clientset)
+	err := c.backendStorage.CreateIfNeeded(vmi)
 	if err != nil {
 		return &syncErrorImpl{err, FailedBackendStorageCreateReason}
 	}
@@ -1212,7 +1213,7 @@ func (c *VMIController) sync(vmi *virtv1.VirtualMachineInstance, pod *k8sv1.Pod,
 
 		// Ensure the backend storage PVC is ready
 		var backendStorageReady bool
-		backendStorageReady, err = backendstorage.IsPVCReady(vmi, c.clientset, c.storageClassStore)
+		backendStorageReady, err = c.backendStorage.IsPVCReady(vmi)
 		if err != nil {
 			return &syncErrorImpl{err, FailedBackendStorageProbeReason}
 		}

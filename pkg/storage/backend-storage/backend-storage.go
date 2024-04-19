@@ -22,6 +22,11 @@ package backendstorage
 import (
 	"context"
 	"fmt"
+	"sync"
+
+	"kubevirt.io/client-go/log"
+
+	"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 
 	"k8s.io/client-go/tools/cache"
 
@@ -71,12 +76,102 @@ func IsBackendStorageNeededForVM(vm *corev1.VirtualMachine) bool {
 	return HasPersistentTPMDevice(&vm.Spec.Template.Spec)
 }
 
-func CreateIfNeeded(vmi *corev1.VirtualMachineInstance, clusterConfig *virtconfig.ClusterConfig, client kubecli.KubevirtClient) error {
+type BackendStorage struct {
+	client          kubecli.KubevirtClient
+	clusterConfig   *virtconfig.ClusterConfig
+	scStore         cache.Store
+	accessModeCache map[string]v1.PersistentVolumeAccessMode
+	cacheLock       sync.Mutex
+}
+
+func NewBackendStorage(client kubecli.KubevirtClient, clusterConfig *virtconfig.ClusterConfig, scStore cache.Store) *BackendStorage {
+	return &BackendStorage{
+		client:          client,
+		clusterConfig:   clusterConfig,
+		scStore:         scStore,
+		accessModeCache: map[string]v1.PersistentVolumeAccessMode{},
+	}
+}
+
+func (bs *BackendStorage) getStorageClass() (string, error) {
+	storageClass := bs.clusterConfig.GetVMStateStorageClass()
+	if storageClass != "" {
+		return storageClass, nil
+	}
+
+	for _, obj := range bs.scStore.List() {
+		sc := obj.(*storagev1.StorageClass)
+		if sc.Annotations["storageclass.kubernetes.io/is-default-class"] == "true" {
+			return sc.Name, nil
+		}
+	}
+
+	return "", fmt.Errorf("no default storage class found")
+}
+
+func (bs *BackendStorage) getMode(storageClass string, mode v1.PersistentVolumeMode) v1.PersistentVolumeAccessMode {
+	var storageProfile *v1beta1.StorageProfile
+	bs.cacheLock.Lock()
+	defer bs.cacheLock.Unlock()
+	accessMode, exists := bs.accessModeCache[storageClass]
+	if exists {
+		return accessMode
+	}
+
+	// status.storageClass is unfortunately not a supported field label.
+	// If storage profiles are guaranteed to have the same name as their storage class, this could just be a get.
+	sps, err := bs.client.CdiClient().CdiV1beta1().StorageProfiles().List(context.Background(), metav1.ListOptions{})
+	if err != nil {
+		// CDI not present most likely
+		log.Log.Reason(err).Info("couldn't list storage profiles, defaulting to RWX")
+		return v1.ReadWriteMany
+	}
+	for _, sp := range sps.Items {
+		if sp.Status.StorageClass != nil && *sp.Status.StorageClass == storageClass {
+			storageProfile = &sp
+			break
+		}
+	}
+	if storageProfile == nil {
+		log.Log.Infof("no storage profile found for %s, defaulting to RWX", storageClass)
+		return v1.ReadWriteMany
+	}
+
+	bs.accessModeCache[storageClass] = v1.ReadWriteMany
+	if storageProfile.Status.ClaimPropertySets == nil || len(storageProfile.Status.ClaimPropertySets) == 0 {
+		log.Log.Infof("no ClaimPropertySets in storage profile %s, defaulting to RWX", storageProfile.Name)
+		return v1.ReadWriteMany
+	}
+
+	foundrwo := false
+	for _, property := range storageProfile.Status.ClaimPropertySets {
+		if property.VolumeMode != nil && *property.VolumeMode == mode {
+			if property.AccessModes != nil {
+				for _, accessMode = range property.AccessModes {
+					if accessMode == v1.ReadWriteMany {
+						return v1.ReadWriteMany
+					}
+					if accessMode == v1.ReadWriteOnce {
+						foundrwo = true
+					}
+				}
+			}
+		}
+	}
+	if foundrwo {
+		bs.accessModeCache[storageClass] = v1.ReadWriteOnce
+		return v1.ReadWriteOnce
+	}
+
+	return v1.ReadWriteMany
+}
+
+func (bs *BackendStorage) CreateIfNeeded(vmi *corev1.VirtualMachineInstance) error {
 	if !IsBackendStorageNeededForVMI(&vmi.Spec) {
 		return nil
 	}
 
-	_, err := client.CoreV1().PersistentVolumeClaims(vmi.Namespace).Get(context.Background(), PVCForVMI(vmi), metav1.GetOptions{})
+	_, err := bs.client.CoreV1().PersistentVolumeClaims(vmi.Namespace).Get(context.Background(), PVCForVMI(vmi), metav1.GetOptions{})
 	if err == nil {
 		return nil
 	}
@@ -84,11 +179,12 @@ func CreateIfNeeded(vmi *corev1.VirtualMachineInstance, clusterConfig *virtconfi
 		return err
 	}
 
-	modeFile := v1.PersistentVolumeFilesystem
-	storageClass := clusterConfig.GetVMStateStorageClass()
-	if storageClass == "" {
-		return fmt.Errorf("backend VM storage requires a backend storage class defined in the custom resource")
+	storageClass, err := bs.getStorageClass()
+	if err != nil {
+		return err
 	}
+	mode := v1.PersistentVolumeFilesystem
+	accessMode := bs.getMode(storageClass, mode)
 	ownerReferences := vmi.OwnerReferences
 	if len(vmi.OwnerReferences) == 0 {
 		// If the VMI has no owner, then it did not originate from a VM.
@@ -105,16 +201,16 @@ func CreateIfNeeded(vmi *corev1.VirtualMachineInstance, clusterConfig *virtconfi
 			OwnerReferences: ownerReferences,
 		},
 		Spec: v1.PersistentVolumeClaimSpec{
-			AccessModes: []v1.PersistentVolumeAccessMode{v1.ReadWriteMany},
+			AccessModes: []v1.PersistentVolumeAccessMode{accessMode},
 			Resources: v1.ResourceRequirements{
 				Requests: v1.ResourceList{v1.ResourceStorage: resource.MustParse(PVCSize)},
 			},
 			StorageClassName: &storageClass,
-			VolumeMode:       &modeFile,
+			VolumeMode:       &mode,
 		},
 	}
 
-	_, err = client.CoreV1().PersistentVolumeClaims(vmi.Namespace).Create(context.Background(), pvc, metav1.CreateOptions{})
+	_, err = bs.client.CoreV1().PersistentVolumeClaims(vmi.Namespace).Create(context.Background(), pvc, metav1.CreateOptions{})
 	if errors.IsAlreadyExists(err) {
 		return nil
 	}
@@ -126,12 +222,12 @@ func CreateIfNeeded(vmi *corev1.VirtualMachineInstance, clusterConfig *virtconfi
 // - No PVC is needed for the VMI since it doesn't use backend storage
 // - The backend storage PVC is bound
 // - The backend storage PVC is pending uses a WaitForFirstConsumer storage class
-func IsPVCReady(vmi *corev1.VirtualMachineInstance, client kubecli.KubevirtClient, scStore cache.Store) (bool, error) {
+func (bs *BackendStorage) IsPVCReady(vmi *corev1.VirtualMachineInstance) (bool, error) {
 	if !IsBackendStorageNeededForVMI(&vmi.Spec) {
 		return true, nil
 	}
 
-	pvc, err := client.CoreV1().PersistentVolumeClaims(vmi.Namespace).Get(context.Background(), PVCForVMI(vmi), metav1.GetOptions{})
+	pvc, err := bs.client.CoreV1().PersistentVolumeClaims(vmi.Namespace).Get(context.Background(), PVCForVMI(vmi), metav1.GetOptions{})
 	if err != nil {
 		return false, err
 	}
@@ -145,7 +241,7 @@ func IsPVCReady(vmi *corev1.VirtualMachineInstance, client kubecli.KubevirtClien
 		if pvc.Spec.StorageClassName == nil {
 			return false, fmt.Errorf("no storage class name")
 		}
-		obj, exists, err := scStore.GetByKey(*pvc.Spec.StorageClassName)
+		obj, exists, err := bs.scStore.GetByKey(*pvc.Spec.StorageClassName)
 		if err != nil {
 			return false, err
 		}
