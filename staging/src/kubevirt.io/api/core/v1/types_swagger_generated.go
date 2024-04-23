@@ -82,6 +82,7 @@ func (VirtualMachineInstanceStatus) SwaggerDoc() map[string]string {
 		"machine":                       "Machine shows the final resulting qemu machine type. This can be different\nthan the machine type selected in the spec, due to qemus machine type alias mechanism.\n+optional",
 		"currentCPUTopology":            "CurrentCPUTopology specifies the current CPU topology used by the VM workload.\nCurrent topology may differ from the desired topology in the spec while CPU hotplug\ntakes place.",
 		"memory":                        "Memory shows various informations about the VirtualMachine memory.\n+optional",
+		"backendStorage":                "BackendStorage contains information about the PVC used to store the backend state of the VM",
 	}
 }
 

@@ -16024,6 +16024,21 @@
      }
     }
    },
+   "v1.BackendStorageStatus": {
+    "type": "object",
+    "properties": {
+     "accessMode": {
+      "description": "AccessMode is the access mode of the PVC (RWO/RWX)\n\nPossible enum values:\n - `\"ReadOnlyMany\"` can be mounted in read-only mode to many hosts\n - `\"ReadWriteMany\"` can be mounted in read/write mode to many hosts\n - `\"ReadWriteOnce\"` can be mounted in read/write mode to exactly 1 host\n - `\"ReadWriteOncePod\"` can be mounted in read/write mode to exactly 1 pod cannot be used in combination with other access modes",
+      "type": "string",
+      "enum": [
+       "ReadOnlyMany",
+       "ReadWriteMany",
+       "ReadWriteOnce",
+       "ReadWriteOncePod"
+      ]
+     }
+    }
+   },
    "v1.BlockSize": {
     "description": "BlockSize provides the option to change the block size presented to the VM for a disk. Only one of its members may be specified.",
     "type": "object",
@@ -20653,6 +20668,10 @@
        "type": "string",
        "default": ""
       }
+     },
+     "backendStorage": {
+      "description": "BackendStorage contains information about the PVC used to store the backend state of the VM",
+      "$ref": "#/definitions/v1.BackendStorageStatus"
      },
      "conditions": {
       "description": "Conditions are specific points in VirtualMachineInstance's pod runtime.",

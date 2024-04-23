@@ -403,6 +403,11 @@ type MemoryStatus struct {
 	GuestRequested *resource.Quantity `json:"guestRequested,omitempty"`
 }
 
+type BackendStorageStatus struct {
+	// AccessMode is the access mode of the PVC (RWO/RWX)
+	AccessMode *v1.PersistentVolumeAccessMode `json:"accessMode,omitempty"`
+}
+
 // Hugepages allow to use hugepages for the VirtualMachineInstance instead of regular memory.
 type Hugepages struct {
 	// PageSize specifies the hugepage size, for x86_64 architecture valid values are 1Gi and 2Mi.

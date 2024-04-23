@@ -12016,6 +12016,14 @@ var CRDsValidation map[string]string = map[string]string{
           description: ActivePods is a mapping of pod UID to node name. It is possible
             for multiple pods to be running for a single VMI during migration.
           type: object
+        backendStorage:
+          description: BackendStorage contains information about the PVC used to store
+            the backend state of the VM
+          properties:
+            accessMode:
+              description: AccessMode is the access mode of the PVC (RWO/RWX)
+              type: string
+          type: object
         conditions:
           description: Conditions are specific points in VirtualMachineInstance's
             pod runtime.

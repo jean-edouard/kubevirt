@@ -315,6 +315,7 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"kubevirt.io/api/core/v1.ArchSpecificConfiguration":                                          schema_kubevirtio_api_core_v1_ArchSpecificConfiguration(ref),
 		"kubevirt.io/api/core/v1.AuthorizedKeysFile":                                                 schema_kubevirtio_api_core_v1_AuthorizedKeysFile(ref),
 		"kubevirt.io/api/core/v1.BIOS":                                                               schema_kubevirtio_api_core_v1_BIOS(ref),
+		"kubevirt.io/api/core/v1.BackendStorageStatus":                                               schema_kubevirtio_api_core_v1_BackendStorageStatus(ref),
 		"kubevirt.io/api/core/v1.BlockSize":                                                          schema_kubevirtio_api_core_v1_BlockSize(ref),
 		"kubevirt.io/api/core/v1.Bootloader":                                                         schema_kubevirtio_api_core_v1_Bootloader(ref),
 		"kubevirt.io/api/core/v1.CDRomTarget":                                                        schema_kubevirtio_api_core_v1_CDRomTarget(ref),
@@ -15774,6 +15775,26 @@ func schema_kubevirtio_api_core_v1_BIOS(ref common.ReferenceCallback) common.Ope
 	}
 }
 
+func schema_kubevirtio_api_core_v1_BackendStorageStatus(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"accessMode": {
+						SchemaProps: spec.SchemaProps{
+							Description: "AccessMode is the access mode of the PVC (RWO/RWX)\n\nPossible enum values:\n - `\"ReadOnlyMany\"` can be mounted in read-only mode to many hosts\n - `\"ReadWriteMany\"` can be mounted in read/write mode to many hosts\n - `\"ReadWriteOnce\"` can be mounted in read/write mode to exactly 1 host\n - `\"ReadWriteOncePod\"` can be mounted in read/write mode to exactly 1 pod cannot be used in combination with other access modes",
+							Type:        []string{"string"},
+							Format:      "",
+							Enum:        []interface{}{"ReadOnlyMany", "ReadWriteMany", "ReadWriteOnce", "ReadWriteOncePod"},
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
 func schema_kubevirtio_api_core_v1_BlockSize(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
@@ -24658,11 +24679,17 @@ func schema_kubevirtio_api_core_v1_VirtualMachineInstanceStatus(ref common.Refer
 							Ref:         ref("kubevirt.io/api/core/v1.MemoryStatus"),
 						},
 					},
+					"backendStorage": {
+						SchemaProps: spec.SchemaProps{
+							Description: "BackendStorage contains information about the PVC used to store the backend state of the VM",
+							Ref:         ref("kubevirt.io/api/core/v1.BackendStorageStatus"),
+						},
+					},
 				},
 			},
 		},
 		Dependencies: []string{
-			"kubevirt.io/api/core/v1.CPUTopology", "kubevirt.io/api/core/v1.KernelBootStatus", "kubevirt.io/api/core/v1.Machine", "kubevirt.io/api/core/v1.MemoryStatus", "kubevirt.io/api/core/v1.TopologyHints", "kubevirt.io/api/core/v1.VirtualMachineInstanceCondition", "kubevirt.io/api/core/v1.VirtualMachineInstanceGuestOSInfo", "kubevirt.io/api/core/v1.VirtualMachineInstanceMigrationState", "kubevirt.io/api/core/v1.VirtualMachineInstanceNetworkInterface", "kubevirt.io/api/core/v1.VirtualMachineInstancePhaseTransitionTimestamp", "kubevirt.io/api/core/v1.VolumeStatus"},
+			"kubevirt.io/api/core/v1.BackendStorageStatus", "kubevirt.io/api/core/v1.CPUTopology", "kubevirt.io/api/core/v1.KernelBootStatus", "kubevirt.io/api/core/v1.Machine", "kubevirt.io/api/core/v1.MemoryStatus", "kubevirt.io/api/core/v1.TopologyHints", "kubevirt.io/api/core/v1.VirtualMachineInstanceCondition", "kubevirt.io/api/core/v1.VirtualMachineInstanceGuestOSInfo", "kubevirt.io/api/core/v1.VirtualMachineInstanceMigrationState", "kubevirt.io/api/core/v1.VirtualMachineInstanceNetworkInterface", "kubevirt.io/api/core/v1.VirtualMachineInstancePhaseTransitionTimestamp", "kubevirt.io/api/core/v1.VolumeStatus"},
 	}
 }
 

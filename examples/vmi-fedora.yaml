@@ -8,6 +8,8 @@ metadata:
 spec:
   domain:
     devices:
+      tpm:
+        persistent: true
       disks:
       - disk:
           bus: virtio

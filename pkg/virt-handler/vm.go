@@ -1093,8 +1093,7 @@ func (d *VirtualMachineController) updateAccessCredentialConditions(vmi *v1.Virt
 }
 
 func (d *VirtualMachineController) updateLiveMigrationConditions(vmi *v1.VirtualMachineInstance, condManager *controller.VirtualMachineInstanceConditionManager) {
-
-	// Cacluate whether the VM is migratable
+	// Calculate whether the VM is migratable
 	liveMigrationCondition, isBlockMigration := d.calculateLiveMigrationCondition(vmi)
 	if !condManager.HasCondition(vmi, v1.VirtualMachineInstanceIsMigratable) {
 		vmi.Status.Conditions = append(vmi.Status.Conditions, *liveMigrationCondition)
@@ -2502,6 +2501,10 @@ func (d *VirtualMachineController) checkNetworkInterfacesForMigration(vmi *v1.Vi
 }
 
 func (d *VirtualMachineController) checkVolumesForMigration(vmi *v1.VirtualMachineInstance) (blockMigrate bool, err error) {
+	if vmi.Status.BackendStorage != nil && vmi.Status.BackendStorage.AccessMode != nil &&
+		*vmi.Status.BackendStorage.AccessMode != k8sv1.ReadWriteMany {
+		return true, fmt.Errorf("cannot migrate VMI: Backend storage PVC is not RWX")
+	}
 
 	volumeStatusMap := make(map[string]v1.VolumeStatus)
 

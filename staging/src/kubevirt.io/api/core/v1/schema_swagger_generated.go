@@ -214,6 +214,12 @@ func (MemoryStatus) SwaggerDoc() map[string]string {
 	}
 }
 
+func (BackendStorageStatus) SwaggerDoc() map[string]string {
+	return map[string]string{
+		"accessMode": "AccessMode is the access mode of the PVC (RWO/RWX)",
+	}
+}
+
 func (Hugepages) SwaggerDoc() map[string]string {
 	return map[string]string{
 		"":         "Hugepages allow to use hugepages for the VirtualMachineInstance instead of regular memory.",

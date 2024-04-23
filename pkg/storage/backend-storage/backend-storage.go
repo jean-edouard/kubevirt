@@ -166,22 +166,22 @@ func (bs *BackendStorage) getMode(storageClass string, mode v1.PersistentVolumeM
 	return v1.ReadWriteMany
 }
 
-func (bs *BackendStorage) CreateIfNeeded(vmi *corev1.VirtualMachineInstance) error {
+func (bs *BackendStorage) CreateIfNeeded(vmi *corev1.VirtualMachineInstance) (v1.PersistentVolumeAccessMode, error) {
 	if !IsBackendStorageNeededForVMI(&vmi.Spec) {
-		return nil
+		return "", nil
 	}
 
-	_, err := bs.client.CoreV1().PersistentVolumeClaims(vmi.Namespace).Get(context.Background(), PVCForVMI(vmi), metav1.GetOptions{})
+	pvc, err := bs.client.CoreV1().PersistentVolumeClaims(vmi.Namespace).Get(context.Background(), PVCForVMI(vmi), metav1.GetOptions{})
 	if err == nil {
-		return nil
+		return pvc.Spec.AccessModes[0], nil
 	}
 	if !errors.IsNotFound(err) {
-		return err
+		return "", err
 	}
 
 	storageClass, err := bs.getStorageClass()
 	if err != nil {
-		return err
+		return "", err
 	}
 	mode := v1.PersistentVolumeFilesystem
 	accessMode := bs.getMode(storageClass, mode)
@@ -195,7 +195,7 @@ func (bs *BackendStorage) CreateIfNeeded(vmi *corev1.VirtualMachineInstance) err
 			*metav1.NewControllerRef(vmi, corev1.VirtualMachineInstanceGroupVersionKind),
 		}
 	}
-	pvc := &v1.PersistentVolumeClaim{
+	pvc = &v1.PersistentVolumeClaim{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:            PVCForVMI(vmi),
 			OwnerReferences: ownerReferences,
@@ -210,12 +210,12 @@ func (bs *BackendStorage) CreateIfNeeded(vmi *corev1.VirtualMachineInstance) err
 		},
 	}
 
-	_, err = bs.client.CoreV1().PersistentVolumeClaims(vmi.Namespace).Create(context.Background(), pvc, metav1.CreateOptions{})
+	pvc, err = bs.client.CoreV1().PersistentVolumeClaims(vmi.Namespace).Create(context.Background(), pvc, metav1.CreateOptions{})
 	if errors.IsAlreadyExists(err) {
-		return nil
+		return pvc.Spec.AccessModes[0], nil
 	}
 
-	return err
+	return accessMode, err
 }
 
 // IsPVCReady returns true if either:

@@ -294,6 +294,9 @@ type VirtualMachineInstanceStatus struct {
 	// Memory shows various informations about the VirtualMachine memory.
 	// +optional
 	Memory *MemoryStatus `json:"memory,omitempty"`
+
+	// BackendStorage contains information about the PVC used to store the backend state of the VM
+	BackendStorage *BackendStorageStatus `json:"backendStorage,omitempty"`
 }
 
 // PersistentVolumeClaimInfo contains the relavant information virt-handler needs cached about a PVC

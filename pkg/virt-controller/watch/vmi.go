@@ -1184,9 +1184,12 @@ func (c *VMIController) sync(vmi *virtv1.VirtualMachineInstance, pod *k8sv1.Pod,
 		// do not return; just log the error
 	}
 
-	err := c.backendStorage.CreateIfNeeded(vmi)
+	accessMode, err := c.backendStorage.CreateIfNeeded(vmi)
 	if err != nil {
 		return &syncErrorImpl{err, FailedBackendStorageCreateReason}
+	}
+	if accessMode != "" {
+		vmi.Status.BackendStorage = &virtv1.BackendStorageStatus{AccessMode: &accessMode}
 	}
 
 	dataVolumesReady, isWaitForFirstConsumer, syncErr := c.handleSyncDataVolumes(vmi, dataVolumes)
