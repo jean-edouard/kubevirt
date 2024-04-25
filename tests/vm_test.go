@@ -211,9 +211,15 @@ var _ = Describe("[rfe_id:1177][crit:medium][vendor:cnv-qe@redhat.com][level:com
 			}, 10*time.Second, 1*time.Second).Should(Succeed())
 		}
 
-		DescribeTable("cpu/memory in requests/limits should allow", func(cpu, request string) {
+		DescribeTable("[Serial]cpu/memory in requests/limits should allow", Serial, func(cpu, request string) {
 			const oldCpu = "222"
 			const oldMemory = "2222222"
+
+			// These tests set CPU+memory requests+limits, so they must explicitly run under the Stage VM rollout strategy
+			kv := util.GetCurrentKv(virtClient)
+			stage := v1.VMRolloutStrategyStage
+			kv.Spec.Configuration.VMRolloutStrategy = &stage
+			tests.UpdateKubeVirtConfigValueAndWait(kv.Spec.Configuration)
 
 			vm := libvmi.NewVirtualMachine(libvmifact.NewCirros())
 			vm.Namespace = testsuite.GetTestNamespace(vm)
@@ -600,7 +606,13 @@ var _ = Describe("[rfe_id:1177][crit:medium][vendor:cnv-qe@redhat.com][level:com
 			By("Verifying that the VM status eventually gets set to FailedUnschedulable")
 			Eventually(ThisVM(vm), 300*time.Second, 1*time.Second).Should(HavePrintableStatus(v1.VirtualMachineStatusUnschedulable))
 		},
-			Entry("[test_id:6867]with unsatisfiable resource requirements", func(vmi *v1.VirtualMachineInstance) {
+			Entry("[test_id:6867][Serial]with unsatisfiable resource requirements", Serial, func(vmi *v1.VirtualMachineInstance) {
+				// This test sets CPU+memory requests, so it must explicitly run under the Stage VM rollout strategy
+				kv := util.GetCurrentKv(virtClient)
+				stage := v1.VMRolloutStrategyStage
+				kv.Spec.Configuration.VMRolloutStrategy = &stage
+				tests.UpdateKubeVirtConfigValueAndWait(kv.Spec.Configuration)
+
 				vmi.Spec.Domain.Resources.Requests = corev1.ResourceList{
 					// This may stop working sometime around 2040
 					corev1.ResourceMemory: resource.MustParse("1Ei"),
@@ -1896,7 +1908,13 @@ status:
 			}, 2*time.Minute, 1*time.Second).Should(Succeed())
 		})
 
-		It("should be removed when the vm has child resources, such as instance type ControllerRevisions, that have been deleted before the vm - issue #9438", func() {
+		It("[Serial]should be removed when the vm has child resources, such as instance type ControllerRevisions, that have been deleted before the vm - issue #9438", Serial, func() {
+			// This test sets CPU+memory requests, so it must explicitly run under the Stage VM rollout strategy
+			kv := util.GetCurrentKv(virtClient)
+			stage := v1.VMRolloutStrategyStage
+			kv.Spec.Configuration.VMRolloutStrategy = &stage
+			tests.UpdateKubeVirtConfigValueAndWait(kv.Spec.Configuration)
+
 			By("creating a VirtualMachineClusterInstancetype")
 			instancetype := &instancetypev1beta1.VirtualMachineClusterInstancetype{
 				ObjectMeta: metav1.ObjectMeta{
