@@ -6041,10 +6041,9 @@ var _ = Describe("VirtualMachine", func() {
 
 				By("Executing the controller expecting the RestartRequired condition to appear")
 				sanityExecute(vm)
-				_, err = virtFakeClient.KubevirtV1().VirtualMachines(vm.Namespace).Get(context.TODO(), vm.Name, metav1.GetOptions{})
+				vm, err = virtFakeClient.KubevirtV1().VirtualMachines(vm.Namespace).Get(context.TODO(), vm.Name, metav1.GetOptions{})
 				Expect(err).To(Succeed())
-				// TODO fix
-				// Expect(vm.Status.Conditions).To(restartRequiredMatcher(k8sv1.ConditionTrue), "restart required")
+				Expect(vm.Status.Conditions).To(restartRequiredMatcher(k8sv1.ConditionTrue), "restart required")
 			})
 
 			It("should appear when VM doesn't specify maxGuest and guest memory goes above cluster-wide maxGuest", func() {
@@ -6079,10 +6078,9 @@ var _ = Describe("VirtualMachine", func() {
 
 				By("Executing the controller expecting the RestartRequired condition to appear")
 				sanityExecute(vm)
-				_, err = virtFakeClient.KubevirtV1().VirtualMachines(vm.Namespace).Get(context.TODO(), vm.Name, metav1.GetOptions{})
+				vm, err = virtFakeClient.KubevirtV1().VirtualMachines(vm.Namespace).Get(context.TODO(), vm.Name, metav1.GetOptions{})
 				Expect(err).To(Succeed())
-				// TODO fix
-				// Expect(vm.Status.Conditions).To(restartRequiredMatcher(k8sv1.ConditionTrue), "restart required")
+				Expect(vm.Status.Conditions).To(restartRequiredMatcher(k8sv1.ConditionTrue), "restart required")
 			})
 
 			DescribeTable("when changing a live-updatable field", func(fgs []string, strat *v1.VMRolloutStrategy, matcher gomegatypes.GomegaMatcher) {

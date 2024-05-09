@@ -3166,6 +3166,9 @@ func (c *VMController) sync(vm *virtv1.VirtualMachine, vmi *virtv1.VirtualMachin
 				}
 			}
 		}
+
+		// VM status changes are applied outside of this function
+		vm.Status = *vmCopy.Status.DeepCopy()
 	}
 
 	virtControllerVMWorkQueueTracer.StepTrace(key, "sync", trace.Field{Key: "VM Name", Value: vm.Name})
