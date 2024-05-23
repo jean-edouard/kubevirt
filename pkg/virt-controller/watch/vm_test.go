@@ -6505,15 +6505,13 @@ var _ = Describe("VirtualMachine", func() {
 				vm, _ := DefaultVirtualMachine(true)
 				vm.Spec.Running = nil
 				vm.Spec.RunStrategy = kvpointer.P(v1.RunStrategyRerunOnFailure)
+				vm.Generation = 1
 
 				vm, err := virtFakeClient.KubevirtV1().VirtualMachines(vm.Namespace).Create(context.TODO(), vm, metav1.CreateOptions{})
 				Expect(err).ToNot(HaveOccurred())
 
 				addVirtualMachine(vm)
 				sanityExecute(vm)
-
-				crSource.Add(createVMRevision(vm))
-				syncCache(controller.crIndexer)
 
 				vmi, err := virtFakeClient.KubevirtV1().VirtualMachineInstances(vm.Namespace).Get(context.TODO(), vm.Name, metav1.GetOptions{})
 				Expect(err).ToNot(HaveOccurred())
@@ -6525,15 +6523,13 @@ var _ = Describe("VirtualMachine", func() {
 
 				By("Change RunStrategy to Halted")
 				vm.Spec.RunStrategy = kvpointer.P(v1.RunStrategyHalted)
+				vm.Generation = 2
 
 				vm, err = virtFakeClient.KubevirtV1().VirtualMachines(vm.Namespace).Update(context.TODO(), vm, metav1.UpdateOptions{})
 				Expect(err).ToNot(HaveOccurred())
 
 				addVirtualMachine(vm)
 				sanityExecute(vm)
-
-				crSource.Delete(createVMRevision(vm))
-				syncCache(controller.crIndexer)
 
 				// let the controller pick up the deletion
 				vmiFeeder.Delete(vmi)
@@ -6544,6 +6540,7 @@ var _ = Describe("VirtualMachine", func() {
 
 				By("Change RunStrategy back to RerunOnFailure")
 				vm.Spec.RunStrategy = kvpointer.P(v1.RunStrategyRerunOnFailure)
+				vm.Generation = 3
 
 				vm, err = virtFakeClient.KubevirtV1().VirtualMachines(vm.Namespace).Update(context.TODO(), vm, metav1.UpdateOptions{})
 				Expect(err).ToNot(HaveOccurred())
