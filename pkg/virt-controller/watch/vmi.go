@@ -2378,7 +2378,7 @@ func (c *VMIController) generateBackendVolumeStatus(vmi *virtv1.VirtualMachineIn
 	}
 
 	return &virtv1.VolumeStatus{
-		Name: backendstorage.PodVolumeName(vmi.Name),
+		Name: backendstorage.PVCForVMI(vmi),
 		PersistentVolumeClaimInfo: &virtv1.PersistentVolumeClaimInfo{
 			AccessModes:  pvc.Spec.AccessModes,
 			VolumeMode:   pvc.Spec.VolumeMode,
