@@ -93,6 +93,13 @@ const (
 	// This feature requires following Kubernetes feature gate "ServiceAccountTokenPodNodeInfo". The feature gate is available
 	// in Kubernetes 1.30 as Beta.
 	NodeRestrictionGate = "NodeRestriction"
+
+	// Owner: @jean-edouard
+	// Alpha: v1.4.0
+	//
+	// MigrateBlockBackendStorage enables the migration of VMIs that use currently migration-unsafe backend-storage in
+	// block mode.
+	MigrateBlockBackendStorageGate = "MigrateBlockBackendStorage"
 )
 
 func (config *ClusterConfig) isFeatureGateEnabled(featureGate string) bool {
@@ -267,4 +274,8 @@ func (config *ClusterConfig) VolumeMigrationEnabled() bool {
 
 func (config *ClusterConfig) NodeRestrictionEnabled() bool {
 	return config.isFeatureGateEnabled(NodeRestrictionGate)
+}
+
+func (config *ClusterConfig) MigrateBlockBackendStorageEnabled() bool {
+	return config.isFeatureGateEnabled(MigrateBlockBackendStorageGate)
 }
