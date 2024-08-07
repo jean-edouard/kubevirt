@@ -23,8 +23,6 @@ import (
 
 	"kubevirt.io/kubevirt/pkg/libvmi"
 	libvmici "kubevirt.io/kubevirt/pkg/libvmi/cloudinit"
-	backendstorage "kubevirt.io/kubevirt/pkg/storage/backend-storage"
-
 	"kubevirt.io/kubevirt/tests/console"
 	"kubevirt.io/kubevirt/tests/decorators"
 	"kubevirt.io/kubevirt/tests/libnet"
@@ -208,9 +206,12 @@ var _ = Describe("[sig-storage]VM state", decorators.SigStorage, decorators.Requ
 				if !errors.IsNotFound(err) {
 					return fmt.Errorf("VM %s not removed: %v", vmi.Name, err)
 				}
-				_, err = virtClient.CoreV1().PersistentVolumeClaims(vmi.Namespace).Get(context.Background(), backendstorage.PVCForVMI(vmi), k8smetav1.GetOptions{})
-				if !errors.IsNotFound(err) {
-					return fmt.Errorf("PVC %s not removed: %v", backendstorage.PVCForVMI(vmi), err)
+				pvcs, err := virtClient.CoreV1().PersistentVolumeClaims(vmi.Namespace).List(context.Background(), k8smetav1.ListOptions{
+					LabelSelector: "persistent-state-for=" + vmi.Name,
+				})
+				Expect(err).ToNot(HaveOccurred())
+				if len(pvcs.Items) > 0 {
+					return fmt.Errorf("PVC %s not removed: %v", pvcs.Items[0].Name, err)
 				}
 				return nil
 			}, 300*time.Second, 1*time.Second).ShouldNot(HaveOccurred())

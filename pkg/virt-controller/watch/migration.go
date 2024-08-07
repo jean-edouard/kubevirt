@@ -29,6 +29,8 @@ import (
 	"sync"
 	"time"
 
+	backendstorage "kubevirt.io/kubevirt/pkg/storage/backend-storage"
+
 	"github.com/opencontainers/selinux/go-selinux"
 
 	"kubevirt.io/api/migrations/v1alpha1"
@@ -100,6 +102,8 @@ type MigrationController struct {
 	migrationIndexer     cache.Indexer
 	nodeStore            cache.Store
 	pvcStore             cache.Store
+	storageClassStore    cache.Store
+	storageProfileStore  cache.Store
 	pdbIndexer           cache.Indexer
 	migrationPolicyStore cache.Store
 	resourceQuotaIndexer cache.Indexer
@@ -125,6 +129,8 @@ func NewMigrationController(templateService services.TemplateService,
 	migrationInformer cache.SharedIndexInformer,
 	nodeInformer cache.SharedIndexInformer,
 	pvcInformer cache.SharedIndexInformer,
+	storageClassInformer cache.SharedIndexInformer,
+	storageProfileInformer cache.SharedIndexInformer,
 	pdbInformer cache.SharedIndexInformer,
 	migrationPolicyInformer cache.SharedIndexInformer,
 	resourceQuotaInformer cache.SharedIndexInformer,
@@ -141,6 +147,8 @@ func NewMigrationController(templateService services.TemplateService,
 		migrationIndexer:     migrationInformer.GetIndexer(),
 		nodeStore:            nodeInformer.GetStore(),
 		pvcStore:             pvcInformer.GetStore(),
+		storageClassStore:    storageClassInformer.GetStore(),
+		storageProfileStore:  storageProfileInformer.GetStore(),
 		pdbIndexer:           pdbInformer.GetIndexer(),
 		resourceQuotaIndexer: resourceQuotaInformer.GetIndexer(),
 		migrationPolicyStore: migrationPolicyInformer.GetStore(),
@@ -648,8 +656,8 @@ func setTargetPodSELinuxLevel(pod *k8sv1.Pod, vmiSeContext string) error {
 	return nil
 }
 
-func (c *MigrationController) createTargetPod(migration *virtv1.VirtualMachineInstanceMigration, vmi *virtv1.VirtualMachineInstance, sourcePod *k8sv1.Pod) error {
-	templatePod, err := c.templateService.RenderMigrationManifest(vmi, sourcePod)
+func (c *MigrationController) createTargetPod(migration *virtv1.VirtualMachineInstanceMigration, vmi *virtv1.VirtualMachineInstance, sourcePod *k8sv1.Pod, backendStoragePVCName string) error {
+	templatePod, err := c.templateService.RenderMigrationManifest(vmi, sourcePod, backendStoragePVCName)
 	if err != nil {
 		return fmt.Errorf("failed to render launch manifest: %v", err)
 	}
@@ -1063,7 +1071,12 @@ func (c *MigrationController) handleTargetPodCreation(key string, migration *vir
 				return nil
 			}
 		}
-		return c.createTargetPod(migration, vmi, sourcePod)
+		bs := backendstorage.NewBackendStorage(c.clientset, c.clusterConfig, c.storageClassStore, c.storageProfileStore, c.pvcStore)
+		backendStoragePVCName, err := bs.CreateIfNeededAndUpdateVolumeStatus(vmi)
+		if err != nil {
+			return err
+		}
+		return c.createTargetPod(migration, vmi, sourcePod, backendStoragePVCName)
 	}
 	return nil
 }

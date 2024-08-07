@@ -212,7 +212,7 @@ var _ = Describe("Template", func() {
 		}
 		It("should not set seccomp profile by default", func() {
 			_, kvStore, svc = configFactory(defaultArch)
-			pod, err := svc.RenderLaunchManifest(newMinimalWithContainerDisk("random"))
+			pod, err := svc.RenderLaunchManifest(newMinimalWithContainerDisk("random"), nil)
 			Expect(err).NotTo(HaveOccurred())
 
 			Expect(pod.Spec.SecurityContext.SeccompProfile).To(BeNil())
@@ -234,7 +234,7 @@ var _ = Describe("Template", func() {
 			}
 			testutils.UpdateFakeKubeVirtClusterConfig(kvStore, kvConfig)
 
-			pod, err := svc.RenderLaunchManifest(newMinimalWithContainerDisk("random"))
+			pod, err := svc.RenderLaunchManifest(newMinimalWithContainerDisk("random"), nil)
 			Expect(err).NotTo(HaveOccurred())
 
 			Expect(pod.Spec.SecurityContext.SeccompProfile).To(BeEquivalentTo(expectedProfile))
@@ -261,7 +261,7 @@ var _ = Describe("Template", func() {
 
 			DescribeTable("all containers", func(assertFunc checkContainerFunc) {
 				config, kvStore, svc = configFactory(defaultArch)
-				pod, err := svc.RenderLaunchManifest(vmi)
+				pod, err := svc.RenderLaunchManifest(vmi, nil)
 				Expect(err).NotTo(HaveOccurred())
 
 				for _, container := range pod.Spec.InitContainers {
@@ -295,7 +295,7 @@ var _ = Describe("Template", func() {
 							},
 						},
 					},
-				})
+				}, nil)
 
 				Expect(err).ToNot(HaveOccurred())
 				for key, expectedValue := range podExpectedAnnotation {
@@ -359,7 +359,7 @@ var _ = Describe("Template", func() {
 							},
 						},
 					},
-				})
+				}, nil)
 				Expect(err).ToNot(HaveOccurred())
 
 				for key := range podExpectedAnnotation {
@@ -409,7 +409,7 @@ var _ = Describe("Template", func() {
 						},
 						Architecture: arch,
 					},
-				})
+				}, nil)
 				Expect(err).ToNot(HaveOccurred())
 
 				Expect(pod.Spec.Containers).To(HaveLen(2))
@@ -493,7 +493,7 @@ var _ = Describe("Template", func() {
 						},
 					}},
 				}
-				pod, err := svc.RenderLaunchManifest(&vmi)
+				pod, err := svc.RenderLaunchManifest(&vmi, nil)
 				Expect(err).ToNot(HaveOccurred())
 				if pod.Spec.SecurityContext != nil {
 					Expect(pod.Spec.SecurityContext.SELinuxOptions).To(BeNil())
@@ -515,7 +515,7 @@ var _ = Describe("Template", func() {
 						},
 					}},
 				}
-				pod, err := svc.RenderLaunchManifest(&vmi)
+				pod, err := svc.RenderLaunchManifest(&vmi, nil)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(pod.Spec.SecurityContext).ToNot(BeNil())
 				Expect(pod.Spec.SecurityContext.SELinuxOptions).ToNot(BeNil())
@@ -570,7 +570,7 @@ var _ = Describe("Template", func() {
 						},
 					},
 				}
-				pod, err := svc.RenderLaunchManifest(&vmi)
+				pod, err := svc.RenderLaunchManifest(&vmi, nil)
 				Expect(err).ToNot(HaveOccurred())
 				for _, c := range pod.Spec.Containers {
 					if c.Name != "compute" {
@@ -603,7 +603,7 @@ var _ = Describe("Template", func() {
 					},
 				}
 
-				pod, err := svc.RenderLaunchManifest(&vmi)
+				pod, err := svc.RenderLaunchManifest(&vmi, nil)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(pod.Spec.Containers).To(HaveLen(1))
 				debugLogsValue := ""
@@ -635,7 +635,7 @@ var _ = Describe("Template", func() {
 					},
 				}
 
-				pod, err := svc.RenderLaunchManifest(&vmi)
+				pod, err := svc.RenderLaunchManifest(&vmi, nil)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(pod.Spec.Containers).To(HaveLen(1))
 				debugLogsValue := ""
@@ -687,7 +687,7 @@ var _ = Describe("Template", func() {
 					},
 				}
 
-				pod, err := svc.RenderLaunchManifest(&vmi)
+				pod, err := svc.RenderLaunchManifest(&vmi, nil)
 				Expect(err).ToNot(HaveOccurred())
 
 				volumeFound := false
@@ -732,7 +732,7 @@ var _ = Describe("Template", func() {
 					},
 				}
 
-				pod, err := svc.RenderLaunchManifest(&vmi)
+				pod, err := svc.RenderLaunchManifest(&vmi, nil)
 				Expect(err).ToNot(HaveOccurred())
 
 				volumeFound := false
@@ -777,7 +777,7 @@ var _ = Describe("Template", func() {
 					},
 				}
 
-				pod, err := svc.RenderLaunchManifest(&vmi)
+				pod, err := svc.RenderLaunchManifest(&vmi, nil)
 				Expect(err).ToNot(HaveOccurred())
 
 				volumeFound := false
@@ -828,7 +828,7 @@ var _ = Describe("Template", func() {
 					},
 				}
 
-				pod, err := svc.RenderLaunchManifest(&vmi)
+				pod, err := svc.RenderLaunchManifest(&vmi, nil)
 				Expect(err).ToNot(HaveOccurred())
 
 				cloudInitVolumeFound := false
@@ -878,7 +878,7 @@ var _ = Describe("Template", func() {
 					},
 				}
 
-				pod, err := svc.RenderLaunchManifest(&vmi)
+				pod, err := svc.RenderLaunchManifest(&vmi, nil)
 				Expect(err).ToNot(HaveOccurred())
 
 				cloudInitVolumeFound := false
@@ -932,7 +932,7 @@ var _ = Describe("Template", func() {
 					}},
 				}
 
-				pod, err := svc.RenderLaunchManifest(&vmi)
+				pod, err := svc.RenderLaunchManifest(&vmi, nil)
 				Expect(err).ToNot(HaveOccurred())
 
 				Expect(pod.Spec.InitContainers).To(HaveLen(3))
@@ -957,7 +957,7 @@ var _ = Describe("Template", func() {
 				config, kvStore, svc = configFactory(defaultArch)
 				vmi := api.NewMinimalVMI("fake-vmi")
 
-				pod, err := svc.RenderLaunchManifest(vmi)
+				pod, err := svc.RenderLaunchManifest(vmi, nil)
 				Expect(err).ToNot(HaveOccurred())
 				_, ok := pod.Annotations[v1.MigrationTransportUnixAnnotation]
 				Expect(ok).To(BeTrue())
@@ -996,7 +996,7 @@ var _ = Describe("Template", func() {
 					},
 				}
 
-				pod, err := svc.RenderLaunchManifest(&vmi)
+				pod, err := svc.RenderLaunchManifest(&vmi, nil)
 				Expect(err).ToNot(HaveOccurred())
 				value, ok := pod.Annotations[networkv1.NetworkAttachmentAnnot]
 				Expect(ok).To(BeTrue())
@@ -1035,7 +1035,7 @@ var _ = Describe("Template", func() {
 					},
 				}
 
-				pod, err := svc.RenderLaunchManifest(&vmi)
+				pod, err := svc.RenderLaunchManifest(&vmi, nil)
 				Expect(err).ToNot(HaveOccurred())
 				value, ok := pod.Annotations[multus.DefaultNetworkCNIAnnotation]
 				Expect(ok).To(BeTrue())
@@ -1081,7 +1081,7 @@ var _ = Describe("Template", func() {
 					},
 				}
 
-				pod, err := svc.RenderLaunchManifest(&vmi)
+				pod, err := svc.RenderLaunchManifest(&vmi, nil)
 				Expect(err).ToNot(HaveOccurred())
 				value, ok := pod.Annotations[networkv1.NetworkAttachmentAnnot]
 				Expect(ok).To(BeTrue())
@@ -1124,11 +1124,11 @@ var _ = Describe("Template", func() {
 						},
 					}
 
-					sourcePod, err := svc.RenderLaunchManifest(vmi)
+					sourcePod, err := svc.RenderLaunchManifest(vmi, nil)
 					Expect(err).ToNot(HaveOccurred())
 					sourcePod.ObjectMeta.Annotations[networkv1.NetworkStatusAnnot] = migrationSourcePodNetworksAnnotation[networkv1.NetworkStatusAnnot]
 
-					targetPod, err := svc.RenderMigrationManifest(vmi, sourcePod)
+					targetPod, err := svc.RenderMigrationManifest(vmi, sourcePod, nil)
 					Expect(err).ToNot(HaveOccurred())
 
 					Expect(targetPod.Annotations[networkv1.NetworkAttachmentAnnot]).To(MatchJSON(expectedTargetPodMultusNetworksAnnotation[networkv1.NetworkAttachmentAnnot]))
@@ -1186,7 +1186,7 @@ var _ = Describe("Template", func() {
 					},
 				}
 
-				pod, err := svc.RenderLaunchManifest(&vmi)
+				pod, err := svc.RenderLaunchManifest(&vmi, nil)
 				Expect(err).ToNot(HaveOccurred())
 				value, ok := pod.Annotations[istio.KubeVirtTrafficAnnotation]
 				Expect(ok).To(BeTrue())
@@ -1210,7 +1210,7 @@ var _ = Describe("Template", func() {
 					},
 				}
 				var err error
-				pod, err = svc.RenderLaunchManifest(&vmi)
+				pod, err = svc.RenderLaunchManifest(&vmi, nil)
 				Expect(err).ToNot(HaveOccurred())
 			})
 			It("should mount default serviceAccountToken", func() {
@@ -1234,7 +1234,7 @@ var _ = Describe("Template", func() {
 					},
 				}}}
 
-				pod, err := svc.RenderLaunchManifest(&vmi)
+				pod, err := svc.RenderLaunchManifest(&vmi, nil)
 				Expect(err).ToNot(HaveOccurred())
 
 				Expect(pod.Spec.Containers).To(HaveLen(2))
@@ -1319,7 +1319,7 @@ var _ = Describe("Template", func() {
 					},
 				}
 
-				pod, err := svc.RenderLaunchManifest(&vmi)
+				pod, err := svc.RenderLaunchManifest(&vmi, nil)
 				Expect(err).ToNot(HaveOccurred())
 
 				cpuModelLabel := v1.CPUModelLabel + vmiCpuModel
@@ -1348,7 +1348,7 @@ var _ = Describe("Template", func() {
 						},
 					}},
 				}
-				pod, err := svc.RenderLaunchManifest(&vmi)
+				pod, err := svc.RenderLaunchManifest(&vmi, nil)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(pod.Spec.NodeSelector).To(HaveKeyWithValue(k8sv1.LabelHostname, "node02"))
 				Expect(pod.Spec.NodeSelector).To(HaveKeyWithValue("node-role.kubernetes.io/compute", "true"))
@@ -1376,7 +1376,7 @@ var _ = Describe("Template", func() {
 					},
 				}
 
-				pod, err := svc.RenderLaunchManifest(&vmi)
+				pod, err := svc.RenderLaunchManifest(&vmi, nil)
 				Expect(err).ToNot(HaveOccurred())
 
 				Expect(pod.Spec.NodeSelector).To(Not(HaveKey(ContainSubstring(v1.HypervLabel))))
@@ -1414,7 +1414,7 @@ var _ = Describe("Template", func() {
 					},
 				}
 
-				pod, err := svc.RenderLaunchManifest(&vmi)
+				pod, err := svc.RenderLaunchManifest(&vmi, nil)
 				Expect(err).ToNot(HaveOccurred())
 
 				Expect(pod.Spec.NodeSelector).To(Not(HaveKey(ContainSubstring(v1.HypervLabel))))
@@ -1458,7 +1458,7 @@ var _ = Describe("Template", func() {
 					},
 				}
 
-				pod, err := svc.RenderLaunchManifest(&vmi)
+				pod, err := svc.RenderLaunchManifest(&vmi, nil)
 				Expect(err).ToNot(HaveOccurred())
 
 				Expect(pod.Spec.NodeSelector).Should(HaveKeyWithValue(v1.HypervLabel+"synic", "true"))
@@ -1511,7 +1511,7 @@ var _ = Describe("Template", func() {
 					},
 				}
 
-				pod, err := svc.RenderLaunchManifest(&vmi)
+				pod, err := svc.RenderLaunchManifest(&vmi, nil)
 				Expect(err).ToNot(HaveOccurred())
 
 				Expect(pod.Spec.NodeSelector).To(Not(HaveKey(ContainSubstring(v1.HypervLabel))))
@@ -1553,7 +1553,7 @@ var _ = Describe("Template", func() {
 					setVmWithTscRequirementType(vmi, tscRequirementType)
 
 					By("Rendering the vm into a pod")
-					pod, err := svc.RenderLaunchManifest(vmi)
+					pod, err := svc.RenderLaunchManifest(vmi, nil)
 					Expect(err).ToNot(HaveOccurred())
 
 					if isLabelExpected {
@@ -1601,7 +1601,7 @@ var _ = Describe("Template", func() {
 					},
 				}
 
-				pod, err := svc.RenderLaunchManifest(&vmi)
+				pod, err := svc.RenderLaunchManifest(&vmi, nil)
 				Expect(err).ToNot(HaveOccurred())
 				cpu := resource.MustParse("200m")
 				mem := resource.MustParse("64M")
@@ -1722,7 +1722,7 @@ var _ = Describe("Template", func() {
 					},
 				}
 
-				pod, err := svc.RenderLaunchManifest(&vmi)
+				pod, err := svc.RenderLaunchManifest(&vmi, nil)
 				Expect(err).ToNot(HaveOccurred())
 				cpu := resource.MustParse(expectedCPULimits)
 				Expect(pod.Spec.Containers[0].Resources.Limits.Cpu().Cmp(cpu)).To(BeZero())
@@ -1749,7 +1749,7 @@ var _ = Describe("Template", func() {
 						},
 					},
 				}
-				pod, err := svc.RenderLaunchManifest(&vmi)
+				pod, err := svc.RenderLaunchManifest(&vmi, nil)
 				Expect(err).ToNot(HaveOccurred())
 
 				Expect(pod.Spec.Affinity).To(BeEquivalentTo(&k8sv1.Affinity{NodeAffinity: &nodeAffinity}))
@@ -1769,7 +1769,7 @@ var _ = Describe("Template", func() {
 						},
 					},
 				}
-				pod, err := svc.RenderLaunchManifest(&vm)
+				pod, err := svc.RenderLaunchManifest(&vm, nil)
 				Expect(err).ToNot(HaveOccurred())
 
 				Expect(pod.Spec.Affinity.PodAffinity).To(BeEquivalentTo(&podAffinity))
@@ -1789,7 +1789,7 @@ var _ = Describe("Template", func() {
 						},
 					},
 				}
-				pod, err := svc.RenderLaunchManifest(&vm)
+				pod, err := svc.RenderLaunchManifest(&vm, nil)
 				Expect(err).ToNot(HaveOccurred())
 
 				Expect(pod.Spec.Affinity.PodAntiAffinity).To(BeEquivalentTo(&podAntiAffinity))
@@ -1815,7 +1815,7 @@ var _ = Describe("Template", func() {
 						},
 					},
 				}
-				pod, err := svc.RenderLaunchManifest(&vm)
+				pod, err := svc.RenderLaunchManifest(&vm, nil)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(pod.Spec.Tolerations).To(BeEquivalentTo([]k8sv1.Toleration{{Key: podToleration.Key, TolerationSeconds: &tolerationSeconds}}))
 			})
@@ -1845,7 +1845,7 @@ var _ = Describe("Template", func() {
 						},
 					},
 				}
-				pod, err := svc.RenderLaunchManifest(&vm)
+				pod, err := svc.RenderLaunchManifest(&vm, nil)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(pod.Spec.TopologySpreadConstraints).To(Equal(topologySpreadConstraints))
 			})
@@ -1863,7 +1863,7 @@ var _ = Describe("Template", func() {
 						},
 					},
 				}
-				pod, err := svc.RenderLaunchManifest(&vm)
+				pod, err := svc.RenderLaunchManifest(&vm, nil)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(pod.Spec.SchedulerName).To(Equal("test-scheduler"))
 			})
@@ -1885,7 +1885,7 @@ var _ = Describe("Template", func() {
 						Subdomain: "mydomain",
 					},
 				}
-				pod, err := svc.RenderLaunchManifest(&vmi)
+				pod, err := svc.RenderLaunchManifest(&vmi, nil)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(pod.Spec.Hostname).To(Equal(vmi.Spec.Hostname))
 				Expect(pod.Spec.Subdomain).To(Equal(vmi.Spec.Subdomain))
@@ -1910,7 +1910,7 @@ var _ = Describe("Template", func() {
 						},
 					},
 				}
-				pod, err := svc.RenderLaunchManifest(&vmi)
+				pod, err := svc.RenderLaunchManifest(&vmi, nil)
 				Expect(err).ToNot(HaveOccurred())
 
 				Expect(pod.Labels).To(Equal(
@@ -1939,7 +1939,7 @@ var _ = Describe("Template", func() {
 						},
 					},
 				}
-				pod, err := svc.RenderLaunchManifest(&vmi)
+				pod, err := svc.RenderLaunchManifest(&vmi, nil)
 				Expect(err).ToNot(HaveOccurred())
 
 				Expect(pod.Spec.Affinity).To(BeNil())
@@ -1960,7 +1960,7 @@ var _ = Describe("Template", func() {
 						},
 					},
 				}
-				pod, err := svc.RenderLaunchManifest(&vmi)
+				pod, err := svc.RenderLaunchManifest(&vmi, nil)
 				Expect(err).ToNot(HaveOccurred())
 
 				for _, term := range pod.Spec.Affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution.NodeSelectorTerms {
@@ -2008,7 +2008,7 @@ var _ = Describe("Template", func() {
 					},
 				}
 
-				pod, err := svc.RenderLaunchManifest(&vmi)
+				pod, err := svc.RenderLaunchManifest(&vmi, nil)
 				Expect(err).ToNot(HaveOccurred())
 
 				Expect(pod.Spec.Containers[0].Resources.Requests.Cpu().String()).To(Equal("1m"))
@@ -2047,7 +2047,7 @@ var _ = Describe("Template", func() {
 					},
 				}
 
-				pod, err := svc.RenderLaunchManifest(&vmi)
+				pod, err := svc.RenderLaunchManifest(&vmi, nil)
 				Expect(err).ToNot(HaveOccurred())
 
 				Expect(pod.Spec.Containers[0].Resources.Requests.Memory().String()).To(Equal("1G"))
@@ -2082,7 +2082,7 @@ var _ = Describe("Template", func() {
 					},
 				}
 
-				pod, err := svc.RenderLaunchManifest(&vmi)
+				pod, err := svc.RenderLaunchManifest(&vmi, nil)
 				Expect(err).ToNot(HaveOccurred())
 
 				Expect(vmi.Spec.Domain.Resources.Requests.Memory().String()).To(Equal("64M"))
@@ -2125,7 +2125,7 @@ var _ = Describe("Template", func() {
 					AutoattachGraphicsDevice: autoAttach,
 				}
 
-				pod, err := svc.RenderLaunchManifest(&vmi)
+				pod, err := svc.RenderLaunchManifest(&vmi, nil)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(pod.Spec.Containers[0].Resources.Requests.Memory().ToDec().ScaledValue(resource.Mega)).To(Equal(int64(memory)))
 			},
@@ -2161,11 +2161,11 @@ var _ = Describe("Template", func() {
 					},
 				}
 
-				pod, err := svc.RenderLaunchManifest(&vmi)
+				pod, err := svc.RenderLaunchManifest(&vmi, nil)
 				Expect(err).ToNot(HaveOccurred())
 				coresMemVal := pod.Spec.Containers[0].Resources.Requests.Memory()
 				vmi.Spec.Domain.CPU = &v1.CPU{Sockets: 3}
-				pod, err = svc.RenderLaunchManifest(&vmi)
+				pod, err = svc.RenderLaunchManifest(&vmi, nil)
 				Expect(err).ToNot(HaveOccurred())
 				socketsMemVal := pod.Spec.Containers[0].Resources.Requests.Memory()
 				Expect(coresMemVal.Cmp(*socketsMemVal)).To(Equal(0))
@@ -2188,7 +2188,7 @@ var _ = Describe("Template", func() {
 					},
 				}
 
-				pod, err := svc.RenderLaunchManifest(&vmi)
+				pod, err := svc.RenderLaunchManifest(&vmi, nil)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(pod.Spec.Containers[0].Resources.Requests.Cpu().String()).To(Equal("300m"))
 			})
@@ -2214,7 +2214,7 @@ var _ = Describe("Template", func() {
 					},
 				}
 
-				pod, err := svc.RenderLaunchManifest(&vmi)
+				pod, err := svc.RenderLaunchManifest(&vmi, nil)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(pod.Spec.Containers[0].Resources.Requests.Cpu().String()).To(Equal("3"))
 			})
@@ -2235,7 +2235,7 @@ var _ = Describe("Template", func() {
 					},
 				}
 
-				pod, err := svc.RenderLaunchManifest(&vmi)
+				pod, err := svc.RenderLaunchManifest(&vmi, nil)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(pod.Spec.Containers[0].Resources.Requests.Cpu().String()).To(Equal("300m"))
 			})
@@ -2266,7 +2266,7 @@ var _ = Describe("Template", func() {
 					},
 				}
 
-				pod, err := svc.RenderLaunchManifest(&vmi)
+				pod, err := svc.RenderLaunchManifest(&vmi, nil)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(pod.Spec.Containers[0].Resources.Requests.Cpu().String()).To(Equal("150m"))
 			})
@@ -2304,7 +2304,7 @@ var _ = Describe("Template", func() {
 					},
 				}
 
-				pod, err := svc.RenderLaunchManifest(&vmi)
+				pod, err := svc.RenderLaunchManifest(&vmi, nil)
 				Expect(err).ToNot(HaveOccurred())
 
 				Expect(pod.Spec.Containers[0].Resources.Requests.Memory().ToDec().ScaledValue(resource.Mega)).To(Equal(int64(memorySize)))
@@ -2381,7 +2381,7 @@ var _ = Describe("Template", func() {
 					},
 				}
 
-				pod, err := svc.RenderLaunchManifest(&vmi)
+				pod, err := svc.RenderLaunchManifest(&vmi, nil)
 				Expect(err).ToNot(HaveOccurred())
 				guestRequestMemDiff := vmi.Spec.Domain.Resources.Requests.Memory()
 				guestRequestMemDiff.Sub(guestMem)
@@ -2459,7 +2459,7 @@ var _ = Describe("Template", func() {
 					}},
 				}
 
-				pod, err := svc.RenderLaunchManifest(&vmi)
+				pod, err := svc.RenderLaunchManifest(&vmi, nil)
 				Expect(err).ToNot(HaveOccurred(), "Render manifest successfully")
 
 				Expect(pod.Spec.Containers[0].VolumeDevices).To(BeEmpty(), "No devices in manifest for 1st container")
@@ -2528,7 +2528,7 @@ var _ = Describe("Template", func() {
 					}},
 				}
 
-				pod, err := svc.RenderLaunchManifest(&vmi)
+				pod, err := svc.RenderLaunchManifest(&vmi, nil)
 				Expect(err).ToNot(HaveOccurred(), "Render manifest successfully")
 
 				Expect(pod.Spec.Containers[0].VolumeDevices).ToNot(BeEmpty(), "Found some devices for 1st container")
@@ -2578,7 +2578,7 @@ var _ = Describe("Template", func() {
 					}},
 				}
 
-				_, err := svc.RenderLaunchManifest(&vmi)
+				_, err := svc.RenderLaunchManifest(&vmi, nil)
 				Expect(err).To(HaveOccurred(), "Render manifest results in an error")
 				Expect(err).To(BeAssignableToTypeOf(storagetypes.PvcNotFoundError{}), "Render manifest results in an PvsNotFoundError")
 			})
@@ -2630,7 +2630,7 @@ var _ = Describe("Template", func() {
 						},
 					},
 				}
-				pod, err := svc.RenderLaunchManifest(&vmi)
+				pod, err := svc.RenderLaunchManifest(&vmi, nil)
 				Expect(err).ToNot(HaveOccurred())
 
 				Expect(pod.Spec.Containers[0].Name).To(Equal("compute"))
@@ -2657,7 +2657,7 @@ var _ = Describe("Template", func() {
 					}},
 				}
 
-				pod, err := svc.RenderLaunchManifest(&vmi)
+				pod, err := svc.RenderLaunchManifest(&vmi, nil)
 				Expect(err).ToNot(HaveOccurred())
 
 				Expect(pod.Spec.ImagePullSecrets).To(HaveLen(1))
@@ -2700,7 +2700,7 @@ var _ = Describe("Template", func() {
 
 			It("should add secret to pod spec", func() {
 				config, kvStore, svc = configFactory(defaultArch)
-				pod, err := svc.RenderLaunchManifest(&vmi)
+				pod, err := svc.RenderLaunchManifest(&vmi, nil)
 				Expect(err).ToNot(HaveOccurred())
 
 				Expect(pod.Spec.ImagePullSecrets).To(HaveLen(2))
@@ -2714,7 +2714,7 @@ var _ = Describe("Template", func() {
 				config, kvStore, svc = configFactory(defaultArch)
 				volumes[1].VolumeSource.ContainerDisk.ImagePullSecret = "pull-secret-2"
 
-				pod, err := svc.RenderLaunchManifest(&vmi)
+				pod, err := svc.RenderLaunchManifest(&vmi, nil)
 				Expect(err).ToNot(HaveOccurred())
 
 				Expect(pod.Spec.ImagePullSecrets).To(HaveLen(2))
@@ -2726,7 +2726,7 @@ var _ = Describe("Template", func() {
 
 			It("should have compute as first container in the pod", func() {
 				config, kvStore, svc = configFactory(defaultArch)
-				pod, err := svc.RenderLaunchManifest(&vmi)
+				pod, err := svc.RenderLaunchManifest(&vmi, nil)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(pod.Spec.Containers[0].Image).To(Equal("kubevirt/virt-launcher"))
 				Expect(pod.Spec.Containers[0].Name).To(Equal("compute"))
@@ -2742,7 +2742,7 @@ var _ = Describe("Template", func() {
 				if svc.IsPPC64() {
 					Skip("ppc64le is currently running is privileged mode, so skipping test")
 				}
-				pod, err := svc.RenderLaunchManifest(newVMIWithSriovInterface("testvmi", "1234"))
+				pod, err := svc.RenderLaunchManifest(newVMIWithSriovInterface("testvmi", "1234"), nil)
 				Expect(err).ToNot(HaveOccurred())
 
 				Expect(pod.Spec.Containers).To(HaveLen(1))
@@ -2751,7 +2751,7 @@ var _ = Describe("Template", func() {
 
 			It("should not mount pci related host directories", func() {
 				config, kvStore, svc = configFactory(defaultArch)
-				pod, err := svc.RenderLaunchManifest(newVMIWithSriovInterface("testvmi", "1234"))
+				pod, err := svc.RenderLaunchManifest(newVMIWithSriovInterface("testvmi", "1234"), nil)
 				Expect(err).ToNot(HaveOccurred())
 
 				Expect(pod.Spec.Containers).To(HaveLen(1))
@@ -2775,7 +2775,7 @@ var _ = Describe("Template", func() {
 					},
 				}
 
-				pod, err := svc.RenderLaunchManifest(vmi)
+				pod, err := svc.RenderLaunchManifest(vmi, nil)
 				arch := config.GetClusterCPUArch()
 				Expect(err).ToNot(HaveOccurred())
 				expectedMemory := resource.NewScaledQuantity(0, resource.Kilo)
@@ -2801,9 +2801,9 @@ var _ = Describe("Template", func() {
 					Cores: 1,
 				}
 
-				pod, err := svc.RenderLaunchManifest(vmi)
+				pod, err := svc.RenderLaunchManifest(vmi, nil)
 				Expect(err).ToNot(HaveOccurred())
-				pod1, err := svc.RenderLaunchManifest(vmi1)
+				pod1, err := svc.RenderLaunchManifest(vmi1, nil)
 				arch := config.GetClusterCPUArch()
 				Expect(err).ToNot(HaveOccurred())
 				expectedMemory := resource.NewScaledQuantity(0, resource.Kilo)
@@ -2831,7 +2831,7 @@ var _ = Describe("Template", func() {
 					Spec: v1.VirtualMachineInstanceSpec{Domain: domain},
 				}
 
-				pod, err := svc.RenderLaunchManifest(&vmi)
+				pod, err := svc.RenderLaunchManifest(&vmi, nil)
 				Expect(err).ToNot(HaveOccurred())
 
 				Expect(pod.Spec.Containers).To(HaveLen(1))
@@ -2854,7 +2854,7 @@ var _ = Describe("Template", func() {
 					Spec: v1.VirtualMachineInstanceSpec{Domain: domain},
 				}
 
-				pod, err := svc.RenderLaunchManifest(&vmi)
+				pod, err := svc.RenderLaunchManifest(&vmi, nil)
 				Expect(err).ToNot(HaveOccurred())
 
 				Expect(pod.Spec.Containers).To(HaveLen(1))
@@ -2898,7 +2898,7 @@ var _ = Describe("Template", func() {
 					Spec: v1.VirtualMachineInstanceSpec{Domain: domain},
 				}
 
-				pod, err := svc.RenderLaunchManifest(&vmi)
+				pod, err := svc.RenderLaunchManifest(&vmi, nil)
 				Expect(err).ToNot(HaveOccurred())
 
 				Expect(pod.Spec.Containers).To(HaveLen(1))
@@ -2935,7 +2935,7 @@ var _ = Describe("Template", func() {
 			vmi := v1.VirtualMachineInstance{ObjectMeta: metav1.ObjectMeta{
 				Name: "testvmi", Namespace: "default", UID: "1234",
 			}}
-			pod, err := svc.RenderLaunchManifest(&vmi)
+			pod, err := svc.RenderLaunchManifest(&vmi, nil)
 			Expect(err).ToNot(HaveOccurred())
 
 			Expect(pod.Spec.Containers).To(HaveLen(2))
@@ -2954,7 +2954,7 @@ var _ = Describe("Template", func() {
 						RuntimeUser: util.NonRootUID,
 					},
 				}
-				pod, err := svc.RenderLaunchManifest(&vmi)
+				pod, err := svc.RenderLaunchManifest(&vmi, nil)
 				Expect(err).ToNot(HaveOccurred())
 
 				tun, ok := pod.Spec.Containers[0].Resources.Limits[TunDevice]
@@ -2981,7 +2981,7 @@ var _ = Describe("Template", func() {
 						RuntimeUser: util.NonRootUID,
 					},
 				}
-				pod, err := svc.RenderLaunchManifest(&vmi)
+				pod, err := svc.RenderLaunchManifest(&vmi, nil)
 				Expect(err).ToNot(HaveOccurred())
 
 				tun, ok := pod.Spec.Containers[0].Resources.Limits[TunDevice]
@@ -3008,7 +3008,7 @@ var _ = Describe("Template", func() {
 						RuntimeUser: util.NonRootUID,
 					},
 				}
-				pod, err := svc.RenderLaunchManifest(&vmi)
+				pod, err := svc.RenderLaunchManifest(&vmi, nil)
 				Expect(err).ToNot(HaveOccurred())
 
 				_, ok := pod.Spec.Containers[0].Resources.Limits[TunDevice]
@@ -3048,7 +3048,7 @@ var _ = Describe("Template", func() {
 					},
 				}
 
-				pod, err := svc.RenderLaunchManifest(vmi)
+				pod, err := svc.RenderLaunchManifest(vmi, nil)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(pod.Spec.Volumes).ToNot(BeEmpty())
 				Expect(pod.Spec.Volumes).To(HaveLen(8))
@@ -3070,7 +3070,7 @@ var _ = Describe("Template", func() {
 
 			It("Should add 1Mi memory overhead", func() {
 				config, kvStore, svc = configFactory(defaultArch)
-				pod, err := svc.RenderLaunchManifest(vmi)
+				pod, err := svc.RenderLaunchManifest(vmi, nil)
 				Expect(err).ToNot(HaveOccurred())
 				overhead := pod.Spec.Containers[0].Resources.Requests.Memory()
 				vmi.Spec.Volumes = []v1.Volume{
@@ -3081,7 +3081,7 @@ var _ = Describe("Template", func() {
 						},
 					},
 				}
-				pod, err = svc.RenderLaunchManifest(vmi)
+				pod, err = svc.RenderLaunchManifest(vmi, nil)
 				Expect(err).ToNot(HaveOccurred())
 				newOverhead := pod.Spec.Containers[0].Resources.Requests.Memory()
 				overhead.Add(resource.MustParse("1Mi"))
@@ -3115,7 +3115,7 @@ var _ = Describe("Template", func() {
 					}},
 				}
 
-				pod, err := svc.RenderLaunchManifest(&vmi)
+				pod, err := svc.RenderLaunchManifest(&vmi, nil)
 				Expect(err).ToNot(HaveOccurred())
 
 				Expect(pod.Spec.Volumes).ToNot(BeEmpty())
@@ -3154,7 +3154,7 @@ var _ = Describe("Template", func() {
 						Spec: v1.VirtualMachineInstanceSpec{Volumes: volumes, Domain: v1.DomainSpec{}},
 					}
 
-					pod, err := svc.RenderLaunchManifest(&vmi)
+					pod, err := svc.RenderLaunchManifest(&vmi, nil)
 					Expect(err).ToNot(HaveOccurred())
 
 					Expect(pod.Spec.Volumes).ToNot(BeEmpty())
@@ -3191,7 +3191,7 @@ var _ = Describe("Template", func() {
 						Spec: v1.VirtualMachineInstanceSpec{Volumes: volumes, Domain: v1.DomainSpec{}},
 					}
 
-					pod, err := svc.RenderLaunchManifest(&vmi)
+					pod, err := svc.RenderLaunchManifest(&vmi, nil)
 					Expect(err).ToNot(HaveOccurred())
 
 					Expect(pod.Spec.Volumes).ToNot(BeEmpty())
@@ -3233,7 +3233,7 @@ var _ = Describe("Template", func() {
 					}},
 				}
 
-				pod, err := svc.RenderLaunchManifest(&vmi)
+				pod, err := svc.RenderLaunchManifest(&vmi, nil)
 				Expect(err).ToNot(HaveOccurred())
 
 				Expect(pod.Spec.Volumes).ToNot(BeEmpty())
@@ -3298,7 +3298,7 @@ var _ = Describe("Template", func() {
 			})
 			It("should copy all specified probes", func() {
 				config, kvStore, svc = configFactory(defaultArch)
-				pod, err := svc.RenderLaunchManifest(vmi)
+				pod, err := svc.RenderLaunchManifest(vmi, nil)
 				Expect(err).ToNot(HaveOccurred())
 				livenessProbe := pod.Spec.Containers[0].LivenessProbe
 				readinessProbe := pod.Spec.Containers[0].ReadinessProbe
@@ -3324,7 +3324,7 @@ var _ = Describe("Template", func() {
 			It("should not set a readiness probe on the pod, if no one was specified on the vmi", func() {
 				config, kvStore, svc = configFactory(defaultArch)
 				vmi.Spec.ReadinessProbe = nil
-				pod, err := svc.RenderLaunchManifest(vmi)
+				pod, err := svc.RenderLaunchManifest(vmi, nil)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(pod.Spec.Containers[0].ReadinessProbe).To(BeNil())
 			})
@@ -3357,7 +3357,7 @@ var _ = Describe("Template", func() {
 						},
 					},
 				}
-				pod, err := svc.RenderLaunchManifest(&vmi)
+				pod, err := svc.RenderLaunchManifest(&vmi, nil)
 				Expect(err).ToNot(HaveOccurred())
 
 				Expect(pod.Spec.Containers).To(HaveLen(1))
@@ -3386,7 +3386,7 @@ var _ = Describe("Template", func() {
 					},
 				}
 
-				pod, err := svc.RenderLaunchManifest(&vmi)
+				pod, err := svc.RenderLaunchManifest(&vmi, nil)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(pod.Spec.Containers).To(HaveLen(1))
 
@@ -3434,7 +3434,7 @@ var _ = Describe("Template", func() {
 						},
 					},
 				}
-				pod, err := svc.RenderLaunchManifest(&vmi)
+				pod, err := svc.RenderLaunchManifest(&vmi, nil)
 				Expect(err).ToNot(HaveOccurred())
 
 				Expect(pod.Spec.Containers).To(HaveLen(1))
@@ -3463,7 +3463,7 @@ var _ = Describe("Template", func() {
 					},
 				}
 
-				pod, err := svc.RenderLaunchManifest(&vmi)
+				pod, err := svc.RenderLaunchManifest(&vmi, nil)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(pod.Spec.Containers).To(HaveLen(1))
 
@@ -3498,7 +3498,7 @@ var _ = Describe("Template", func() {
 					},
 				}
 
-				pod, err := svc.RenderLaunchManifest(&vmi)
+				pod, err := svc.RenderLaunchManifest(&vmi, nil)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(pod.Spec.PriorityClassName).To(Equal("test"))
 			})
@@ -3699,7 +3699,7 @@ var _ = Describe("Template", func() {
 				ephemeralStorageRequests.Add(ephemeralStorageAddition)
 				ephemeralStorageLimit.Add(ephemeralStorageAddition)
 
-				pod, err := svc.RenderLaunchManifest(vmi)
+				pod, err := svc.RenderLaunchManifest(vmi, nil)
 				Expect(err).ToNot(HaveOccurred())
 
 				computeContainer := pod.Spec.Containers[0]
@@ -3736,7 +3736,7 @@ var _ = Describe("Template", func() {
 					Name: "testvmi-kernel-boot", Namespace: "default", UID: "1234",
 				}
 
-				pod, err := svc.RenderLaunchManifest(vmi)
+				pod, err := svc.RenderLaunchManifest(vmi, nil)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(pod).ToNot(BeNil())
 
@@ -3766,7 +3766,7 @@ var _ = Describe("Template", func() {
 					Spec: v1.VirtualMachineInstanceSpec{},
 				}
 
-				pod, err := svc.RenderLaunchManifest(&vmi)
+				pod, err := svc.RenderLaunchManifest(&vmi, nil)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(*pod.Spec.RuntimeClassName).To(BeEquivalentTo(runtimeClassName))
 			})
@@ -3782,7 +3782,7 @@ var _ = Describe("Template", func() {
 					Spec: v1.VirtualMachineInstanceSpec{},
 				}
 
-				pod, err := svc.RenderLaunchManifest(&vmi)
+				pod, err := svc.RenderLaunchManifest(&vmi, nil)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(pod.Spec.RuntimeClassName).To(BeNil())
 			})
@@ -3797,7 +3797,7 @@ var _ = Describe("Template", func() {
 				vmi.Spec.Domain.Devices.Interfaces = []v1.Interface{*v1.DefaultMasqueradeNetworkInterface()}
 			}
 
-			pod, err := svc.RenderLaunchManifest(vmi)
+			pod, err := svc.RenderLaunchManifest(vmi, nil)
 			Expect(err).ToNot(HaveOccurred())
 
 			for _, container := range pod.Spec.Containers {
@@ -3821,7 +3821,7 @@ var _ = Describe("Template", func() {
 				},
 			}}
 
-			pod, err := svc.RenderLaunchManifest(vmi)
+			pod, err := svc.RenderLaunchManifest(vmi, nil)
 			Expect(err).ToNot(HaveOccurred())
 
 			for _, container := range pod.Spec.Containers {
@@ -3841,7 +3841,7 @@ var _ = Describe("Template", func() {
 			droppedCaps []k8sv1.Capability) {
 			vmi := getVMI()
 
-			pod, err := svc.RenderLaunchManifest(vmi)
+			pod, err := svc.RenderLaunchManifest(vmi, nil)
 			Expect(err).ToNot(HaveOccurred())
 
 			for _, container := range pod.Spec.Containers {
@@ -3876,7 +3876,7 @@ var _ = Describe("Template", func() {
 			securityContext *k8sv1.PodSecurityContext) {
 			vmi := getVMI()
 
-			pod, err := svc.RenderLaunchManifest(vmi)
+			pod, err := svc.RenderLaunchManifest(vmi, nil)
 			Expect(err).ToNot(HaveOccurred())
 
 			Expect(pod.Spec.SecurityContext).To(Equal(securityContext))
@@ -3930,7 +3930,7 @@ var _ = Describe("Template", func() {
 
 		It("should compute the correct security context when rendering hotplug attachment pods", func() {
 			vmi := api.NewMinimalVMI("fake-vmi")
-			ownerPod, err := svc.RenderLaunchManifest(vmi)
+			ownerPod, err := svc.RenderLaunchManifest(vmi, nil)
 			Expect(err).ToNot(HaveOccurred())
 
 			vmi.Status.SelinuxContext = "test_u:test_r:test_t:s0"
@@ -3957,7 +3957,7 @@ var _ = Describe("Template", func() {
 
 		It("should compute the correct volumeDevice context when rendering hotplug attachment pods with the FS PersistentVolumeClaim", func() {
 			vmi := api.NewMinimalVMI("fake-vmi")
-			ownerPod, err := svc.RenderLaunchManifest(vmi)
+			ownerPod, err := svc.RenderLaunchManifest(vmi, nil)
 			Expect(err).ToNot(HaveOccurred())
 
 			vmi.Status.SelinuxContext = "test_u:test_r:test_t:s0"
@@ -4004,7 +4004,7 @@ var _ = Describe("Template", func() {
 
 		It("should compute the correct volumeDevice context when rendering hotplug attachment pods with the Block PersistentVolumeClaim", func() {
 			vmi := api.NewMinimalVMI("fake-vmi")
-			ownerPod, err := svc.RenderLaunchManifest(vmi)
+			ownerPod, err := svc.RenderLaunchManifest(vmi, nil)
 			Expect(err).ToNot(HaveOccurred())
 
 			vmi.Status.SelinuxContext = "test_u:test_r:test_t:s0"
@@ -4045,7 +4045,7 @@ var _ = Describe("Template", func() {
 
 		DescribeTable("should compute the correct security context when rendering hotplug attachment trigger pods", func(isBlock bool) {
 			vmi := api.NewMinimalVMI("fake-vmi")
-			ownerPod, err := svc.RenderLaunchManifest(vmi)
+			ownerPod, err := svc.RenderLaunchManifest(vmi, nil)
 			Expect(err).ToNot(HaveOccurred())
 
 			vmi.Status.SelinuxContext = "test_u:test_r:test_t:s0"
@@ -4089,7 +4089,7 @@ var _ = Describe("Template", func() {
 
 		It("should compute the correct resource req according to desired QoS when rendering hotplug pods", func() {
 			vmi := api.NewMinimalVMI("fake-vmi")
-			ownerPod, err := svc.RenderLaunchManifest(vmi)
+			ownerPod, err := svc.RenderLaunchManifest(vmi, nil)
 			Expect(err).ToNot(HaveOccurred())
 
 			vmi.Status.SelinuxContext = "test_u:test_r:test_t:s0"
@@ -4111,7 +4111,7 @@ var _ = Describe("Template", func() {
 
 		DescribeTable("hould compute the correct resource req according to desired QoS when rendering hotplug trigger pods", func(isBlock bool) {
 			vmi := api.NewMinimalVMI("fake-vmi")
-			ownerPod, err := svc.RenderLaunchManifest(vmi)
+			ownerPod, err := svc.RenderLaunchManifest(vmi, nil)
 			Expect(err).ToNot(HaveOccurred())
 
 			vmi.Status.SelinuxContext = "test_u:test_r:test_t:s0"
@@ -4136,7 +4136,7 @@ var _ = Describe("Template", func() {
 		It("Should run as non-root except compute", func() {
 			vmi := newMinimalWithContainerDisk("ranom")
 
-			pod, err := svc.RenderLaunchManifest(vmi)
+			pod, err := svc.RenderLaunchManifest(vmi, nil)
 			Expect(err).NotTo(HaveOccurred())
 
 			for _, container := range pod.Spec.InitContainers {
@@ -4177,7 +4177,7 @@ var _ = Describe("Template", func() {
 					Realtime:              &v1.Realtime{},
 				}
 
-				pod, err := svc.RenderLaunchManifest(vmi)
+				pod, err := svc.RenderLaunchManifest(vmi, nil)
 				arch := config.GetClusterCPUArch()
 				Expect(err).ToNot(HaveOccurred())
 				expectedMemory := resource.NewScaledQuantity(0, resource.Kilo)
@@ -4201,7 +4201,7 @@ var _ = Describe("Template", func() {
 					},
 				}
 
-				pod, err := svc.RenderLaunchManifest(&vmi)
+				pod, err := svc.RenderLaunchManifest(&vmi, nil)
 				Expect(err).ToNot(HaveOccurred())
 				vmNameLabel, ok := pod.Labels[v1.VirtualMachineNameLabel]
 				Expect(ok).To(BeTrue())
@@ -4221,7 +4221,7 @@ var _ = Describe("Template", func() {
 						},
 					}
 
-					pod, err := svc.RenderLaunchManifest(&vmi)
+					pod, err := svc.RenderLaunchManifest(&vmi, nil)
 					Expect(err).ToNot(HaveOccurred())
 					Expect(pod.Spec.Containers).To(HaveLen(1))
 					vmNameLabel, ok := pod.Labels[v1.VirtualMachineNameLabel]
@@ -4243,7 +4243,7 @@ var _ = Describe("Template", func() {
 						},
 					}
 
-					pod, err := svc.RenderLaunchManifest(&vmi)
+					pod, err := svc.RenderLaunchManifest(&vmi, nil)
 					Expect(err).ToNot(HaveOccurred())
 					Expect(pod.Spec.Containers).To(HaveLen(1))
 					vmNameLabel, ok := pod.Labels[v1.VirtualMachineNameLabel]
@@ -4318,7 +4318,7 @@ var _ = Describe("Template", func() {
 				})
 				It("should add ConfigMap as volume to Pod and mount in sidecar", func() {
 					config, kvStore, svc = configFactory(defaultArch)
-					pod, err := svc.RenderLaunchManifest(vmi)
+					pod, err := svc.RenderLaunchManifest(vmi, nil)
 					Expect(err).ToNot(HaveOccurred())
 
 					Expect(pod.Spec.Volumes).To(ContainElement(k8sv1.Volume{
@@ -4340,7 +4340,7 @@ var _ = Describe("Template", func() {
 			When("ConfigMap does not exist on the cluster", func() {
 				It("should fail with error", func() {
 					config, kvStore, svc = configFactory(defaultArch)
-					_, err := svc.RenderLaunchManifest(vmi)
+					_, err := svc.RenderLaunchManifest(vmi, nil)
 					Expect(err).To(HaveOccurred())
 				})
 			})
@@ -4378,7 +4378,7 @@ var _ = Describe("Template", func() {
 				})
 				It("should add the pvc to Pod and mount in sidecar", func() {
 					config, kvStore, svc = configFactory(defaultArch)
-					pod, err := svc.RenderLaunchManifest(vmi)
+					pod, err := svc.RenderLaunchManifest(vmi, nil)
 					Expect(err).ToNot(HaveOccurred())
 
 					Expect(pod.Spec.Volumes).To(ContainElement(k8sv1.Volume{
@@ -4429,7 +4429,7 @@ var _ = Describe("Template", func() {
 				}},
 			}
 
-			pod, err := svc.RenderLaunchManifest(&vmi)
+			pod, err := svc.RenderLaunchManifest(&vmi, nil)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(pod.Spec.ServiceAccountName).To(Equal(serviceAccountName), "ServiceAccount matches")
 			Expect(*pod.Spec.AutomountServiceAccountToken).To(BeTrue(), "Token automount is enabled")
@@ -4448,7 +4448,7 @@ var _ = Describe("Template", func() {
 				}},
 			}
 
-			pod, err := svc.RenderLaunchManifest(&vmi)
+			pod, err := svc.RenderLaunchManifest(&vmi, nil)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(pod.Spec.ServiceAccountName).To(BeEmpty(), "ServiceAccount is empty")
 			Expect(*pod.Spec.AutomountServiceAccountToken).To(BeFalse(), "Token automount is disabled")
@@ -4472,7 +4472,7 @@ var _ = Describe("Template", func() {
 					},
 				},
 			}
-			pod, err := svc.RenderLaunchManifest(&vmi)
+			pod, err := svc.RenderLaunchManifest(&vmi, nil)
 			Expect(err).ToNot(HaveOccurred())
 
 			Expect(pod.Spec.Containers).To(HaveLen(1))
@@ -4489,7 +4489,7 @@ var _ = Describe("Template", func() {
 			vmi := api.NewMinimalVMI("fake-vmi")
 			vmi.Spec.Domain.Devices.AutoattachVSOCK = pointer.Bool(true)
 
-			pod, err := svc.RenderLaunchManifest(vmi)
+			pod, err := svc.RenderLaunchManifest(vmi, nil)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(pod).ToNot(BeNil())
 			Expect(pod.Spec.Containers[0].Resources.Limits).To(HaveKey(k8sv1.ResourceName(VhostVsockDevice)))
@@ -4568,7 +4568,7 @@ var _ = Describe("Template", func() {
 					},
 				}
 
-				pod, err := svc.RenderLaunchManifest(&vmi)
+				pod, err := svc.RenderLaunchManifest(&vmi, nil)
 				Expect(err).ToNot(HaveOccurred())
 				cpuRequests := resource.MustParse("200m")
 				Expect(pod.Spec.Containers[0].Name).To(Equal("compute"))
@@ -4604,7 +4604,7 @@ var _ = Describe("Template", func() {
 					},
 				}
 
-				pod, err := svc.RenderLaunchManifest(&vmi)
+				pod, err := svc.RenderLaunchManifest(&vmi, nil)
 				Expect(err).ToNot(HaveOccurred())
 				cpuLimit := resource.MustParse("2")
 				Expect(pod.Spec.Containers[0].Name).To(Equal("compute"))
@@ -4648,7 +4648,7 @@ var _ = Describe("Template", func() {
 							},
 						}
 
-						pod, err := svc.RenderLaunchManifest(&vmi)
+						pod, err := svc.RenderLaunchManifest(&vmi, nil)
 						Expect(err).ToNot(HaveOccurred())
 						Expect(pod.Spec.Containers[0].Name).To(Equal("compute"))
 						Expect(pod.Spec.Containers[0].Resources.Limits.Cpu().Value()).To(BeEquivalentTo(expectedCPU.Value()))
@@ -4675,7 +4675,7 @@ var _ = Describe("Template", func() {
 							},
 						}
 
-						pod, err := svc.RenderLaunchManifest(&vmi)
+						pod, err := svc.RenderLaunchManifest(&vmi, nil)
 						Expect(err).ToNot(HaveOccurred())
 						Expect(pod.Spec.Containers[0].Name).To(Equal("compute"))
 						Expect(pod.Spec.Containers[0].Resources.Limits.Cpu().Value()).To(BeEquivalentTo(2))
@@ -4711,7 +4711,7 @@ var _ = Describe("Template", func() {
 						},
 					}
 
-					pod, err := svc.RenderLaunchManifest(&vmi)
+					pod, err := svc.RenderLaunchManifest(&vmi, nil)
 					Expect(err).ToNot(HaveOccurred())
 					cpuRequests := resource.MustParse("200m")
 					Expect(pod.Spec.Containers[0].Name).To(Equal("compute"))
@@ -4786,7 +4786,7 @@ var _ = Describe("Template", func() {
 					},
 				}
 
-				pod, err := svc.RenderLaunchManifest(&vmi)
+				pod, err := svc.RenderLaunchManifest(&vmi, nil)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(pod.Spec.Containers[0].Name).To(Equal("compute"))
 				Expect(pod.Spec.Containers[0].Resources.Limits.Memory().Value()).To(BeZero())
@@ -4826,7 +4826,7 @@ var _ = Describe("Template", func() {
 						},
 					}
 
-					pod, err := svc.RenderLaunchManifest(&vmi)
+					pod, err := svc.RenderLaunchManifest(&vmi, nil)
 					Expect(err).ToNot(HaveOccurred())
 					Expect(pod.Spec.Containers[0].Name).To(Equal("compute"))
 					expectedMemory := resource.NewScaledQuantity(0, resource.Kilo)
@@ -4855,7 +4855,7 @@ var _ = Describe("Template", func() {
 							},
 						}
 
-						pod, err := svc.RenderLaunchManifest(&vmi)
+						pod, err := svc.RenderLaunchManifest(&vmi, nil)
 						Expect(err).ToNot(HaveOccurred())
 						Expect(pod.Spec.Containers[0].Name).To(Equal("compute"))
 						expectedValue := int64(float64(pod.Spec.Containers[0].Resources.Requests.Memory().Value()) * DefaultMemoryLimitOverheadRatio)
@@ -4907,7 +4907,7 @@ var _ = Describe("Template", func() {
 								},
 							}
 
-							pod, err := svc.RenderLaunchManifest(&vmi)
+							pod, err := svc.RenderLaunchManifest(&vmi, nil)
 							Expect(err).ToNot(HaveOccurred())
 							Expect(pod.Spec.Containers[0].Name).To(Equal("compute"))
 							expectedValue := int64(float64(pod.Spec.Containers[0].Resources.Requests.Memory().Value()) * expectedUsedRatio)
@@ -4937,7 +4937,7 @@ var _ = Describe("Template", func() {
 						},
 					}
 
-					pod, err := svc.RenderLaunchManifest(&vmi)
+					pod, err := svc.RenderLaunchManifest(&vmi, nil)
 					Expect(err).ToNot(HaveOccurred())
 					Expect(pod.Spec.Containers[0].Name).To(Equal("compute"))
 					Expect(pod.Spec.Containers[0].Resources.Limits.Memory().Value()).To(BeZero())
@@ -4952,7 +4952,7 @@ var _ = Describe("Template", func() {
 			vmi.Spec.Domain.Devices.AutoattachSerialConsole = &autoattachSerialConsole
 			vmi.Spec.Domain.Devices.LogSerialConsole = &logSerialConsole
 
-			pod, err := svc.RenderLaunchManifest(vmi)
+			pod, err := svc.RenderLaunchManifest(vmi, nil)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(pod).ToNot(BeNil())
 			containCGL := ContainElement(MatchFields(IgnoreExtras, Fields{
@@ -4994,7 +4994,7 @@ var _ = Describe("Template", func() {
 				libvmi.WithNetwork(libvmi.MultusNetwork("network1", "default/default")),
 				libvmi.WithInterface(libvmi.InterfaceWithBindingPlugin("network1", v1.PluginBinding{Name: noDeviceInfoPlugin})),
 			)
-			pod, err := svc.RenderLaunchManifest(vmi)
+			pod, err := svc.RenderLaunchManifest(vmi, nil)
 			Expect(err).ToNot(HaveOccurred())
 
 			Expect(pod.Spec.Volumes).ToNot(ContainElement(networkInfoAnnotVolume()),
@@ -5011,7 +5011,7 @@ var _ = Describe("Template", func() {
 				vmi.Spec.Domain.Devices.Interfaces = interfaces
 				vmi.Spec.Networks = networks
 
-				pod, err := svc.RenderLaunchManifest(vmi)
+				pod, err := svc.RenderLaunchManifest(vmi, nil)
 				Expect(err).ToNot(HaveOccurred())
 
 				const netInfoAnnotVolName = "network-info-annotation"
@@ -5094,7 +5094,7 @@ var _ = Describe("Template", func() {
 				libvmi.WithNetwork(&v1.Network{Name: iface1name}),
 			)
 
-			_, err := svc.RenderLaunchManifest(vmi)
+			_, err := svc.RenderLaunchManifest(vmi, nil)
 			Expect(err).ToNot(HaveOccurred())
 
 			Expect(netBindingPluginMemoryOverheadCalculator.calculatedMemoryOverhead).To(BeTrue())

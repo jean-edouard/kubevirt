@@ -128,8 +128,8 @@ type netBindingPluginMemoryCalculator interface {
 }
 
 type TemplateService interface {
-	RenderMigrationManifest(vmi *v1.VirtualMachineInstance, sourcePod *k8sv1.Pod) (*k8sv1.Pod, error)
-	RenderLaunchManifest(vmi *v1.VirtualMachineInstance) (*k8sv1.Pod, error)
+	RenderMigrationManifest(vmi *v1.VirtualMachineInstance, sourcePod *k8sv1.Pod, backendStoragePVCName string) (*k8sv1.Pod, error)
+	RenderLaunchManifest(vmi *v1.VirtualMachineInstance, backendStoragePVCName string) (*k8sv1.Pod, error)
 	RenderHotplugAttachmentPodTemplate(volumes []*v1.Volume, ownerPod *k8sv1.Pod, vmi *v1.VirtualMachineInstance, claimMap map[string]*k8sv1.PersistentVolumeClaim) (*k8sv1.Pod, error)
 	RenderHotplugAttachmentTriggerPodTemplate(volume *v1.Volume, ownerPod *k8sv1.Pod, vmi *v1.VirtualMachineInstance, pvcName string, isBlock bool, tempPod bool) (*k8sv1.Pod, error)
 	RenderLaunchManifestNoVm(*v1.VirtualMachineInstance) (*k8sv1.Pod, error)
@@ -254,12 +254,12 @@ func (t *templateService) GetLauncherImage() string {
 }
 
 func (t *templateService) RenderLaunchManifestNoVm(vmi *v1.VirtualMachineInstance) (*k8sv1.Pod, error) {
-	return t.renderLaunchManifest(vmi, nil, true)
+	return t.renderLaunchManifest(vmi, nil, "", true)
 }
 
-func (t *templateService) RenderMigrationManifest(vmi *v1.VirtualMachineInstance, pod *k8sv1.Pod) (*k8sv1.Pod, error) {
+func (t *templateService) RenderMigrationManifest(vmi *v1.VirtualMachineInstance, pod *k8sv1.Pod, backendStoragePVCName string) (*k8sv1.Pod, error) {
 	imageIDs := containerdisk.ExtractImageIDsFromSourcePod(vmi, pod)
-	podManifest, err := t.renderLaunchManifest(vmi, imageIDs, false)
+	podManifest, err := t.renderLaunchManifest(vmi, imageIDs, backendStoragePVCName, false)
 	if err != nil {
 		return nil, err
 	}
@@ -277,8 +277,8 @@ func (t *templateService) RenderMigrationManifest(vmi *v1.VirtualMachineInstance
 	return podManifest, err
 }
 
-func (t *templateService) RenderLaunchManifest(vmi *v1.VirtualMachineInstance) (*k8sv1.Pod, error) {
-	return t.renderLaunchManifest(vmi, nil, false)
+func (t *templateService) RenderLaunchManifest(vmi *v1.VirtualMachineInstance, backendStoragePVCName string) (*k8sv1.Pod, error) {
+	return t.renderLaunchManifest(vmi, nil, backendStoragePVCName, false)
 }
 
 func (t *templateService) IsPPC64() bool {
@@ -317,7 +317,7 @@ func computePodSecurityContext(vmi *v1.VirtualMachineInstance, seccomp *k8sv1.Se
 	return psc
 }
 
-func (t *templateService) renderLaunchManifest(vmi *v1.VirtualMachineInstance, imageIDs map[string]string, tempPod bool) (*k8sv1.Pod, error) {
+func (t *templateService) renderLaunchManifest(vmi *v1.VirtualMachineInstance, imageIDs map[string]string, backendStoragePVCName string, tempPod bool) (*k8sv1.Pod, error) {
 	precond.MustNotBeNil(vmi)
 	domain := precond.MustNotBeEmpty(vmi.GetObjectMeta().GetName())
 	namespace := precond.MustNotBeEmpty(vmi.GetObjectMeta().GetNamespace())
@@ -408,7 +408,7 @@ func (t *templateService) renderLaunchManifest(vmi *v1.VirtualMachineInstance, i
 		command = append(command, "--simulate-crash")
 	}
 
-	volumeRenderer, err := t.newVolumeRenderer(vmi, namespace, requestedHookSidecarList)
+	volumeRenderer, err := t.newVolumeRenderer(vmi, namespace, requestedHookSidecarList, backendStoragePVCName)
 	if err != nil {
 		return nil, err
 	}
@@ -755,12 +755,12 @@ func (t *templateService) newContainerSpecRenderer(vmi *v1.VirtualMachineInstanc
 	return containerRenderer
 }
 
-func (t *templateService) newVolumeRenderer(vmi *v1.VirtualMachineInstance, namespace string, requestedHookSidecarList hooks.HookSidecarList) (*VolumeRenderer, error) {
+func (t *templateService) newVolumeRenderer(vmi *v1.VirtualMachineInstance, namespace string, requestedHookSidecarList hooks.HookSidecarList, backendStoragePVCName string) (*VolumeRenderer, error) {
 	volumeOpts := []VolumeRendererOption{
 		withVMIConfigVolumes(vmi.Spec.Domain.Devices.Disks, vmi.Spec.Volumes),
 		withVMIVolumes(t.persistentVolumeClaimStore, vmi.Spec.Volumes, vmi.Status.VolumeStatus),
 		withAccessCredentials(vmi.Spec.AccessCredentials),
-		withBackendStorage(vmi),
+		withBackendStorage(vmi, backendStoragePVCName),
 	}
 	if len(requestedHookSidecarList) != 0 {
 		volumeOpts = append(volumeOpts, withSidecarVolumes(requestedHookSidecarList))
