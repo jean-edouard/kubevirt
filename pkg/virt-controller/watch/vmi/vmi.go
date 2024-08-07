@@ -954,7 +954,7 @@ func (c *Controller) sync(vmi *virtv1.VirtualMachineInstance, pod *k8sv1.Pod, da
 		// do not return; just log the error
 	}
 
-	err := c.backendStorage.CreateIfNeededAndUpdateVolumeStatus(vmi)
+	backendStoragePVCName, err := c.backendStorage.CreateIfNeededAndUpdateVolumeStatus(vmi)
 	if err != nil {
 		return common.NewSyncError(err, controller.FailedBackendStorageCreateReason)
 	}
@@ -983,7 +983,7 @@ func (c *Controller) sync(vmi *virtv1.VirtualMachineInstance, pod *k8sv1.Pod, da
 
 		// Ensure the backend storage PVC is ready
 		var backendStorageReady bool
-		backendStorageReady, err = c.backendStorage.IsPVCReady(vmi)
+		backendStorageReady, err = c.backendStorage.IsPVCReady(vmi, backendStoragePVCName)
 		if err != nil {
 			return common.NewSyncError(err, controller.FailedBackendStorageProbeReason)
 		}
@@ -998,7 +998,7 @@ func (c *Controller) sync(vmi *virtv1.VirtualMachineInstance, pod *k8sv1.Pod, da
 			log.Log.V(3).Object(vmi).Infof("Scheduling temporary pod for WaitForFirstConsumer DV")
 			templatePod, err = c.templateService.RenderLaunchManifestNoVm(vmi)
 		} else {
-			templatePod, err = c.templateService.RenderLaunchManifest(vmi)
+			templatePod, err = c.templateService.RenderLaunchManifest(vmi, backendStoragePVCName)
 		}
 		if _, ok := err.(storagetypes.PvcNotFoundError); ok {
 			c.recorder.Eventf(vmi, k8sv1.EventTypeWarning, controller.FailedPvcNotFoundReason, services.FailedToRenderLaunchManifestErrFormat, err)
@@ -1964,8 +1964,11 @@ func (c *Controller) updateVolumeStatus(vmi *virtv1.VirtualMachineInstance, virt
 
 	newStatus := make([]virtv1.VolumeStatus, 0)
 
-	if backendStorage, ok := oldStatusMap[backendstorage.PVCForVMI(vmi)]; ok {
-		newStatus = append(newStatus, backendStorage)
+	backendStoragePVC := backendstorage.PVCForVMI(c.pvcIndexer, vmi)
+	if backendStoragePVC != nil {
+		if backendStorage, ok := oldStatusMap[backendStoragePVC.Name]; ok {
+			newStatus = append(newStatus, backendStorage)
+		}
 	}
 
 	for i, volume := range vmi.Spec.Volumes {

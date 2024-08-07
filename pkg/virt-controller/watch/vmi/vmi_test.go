@@ -58,7 +58,6 @@ import (
 	"kubevirt.io/kubevirt/pkg/network/multus"
 	"kubevirt.io/kubevirt/pkg/network/vmispec"
 	"kubevirt.io/kubevirt/pkg/pointer"
-	backendstorage "kubevirt.io/kubevirt/pkg/storage/backend-storage"
 	storagetypes "kubevirt.io/kubevirt/pkg/storage/types"
 	"kubevirt.io/kubevirt/pkg/testutils"
 	virtconfig "kubevirt.io/kubevirt/pkg/virt-config"
@@ -542,7 +541,8 @@ var _ = Describe("VirtualMachineInstance watcher", func() {
 				}
 				Expect(storageClassStore.Add(sc)).To(Succeed())
 
-				pvc := newPvc(vmi.Namespace, backendstorage.PVCForVMI(vmi))
+				pvc := newPvc(vmi.Namespace, "persistent-state-for-"+vmi.Name+"-12345")
+				pvc.ObjectMeta.Labels = map[string]string{"persistent-state-for": vmi.Name}
 				pvc.Status.Phase = k8sv1.ClaimPending
 				pvc.Spec.StorageClassName = pointer.P("testsc123")
 				pvc.Spec.AccessModes = []k8sv1.PersistentVolumeAccessMode{k8sv1.ReadWriteMany}
@@ -563,7 +563,8 @@ var _ = Describe("VirtualMachineInstance watcher", func() {
 				}
 				Expect(storageClassStore.Add(sc)).To(Succeed())
 
-				pvc := newPvc(vmi.Namespace, backendstorage.PVCForVMI(vmi))
+				pvc := newPvc(vmi.Namespace, "persistent-state-for-"+vmi.Name+"-67890")
+				pvc.ObjectMeta.Labels = map[string]string{"persistent-state-for": vmi.Name}
 				pvc.Status.Phase = k8sv1.ClaimPending
 				pvc.Spec.StorageClassName = pointer.P("testsc456")
 				pvc.Spec.AccessModes = []k8sv1.PersistentVolumeAccessMode{k8sv1.ReadWriteMany}
