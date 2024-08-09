@@ -983,7 +983,7 @@ func (c *VMIController) sync(vmi *virtv1.VirtualMachineInstance, pod *k8sv1.Pod,
 		// do not return; just log the error
 	}
 
-	backendStoragePVCName, err := c.backendStorage.CreateIfNeededAndUpdateVolumeStatus(vmi)
+	backendStoragePVCName, err := c.backendStorage.CreateIfNeededAndUpdateVolumeStatus(vmi, false)
 	if err != nil {
 		return &syncErrorImpl{err, controller.FailedBackendStorageCreateReason}
 	}

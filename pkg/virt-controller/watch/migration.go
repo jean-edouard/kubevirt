@@ -1072,7 +1072,7 @@ func (c *MigrationController) handleTargetPodCreation(key string, migration *vir
 			}
 		}
 		bs := backendstorage.NewBackendStorage(c.clientset, c.clusterConfig, c.storageClassStore, c.storageProfileStore, c.pvcStore)
-		backendStoragePVCName, err := bs.CreateIfNeededAndUpdateVolumeStatus(vmi)
+		backendStoragePVCName, err := bs.CreateIfNeededAndUpdateVolumeStatus(vmi, true)
 		if err != nil {
 			return err
 		}
