@@ -13525,6 +13525,10 @@ var CRDsValidation map[string]string = map[string]string{
             sourceNode:
               description: The source node that the VMI originated on
               type: string
+            sourcePersistentStatePVCName:
+              description: If the VMI being migrated uses persistent features (backend-storage),
+                it source PVC name is saved here
+              type: string
             sourcePod:
               type: string
             startTimestamp:
@@ -13567,6 +13571,10 @@ var CRDsValidation map[string]string = map[string]string{
               description: |-
                 If the VMI requires dedicated CPUs, this field will
                 hold the numa topology on the target node
+              type: string
+            targetPersistentStatePVCName:
+              description: If the VMI being migrated uses persistent features (backend-storage),
+                it target PVC name is saved here
               type: string
             targetPod:
               description: The target pod that the VMI is moving to
@@ -13939,6 +13947,10 @@ var CRDsValidation map[string]string = map[string]string{
             sourceNode:
               description: The source node that the VMI originated on
               type: string
+            sourcePersistentStatePVCName:
+              description: If the VMI being migrated uses persistent features (backend-storage),
+                it source PVC name is saved here
+              type: string
             sourcePod:
               type: string
             startTimestamp:
@@ -13981,6 +13993,10 @@ var CRDsValidation map[string]string = map[string]string{
               description: |-
                 If the VMI requires dedicated CPUs, this field will
                 hold the numa topology on the target node
+              type: string
+            targetPersistentStatePVCName:
+              description: If the VMI being migrated uses persistent features (backend-storage),
+                it target PVC name is saved here
               type: string
             targetPod:
               description: The target pod that the VMI is moving to
