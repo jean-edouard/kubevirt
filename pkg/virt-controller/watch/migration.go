@@ -893,6 +893,8 @@ func (c *MigrationController) handleTargetPodHandoff(migration *virtv1.VirtualMa
 	}
 	if migration.Status.MigrationState != nil {
 		vmiCopy.Status.MigrationState.SourcePod = migration.Status.MigrationState.SourcePod
+		vmiCopy.Status.MigrationState.SourcePersistentStatePVCName = migration.Status.MigrationState.SourcePersistentStatePVCName
+		vmiCopy.Status.MigrationState.TargetPersistentStatePVCName = migration.Status.MigrationState.TargetPersistentStatePVCName
 	}
 
 	// By setting this label, virt-handler on the target node will receive
@@ -1071,10 +1073,22 @@ func (c *MigrationController) handleTargetPodCreation(key string, migration *vir
 				return nil
 			}
 		}
-		bs := backendstorage.NewBackendStorage(c.clientset, c.clusterConfig, c.storageClassStore, c.storageProfileStore, c.pvcStore)
-		backendStoragePVCName, err := bs.CreateIfNeededAndUpdateVolumeStatus(vmi, true)
-		if err != nil {
-			return err
+		var backendStoragePVCName string
+		if backendstorage.IsBackendStorageNeededForVMI(&vmi.Spec) {
+			if migration.Status.MigrationState == nil {
+				migration.Status.MigrationState = &virtv1.VirtualMachineInstanceMigrationState{}
+			}
+			migration.Status.MigrationState.SourcePersistentStatePVCName = backendstorage.CurrentPVCName(vmi)
+			if migration.Status.MigrationState.SourcePersistentStatePVCName == "" {
+				return fmt.Errorf("no backend-storage PVC found in VMI volume status")
+			}
+
+			bs := backendstorage.NewBackendStorage(c.clientset, c.clusterConfig, c.storageClassStore, c.storageProfileStore, c.pvcStore)
+			backendStoragePVCName, err = bs.CreateIfNeededAndUpdateVolumeStatus(vmi, true)
+			if err != nil {
+				return err
+			}
+			migration.Status.MigrationState.TargetPersistentStatePVCName = backendStoragePVCName
 		}
 		return c.createTargetPod(migration, vmi, sourcePod, backendStoragePVCName)
 	}
