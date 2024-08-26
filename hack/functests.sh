@@ -25,6 +25,7 @@ KUBEVIRT_E2E_PARALLEL_NODES=${KUBEVIRT_E2E_PARALLEL_NODES:-6}
 KUBEVIRT_FUNC_TEST_GINKGO_ARGS=${FUNC_TEST_ARGS:-${KUBEVIRT_FUNC_TEST_GINKGO_ARGS}}
 KUBEVIRT_FUNC_TEST_LABEL_FILTER=${FUNC_TEST_LABEL_FILTER:-${KUBEVIRT_FUNC_TEST_LABEL_FILTER}}
 KUBEVIRT_FUNC_TEST_GINKGO_TIMEOUT=${KUBEVIRT_FUNC_TEST_GINKGO_TIMEOUT:-4h}
+KUBEVIRT_RWO_BACKEND_STORAGE=${KUBEVIRT_RWO_BACKEND_STORAGE:-false}
 
 source hack/common.sh
 source hack/config.sh
@@ -65,6 +66,10 @@ function functest() {
     if [[ ${KUBEVIRT_PROVIDER} =~ .*(k8s-sriov).* ]] || [[ ${KUBEVIRT_SINGLE_STACK} == "true" ]]; then
         echo "Will skip test asserting the cluster is in dual-stack mode."
         KUBEVIRT_FUNC_TEST_SUITE_ARGS="-skip-dual-stack-test ${KUBEVIRT_FUNC_TEST_SUITE_ARGS}"
+    fi
+    if [[ ${KUBEVIRT_RWO_BACKEND_STORAGE} == "true" ]]; then
+        echo "Will use the default RWO FS storage class for backend-storage (TPM/EFI)"
+        KUBEVIRT_FUNC_TEST_SUITE_ARGS="-rwo-backend-storage ${KUBEVIRT_FUNC_TEST_SUITE_ARGS}"
     fi
 
     _out/tests/ginkgo -timeout=${KUBEVIRT_FUNC_TEST_GINKGO_TIMEOUT} -r "$@" _out/tests/tests.test -- -kubeconfig=${kubeconfig} -container-tag=${docker_tag} -container-tag-alt=${docker_tag_alt} -container-prefix=${functest_docker_prefix} -image-prefix-alt=${image_prefix_alt} -oc-path=${oc} -kubectl-path=${kubectl} -gocli-path=${gocli} -installed-namespace=${namespace} -previous-release-tag=${PREVIOUS_RELEASE_TAG} -previous-release-registry=${previous_release_registry} -deploy-testing-infra=${deploy_testing_infra} -config=${kubevirt_test_config} --artifacts=${ARTIFACTS} --operator-manifest-path=${OPERATOR_MANIFEST_PATH} --testing-manifest-path=${TESTING_MANIFEST_PATH} ${KUBEVIRT_FUNC_TEST_SUITE_ARGS} -virtctl-path=${virtctl_path} -example-guest-agent-path=${example_guest_agent_path}

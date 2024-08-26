@@ -14,6 +14,7 @@ var (
 	SigStorage           = Label("sig-storage")
 	SigComputeRealtime   = Label("sig-compute-realtime")
 	SigComputeMigrations = Label("sig-compute-migrations")
+	SigStorageTPM        = Label("sig-storage-tpm")
 	SigMonitoring        = Label("sig-monitoring")
 
 	// HW

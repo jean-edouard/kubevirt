@@ -129,7 +129,13 @@ func AdjustKubeVirtResource() {
 		}
 	}
 
-	storageClass, exists := libstorage.GetRWXFileSystemStorageClass()
+	var storageClass string
+	var exists bool
+	if flags.RWOBackendStorage {
+		storageClass, exists = libstorage.GetRWOFileSystemStorageClass()
+	} else {
+		storageClass, exists = libstorage.GetRWXFileSystemStorageClass()
+	}
 	if exists {
 		kv.Spec.Configuration.VMStateStorageClass = storageClass
 	}

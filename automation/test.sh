@@ -71,6 +71,10 @@ elif [[ $TARGET =~ sig-network ]]; then
     export KUBEVIRT_DEPLOY_ISTIO=true
   fi
   export KUBEVIRT_PROVIDER=${TARGET/-sig-network*/}
+elif [[ $TARGET =~ sig-storage-rwotpm ]]; then
+  export KUBEVIRT_PROVIDER=${TARGET/-sig-storage-rwotpm/}
+  export KUBEVIRT_STORAGE="rook-ceph-default"
+  export KUBEVIRT_RWO_BACKEND_STORAGE=true
 elif [[ $TARGET =~ sig-storage ]]; then
   export KUBEVIRT_PROVIDER=${TARGET/-sig-storage/}
   export KUBEVIRT_STORAGE="rook-ceph-default"
@@ -422,6 +426,8 @@ if [[ -z ${KUBEVIRT_E2E_FOCUS} && -z ${KUBEVIRT_E2E_SKIP} && -z ${label_filter} 
     else
       add_to_label_filter "(!migration-based-hotplug-NICs)" "&&"
     fi
+  elif [[ $TARGET =~ sig-storage-rwotpm ]]; then
+    label_filter='(sig-storage-tpm)'
   elif [[ $TARGET =~ sig-storage ]]; then
     label_filter='(sig-storage)'
   elif [[ $TARGET =~ wg-s390x ]]; then

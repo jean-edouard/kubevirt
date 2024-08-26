@@ -28,7 +28,7 @@ import (
 	"kubevirt.io/kubevirt/tests/testsuite"
 )
 
-var _ = Describe("[sig-storage]VM state", decorators.SigStorage, decorators.RequiresRWXFilesystemStorage, func() {
+var _ = Describe("[sig-storage]VM state", decorators.SigStorage, decorators.SigStorageTPM, func() {
 	var virtClient kubecli.KubevirtClient
 	var err error
 
