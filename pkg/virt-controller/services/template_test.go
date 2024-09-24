@@ -5093,7 +5093,7 @@ var _ = Describe("Template", func() {
 
 			sourcePod.Annotations[testKey] = initialValue
 
-			targetPod, err := svc.RenderMigrationManifest(vmi, sourcePod)
+			targetPod, err := svc.RenderMigrationManifest(vmi, nil, sourcePod)
 			Expect(err).ToNot(HaveOccurred())
 
 			Expect(targetPod.Annotations).To(HaveKeyWithValue(testKey, updatedValue))
@@ -5132,7 +5132,7 @@ var _ = Describe("Template", func() {
 
 			sourcePod.Annotations[testKey] = initialValue
 
-			_, err = svc.RenderMigrationManifest(vmi, sourcePod)
+			_, err = svc.RenderMigrationManifest(vmi, nil, sourcePod)
 			Expect(err).To(MatchError(expectedErr))
 		})
 	})
