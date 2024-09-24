@@ -108,6 +108,7 @@ type Controller struct {
 	resourceQuotaIndexer cache.Indexer
 	recorder             record.EventRecorder
 	podExpectations      *controller.UIDTrackingControllerExpectations
+	pvcExpectations      *controller.UIDTrackingControllerExpectations
 	migrationStartLock   *sync.Mutex
 	clusterConfig        *virtconfig.ClusterConfig
 	hasSynced            func() bool
@@ -153,6 +154,7 @@ func NewController(templateService services.TemplateService,
 		recorder:             recorder,
 		clientset:            clientset,
 		podExpectations:      controller.NewUIDTrackingControllerExpectations(controller.NewControllerExpectations()),
+		pvcExpectations:      controller.NewUIDTrackingControllerExpectations(controller.NewControllerExpectations()),
 		migrationStartLock:   &sync.Mutex{},
 		clusterConfig:        clusterConfig,
 		handOffMap:           make(map[string]struct{}),
@@ -198,6 +200,10 @@ func NewController(templateService services.TemplateService,
 	if err != nil {
 		return nil, err
 	}
+
+	_, err = pvcInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc: c.addPVC,
+	})
 
 	_, err = resourceQuotaInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		UpdateFunc: c.updateResourceQuota,
@@ -696,8 +702,12 @@ func setTargetPodSELinuxLevel(pod *k8sv1.Pod, vmiSeContext string) error {
 	return nil
 }
 
-func (c *Controller) createTargetPod(migration *virtv1.VirtualMachineInstanceMigration, vmi *virtv1.VirtualMachineInstance, sourcePod *k8sv1.Pod, backendStoragePVCName string) error {
-	templatePod, err := c.templateService.RenderMigrationManifest(vmi, sourcePod, backendStoragePVCName)
+func (c *Controller) createTargetPod(migration *virtv1.VirtualMachineInstanceMigration, vmi *virtv1.VirtualMachineInstance, sourcePod *k8sv1.Pod) error {
+	if !c.pvcExpectations.SatisfiedExpectations(controller.MigrationKey(migration)) {
+		// Give time to the PVC informer to update itself
+		return nil
+	}
+	templatePod, err := c.templateService.RenderMigrationManifest(vmi, sourcePod)
 	if err != nil {
 		return fmt.Errorf("failed to render launch manifest: %v", err)
 	}
@@ -1113,25 +1123,47 @@ func (c *Controller) handleTargetPodCreation(key string, migration *virtv1.Virtu
 				return nil
 			}
 		}
-		var backendStoragePVCName string
-		if backendstorage.IsBackendStorageNeededForVMI(&vmi.Spec) {
-			if migration.Status.MigrationState == nil {
-				migration.Status.MigrationState = &virtv1.VirtualMachineInstanceMigrationState{}
-			}
-			migration.Status.MigrationState.SourcePersistentStatePVCName = backendstorage.CurrentPVCName(vmi)
-			if migration.Status.MigrationState.SourcePersistentStatePVCName == "" {
-				return fmt.Errorf("no backend-storage PVC found in VMI volume status")
-			}
+		err = c.handleBackendStorage(migration, vmi)
+		if err != nil {
+			return err
+		}
+		return c.createTargetPod(migration, vmi, sourcePod)
+	}
+	return nil
+}
 
+func (c *Controller) handleBackendStorage(migration *virtv1.VirtualMachineInstanceMigration, vmi *virtv1.VirtualMachineInstance) error {
+	if backendstorage.IsBackendStorageNeededForVMI(&vmi.Spec) {
+		if migration.Status.MigrationState == nil {
+			migration.Status.MigrationState = &virtv1.VirtualMachineInstanceMigrationState{}
+		}
+		migration.Status.MigrationState.SourcePersistentStatePVCName = backendstorage.CurrentPVCName(vmi)
+		if migration.Status.MigrationState.SourcePersistentStatePVCName == "" {
+			return fmt.Errorf("no backend-storage PVC found in VMI volume status")
+		}
+
+		if migration.Status.MigrationState.TargetPersistentStatePVCName == "" {
 			bs := backendstorage.NewBackendStorage(c.clientset, c.clusterConfig, c.storageClassStore, c.storageProfileStore, c.pvcStore)
-			backendStoragePVCName, err = bs.CreateIfNeededAndUpdateVolumeStatus(vmi, true)
+			vmiKey, err := controller.KeyFunc(vmi)
 			if err != nil {
 				return err
 			}
-			migration.Status.MigrationState.TargetPersistentStatePVCName = backendStoragePVCName
+			c.pvcExpectations.ExpectCreations(vmiKey, 1)
+			backendStoragePVC, err := bs.CreatePVCForMigrationTarget(vmi, migration.Name)
+			if err != nil {
+				c.pvcExpectations.CreationObserved(vmiKey)
+				return err
+			}
+			bs.UpdateVolumeStatus(vmi, backendStoragePVC)
+			migration.Status.MigrationState.TargetPersistentStatePVCName = backendStoragePVC.Name
 		}
-		return c.createTargetPod(migration, vmi, sourcePod, backendStoragePVCName)
+		if vmi.Status.MigrationState == nil {
+			vmi.Status.MigrationState = &virtv1.VirtualMachineInstanceMigrationState{}
+		}
+		vmi.Status.MigrationState.SourcePersistentStatePVCName = migration.Status.MigrationState.SourcePersistentStatePVCName
+		vmi.Status.MigrationState.TargetPersistentStatePVCName = migration.Status.MigrationState.TargetPersistentStatePVCName
 	}
+
 	return nil
 }
 
@@ -1722,6 +1754,24 @@ func (c *Controller) updatePDB(old, cur interface{}) {
 			c.enqueueMigration(vmim)
 		}
 	}
+}
+
+func (c *Controller) addPVC(obj interface{}) {
+	pvc := obj.(*k8sv1.PersistentVolumeClaim)
+	if pvc.DeletionTimestamp != nil {
+		return
+	}
+
+	if !strings.HasPrefix(pvc.Name, backendstorage.PVCPrefix) {
+		return
+	}
+	migrationName, exists := pvc.Labels[virtv1.MigrationNameLabel]
+	if !exists {
+		return
+	}
+	migrationKey := pvc.Namespace + "/" + migrationName
+	c.pvcExpectations.CreationObserved(migrationKey)
+	c.Queue.Add(migrationKey)
 }
 
 type vmimCollection []*virtv1.VirtualMachineInstanceMigration

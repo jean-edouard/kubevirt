@@ -101,6 +101,7 @@ func NewController(templateService services.TemplateService,
 		clientset:         clientset,
 		podExpectations:   controller.NewUIDTrackingControllerExpectations(controller.NewControllerExpectations()),
 		vmiExpectations:   controller.NewUIDTrackingControllerExpectations(controller.NewControllerExpectations()),
+		pvcExpectations:   controller.NewUIDTrackingControllerExpectations(controller.NewControllerExpectations()),
 		dataVolumeIndexer: dataVolumeInformer.GetIndexer(),
 		cdiStore:          cdiInformer.GetStore(),
 		cdiConfigStore:    cdiConfigInformer.GetStore(),
@@ -183,6 +184,7 @@ type Controller struct {
 	recorder          record.EventRecorder
 	podExpectations   *controller.UIDTrackingControllerExpectations
 	vmiExpectations   *controller.UIDTrackingControllerExpectations
+	pvcExpectations   *controller.UIDTrackingControllerExpectations
 	dataVolumeIndexer cache.Indexer
 	cdiStore          cache.Store
 	cdiConfigStore    cache.Store
@@ -282,7 +284,7 @@ func (c *Controller) execute(key string) error {
 	}
 
 	// If needsSync is true (expectations fulfilled) we can make save assumptions if virt-handler or virt-controller owns the pod
-	needsSync := c.podExpectations.SatisfiedExpectations(key) && c.vmiExpectations.SatisfiedExpectations(key)
+	needsSync := c.podExpectations.SatisfiedExpectations(key) && c.vmiExpectations.SatisfiedExpectations(key) && c.pvcExpectations.SatisfiedExpectations(key)
 
 	if !needsSync {
 		return nil
@@ -680,7 +682,7 @@ func (c *Controller) updateStatus(vmi *virtv1.VirtualMachineInstance, pod *k8sv1
 		// We could not retry if the "test" fails but we have no sane way to detect that right now: https://github.com/kubernetes/kubernetes/issues/68202 for details
 		// So just retry like with any other errors
 		if err != nil {
-			return fmt.Errorf("patching of vmi conditions and activePods failed: %v", err)
+			return fmt.Errorf("patching of vmi conditions and activePods failed: %v\nJED %s\nDONE", err, string(patchBytes))
 		}
 
 		return nil
@@ -954,9 +956,9 @@ func (c *Controller) sync(vmi *virtv1.VirtualMachineInstance, pod *k8sv1.Pod, da
 		// do not return; just log the error
 	}
 
-	backendStoragePVCName, err := c.backendStorage.CreateIfNeededAndUpdateVolumeStatus(vmi, false)
-	if err != nil {
-		return common.NewSyncError(err, controller.FailedBackendStorageCreateReason)
+	backendStoragePVCName, syncErr := c.handleBackendStorage(vmi)
+	if syncErr != nil {
+		return syncErr
 	}
 
 	dataVolumesReady, isWaitForFirstConsumer, syncErr := c.handleSyncDataVolumes(vmi, dataVolumes)
@@ -981,9 +983,13 @@ func (c *Controller) sync(vmi *virtv1.VirtualMachineInstance, pod *k8sv1.Pod, da
 			return nil
 		}
 
-		// Ensure the backend storage PVC is ready
+		// If a backend-storage PVC was just created but not yet seen by the informer, give it time
+		if !c.pvcExpectations.SatisfiedExpectations(key) {
+			return nil
+		}
+
 		var backendStorageReady bool
-		backendStorageReady, err = c.backendStorage.IsPVCReady(vmi, backendStoragePVCName)
+		backendStorageReady, err := c.backendStorage.IsPVCReady(vmi, backendStoragePVCName)
 		if err != nil {
 			return common.NewSyncError(err, controller.FailedBackendStorageProbeReason)
 		}
@@ -993,12 +999,11 @@ func (c *Controller) sync(vmi *virtv1.VirtualMachineInstance, pod *k8sv1.Pod, da
 		}
 
 		var templatePod *k8sv1.Pod
-		var err error
 		if isWaitForFirstConsumer {
 			log.Log.V(3).Object(vmi).Infof("Scheduling temporary pod for WaitForFirstConsumer DV")
 			templatePod, err = c.templateService.RenderLaunchManifestNoVm(vmi)
 		} else {
-			templatePod, err = c.templateService.RenderLaunchManifest(vmi, backendStoragePVCName)
+			templatePod, err = c.templateService.RenderLaunchManifest(vmi)
 		}
 		if _, ok := err.(storagetypes.PvcNotFoundError); ok {
 			c.recorder.Eventf(vmi, k8sv1.EventTypeWarning, controller.FailedPvcNotFoundReason, services.FailedToRenderLaunchManifestErrFormat, err)
@@ -1081,6 +1086,31 @@ func (c *Controller) sync(vmi *virtv1.VirtualMachineInstance, pod *k8sv1.Pod, da
 	return nil
 }
 
+func (c *Controller) handleBackendStorage(vmi *virtv1.VirtualMachineInstance) (string, common.SyncError) {
+	key, err := controller.KeyFunc(vmi)
+	if err != nil {
+		return "", common.NewSyncError(err, controller.FailedBackendStorageCreateReason)
+	}
+	if backendstorage.IsBackendStorageNeededForVMI(&vmi.Spec) {
+		pvc := backendstorage.PVCForVMI(c.pvcIndexer, vmi)
+		if pvc != nil {
+			c.backendStorage.UpdateVolumeStatus(vmi, pvc)
+			return pvc.Name, nil
+		} else {
+			c.pvcExpectations.ExpectCreations(key, 1)
+			backendStoragePVC, err := c.backendStorage.CreatePVCForVMI(vmi)
+			if err != nil {
+				c.pvcExpectations.CreationObserved(key)
+				return "", common.NewSyncError(err, controller.FailedBackendStorageCreateReason)
+			}
+			c.backendStorage.UpdateVolumeStatus(vmi, backendStoragePVC)
+			return backendStoragePVC.Name, nil
+		}
+	}
+
+	return "", nil
+}
+
 func (c *Controller) handleSyncDataVolumes(vmi *virtv1.VirtualMachineInstance, dataVolumes []*cdiv1.DataVolume) (bool, bool, common.SyncError) {
 
 	ready := true
@@ -1114,6 +1144,14 @@ func (c *Controller) addPVC(obj interface{}) {
 	pvc := obj.(*k8sv1.PersistentVolumeClaim)
 	if pvc.DeletionTimestamp != nil {
 		return
+	}
+
+	persistentStateFor, exists := pvc.Labels[backendstorage.PVCPrefix]
+	if exists {
+		vmiKey := pvc.Namespace + "/" + persistentStateFor
+		c.pvcExpectations.CreationObserved(vmiKey)
+		c.Queue.Add(vmiKey)
+		return // The PVC is a backend-storage PVC, won't be listed by `c.listVMIsMatchingDV()`
 	}
 
 	vmis, err := c.listVMIsMatchingDV(pvc.Namespace, pvc.Name)

@@ -28,6 +28,8 @@ import (
 	"strconv"
 	"strings"
 
+	backendstorage "kubevirt.io/kubevirt/pkg/storage/backend-storage"
+
 	k8sv1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -130,8 +132,8 @@ type targetAnnotationsGenerator interface {
 }
 
 type TemplateService interface {
-	RenderMigrationManifest(vmi *v1.VirtualMachineInstance, sourcePod *k8sv1.Pod, backendStoragePVCName string) (*k8sv1.Pod, error)
-	RenderLaunchManifest(vmi *v1.VirtualMachineInstance, backendStoragePVCName string) (*k8sv1.Pod, error)
+	RenderMigrationManifest(vmi *v1.VirtualMachineInstance, sourcePod *k8sv1.Pod) (*k8sv1.Pod, error)
+	RenderLaunchManifest(vmi *v1.VirtualMachineInstance) (*k8sv1.Pod, error)
 	RenderHotplugAttachmentPodTemplate(volumes []*v1.Volume, ownerPod *k8sv1.Pod, vmi *v1.VirtualMachineInstance, claimMap map[string]*k8sv1.PersistentVolumeClaim) (*k8sv1.Pod, error)
 	RenderHotplugAttachmentTriggerPodTemplate(volume *v1.Volume, ownerPod *k8sv1.Pod, vmi *v1.VirtualMachineInstance, pvcName string, isBlock bool, tempPod bool) (*k8sv1.Pod, error)
 	RenderLaunchManifestNoVm(*v1.VirtualMachineInstance) (*k8sv1.Pod, error)
@@ -258,11 +260,20 @@ func (t *templateService) GetLauncherImage() string {
 }
 
 func (t *templateService) RenderLaunchManifestNoVm(vmi *v1.VirtualMachineInstance) (*k8sv1.Pod, error) {
-	return t.renderLaunchManifest(vmi, nil, "", true)
+	backendStoragePVCName := ""
+	if backendstorage.IsBackendStorageNeededForVMI(&vmi.Spec) {
+		backendStoragePVC := backendstorage.PVCForVMI(t.persistentVolumeClaimStore, vmi)
+		backendStoragePVCName = backendStoragePVC.Name
+	}
+	return t.renderLaunchManifest(vmi, nil, backendStoragePVCName, true)
 }
 
-func (t *templateService) RenderMigrationManifest(vmi *v1.VirtualMachineInstance, sourcePod *k8sv1.Pod, backendStoragePVCName string) (*k8sv1.Pod, error) {
+func (t *templateService) RenderMigrationManifest(vmi *v1.VirtualMachineInstance, sourcePod *k8sv1.Pod) (*k8sv1.Pod, error) {
 	imageIDs := containerdisk.ExtractImageIDsFromSourcePod(vmi, sourcePod)
+	backendStoragePVCName := ""
+	if backendstorage.IsBackendStorageNeededForVMI(&vmi.Spec) && vmi.Status.MigrationState != nil {
+		backendStoragePVCName = vmi.Status.MigrationState.TargetPersistentStatePVCName
+	}
 	targetPod, err := t.renderLaunchManifest(vmi, imageIDs, backendStoragePVCName, false)
 	if err != nil {
 		return nil, err
@@ -280,7 +291,12 @@ func (t *templateService) RenderMigrationManifest(vmi *v1.VirtualMachineInstance
 	return targetPod, err
 }
 
-func (t *templateService) RenderLaunchManifest(vmi *v1.VirtualMachineInstance, backendStoragePVCName string) (*k8sv1.Pod, error) {
+func (t *templateService) RenderLaunchManifest(vmi *v1.VirtualMachineInstance) (*k8sv1.Pod, error) {
+	backendStoragePVCName := ""
+	if backendstorage.IsBackendStorageNeededForVMI(&vmi.Spec) {
+		backendStoragePVC := backendstorage.PVCForVMI(t.persistentVolumeClaimStore, vmi)
+		backendStoragePVCName = backendStoragePVC.Name
+	}
 	return t.renderLaunchManifest(vmi, nil, backendStoragePVCName, false)
 }
 

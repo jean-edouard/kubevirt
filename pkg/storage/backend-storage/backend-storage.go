@@ -143,6 +143,7 @@ func MigrationHandoff(client kubecli.KubevirtClient, migration *corev1.VirtualMa
 		labelPatch := patch.New()
 		if len(labels) == 0 {
 			labels[PVCPrefix] = migration.Spec.VMIName
+			delete(labels, corev1.MigrationNameLabel)
 			labelPatch.AddOption(patch.WithAdd("/metadata/labels", labels))
 		} else {
 			labelPatch.AddOption(patch.WithReplace("/metadata/labels/"+PVCPrefix, migration.Spec.VMIName))
@@ -268,7 +269,7 @@ func (bs *BackendStorage) getAccessMode(storageClass string, mode v1.PersistentV
 	return accessMode
 }
 
-func (bs *BackendStorage) updateVolumeStatus(vmi *corev1.VirtualMachineInstance, pvc *v1.PersistentVolumeClaim) {
+func (bs *BackendStorage) UpdateVolumeStatus(vmi *corev1.VirtualMachineInstance, pvc *v1.PersistentVolumeClaim) {
 	if vmi.Status.VolumeStatus == nil {
 		vmi.Status.VolumeStatus = []corev1.VolumeStatus{}
 	}
@@ -291,26 +292,10 @@ func (bs *BackendStorage) updateVolumeStatus(vmi *corev1.VirtualMachineInstance,
 	})
 }
 
-func (bs *BackendStorage) CreateIfNeededAndUpdateVolumeStatus(vmi *corev1.VirtualMachineInstance, migrationTarget bool) (string, error) {
-	if !IsBackendStorageNeededForVMI(&vmi.Spec) {
-		return "", nil
-	}
-
-	// TODO: if the pvc was just created and the pvcStore doesn't yet know about it, we'll create a second PVC...
-	// We probably need an API call instead
-	pvc := PVCForVMI(bs.pvcStore, vmi)
-
-	if (!migrationTarget && pvc != nil) ||
-		(migrationTarget && len(pvc.Status.AccessModes) > 0 && pvc.Status.AccessModes[0] == v1.ReadWriteMany) {
-		// We're not a migration target and the PVC already exists, or we are a migration target and the PVC is RWX
-		// In both cases, we just return the existing PVC.
-		bs.updateVolumeStatus(vmi, pvc)
-		return pvc.Name, nil
-	}
-
+func (bs *BackendStorage) createPVC(vmi *corev1.VirtualMachineInstance, labels map[string]string) (*v1.PersistentVolumeClaim, error) {
 	storageClass, err := bs.getStorageClass()
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	mode := v1.PersistentVolumeFilesystem
 	accessMode := bs.getAccessMode(storageClass, mode)
@@ -324,10 +309,11 @@ func (bs *BackendStorage) CreateIfNeededAndUpdateVolumeStatus(vmi *corev1.Virtua
 			*metav1.NewControllerRef(vmi, corev1.VirtualMachineInstanceGroupVersionKind),
 		}
 	}
-	pvc = &v1.PersistentVolumeClaim{
+	pvc := &v1.PersistentVolumeClaim{
 		ObjectMeta: metav1.ObjectMeta{
 			GenerateName:    BasePVC(vmi) + "-",
 			OwnerReferences: ownerReferences,
+			Labels:          labels,
 		},
 		Spec: v1.PersistentVolumeClaimSpec{
 			AccessModes: []v1.PersistentVolumeAccessMode{accessMode},
@@ -338,19 +324,35 @@ func (bs *BackendStorage) CreateIfNeededAndUpdateVolumeStatus(vmi *corev1.Virtua
 			VolumeMode:       &mode,
 		},
 	}
-	if !migrationTarget {
-		// If the PVC is for a migration target, we'll set the label at the end of the migration
-		pvc.Labels = map[string]string{PVCPrefix: vmi.Name}
-	}
 
 	pvc, err = bs.client.CoreV1().PersistentVolumeClaims(vmi.Namespace).Create(context.Background(), pvc, metav1.CreateOptions{})
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
-	bs.updateVolumeStatus(vmi, pvc)
+	return pvc, nil
+}
 
-	return pvc.Name, nil
+func (bs *BackendStorage) CreatePVCForVMI(vmi *corev1.VirtualMachineInstance) (*v1.PersistentVolumeClaim, error) {
+	pvc := PVCForVMI(bs.pvcStore, vmi)
+
+	if pvc != nil {
+		// A PVC already exists for this VMI, nothing to do
+		return pvc, nil
+	}
+
+	return bs.createPVC(vmi, map[string]string{PVCPrefix: vmi.Name})
+}
+
+func (bs *BackendStorage) CreatePVCForMigrationTarget(vmi *corev1.VirtualMachineInstance, migrationName string) (*v1.PersistentVolumeClaim, error) {
+	pvc := PVCForVMI(bs.pvcStore, vmi)
+
+	if len(pvc.Status.AccessModes) > 0 && pvc.Status.AccessModes[0] == v1.ReadWriteMany {
+		// The source PVC is RWX, so it can be used for the target too
+		return pvc, nil
+	}
+
+	return bs.createPVC(vmi, map[string]string{corev1.MigrationNameLabel: migrationName})
 }
 
 // IsPVCReady returns true if either:
