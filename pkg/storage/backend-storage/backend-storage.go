@@ -52,7 +52,7 @@ func BasePVC(vmi *corev1.VirtualMachineInstance) string {
 	return PVCPrefix + "-" + vmi.Name
 }
 
-func PVCForVMI(pvcStore cache.Store, vmi *corev1.VirtualMachineInstance) *v1.PersistentVolumeClaim {
+func PVCForVMI(pvcStore cache.Store, vmi *corev1.VirtualMachineInstance, client ...kubecli.KubevirtClient) *v1.PersistentVolumeClaim {
 	var legacyPVC *v1.PersistentVolumeClaim
 
 	objs := pvcStore.List()
@@ -71,6 +71,9 @@ func PVCForVMI(pvcStore cache.Store, vmi *corev1.VirtualMachineInstance) *v1.Per
 	}
 
 	if legacyPVC != nil {
+		if len(client) == 1 {
+			labelLegacyPVC(client[0], legacyPVC, vmi.Name)
+		}
 		return legacyPVC
 	}
 
@@ -105,6 +108,22 @@ func PVCForMigrationTarget(pvcStore cache.Store, migration *corev1.VirtualMachin
 	}
 
 	return ""
+}
+
+func labelLegacyPVC(client kubecli.KubevirtClient, pvc *v1.PersistentVolumeClaim, name string) {
+	labelPatch := patch.New()
+	if len(pvc.Labels) == 0 {
+		labelPatch.AddOption(patch.WithAdd("/metadata/labels", map[string]string{PVCPrefix: name}))
+	} else {
+		labelPatch.AddOption(patch.WithReplace("/metadata/labels/"+PVCPrefix, name))
+	}
+	labelPatchPayload, err := labelPatch.GeneratePayload()
+	if err == nil {
+		_, err = client.CoreV1().PersistentVolumeClaims(pvc.Namespace).Patch(context.Background(), pvc.Name, types.JSONPatchType, labelPatchPayload, metav1.PatchOptions{})
+		if err != nil {
+			log.Log.Reason(err).Warningf("failed to label legacy PVC %s/%s", pvc.Namespace, pvc.Name)
+		}
+	}
 }
 
 func CurrentPVCName(vmi *corev1.VirtualMachineInstance) string {
@@ -372,7 +391,7 @@ func (bs *BackendStorage) createPVC(vmi *corev1.VirtualMachineInstance, labels m
 }
 
 func (bs *BackendStorage) CreatePVCForVMI(vmi *corev1.VirtualMachineInstance) (*v1.PersistentVolumeClaim, error) {
-	pvc := PVCForVMI(bs.pvcStore, vmi)
+	pvc := PVCForVMI(bs.pvcStore, vmi, bs.client)
 
 	if pvc != nil {
 		// A PVC already exists for this VMI, nothing to do
