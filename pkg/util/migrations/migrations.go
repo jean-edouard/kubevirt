@@ -112,3 +112,17 @@ func VMIMigratableOnEviction(clusterConfig *virtconfig.ClusterConfig, vmi *v1.Vi
 	}
 	return false
 }
+
+func MigrationForVMI(store cache.Store, vmi *v1.VirtualMachineInstance) *v1.VirtualMachineInstanceMigration {
+	objs := store.List()
+	for _, obj := range objs {
+		migration := obj.(*v1.VirtualMachineInstanceMigration)
+		if migration.Namespace != vmi.Namespace {
+			continue
+		}
+		if migration.Spec.VMIName == vmi.Name {
+			return migration
+		}
+	}
+	return nil
+}

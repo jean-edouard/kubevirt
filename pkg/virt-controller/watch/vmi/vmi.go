@@ -77,6 +77,7 @@ func NewController(templateService services.TemplateService,
 	vmiInformer cache.SharedIndexInformer,
 	vmInformer cache.SharedIndexInformer,
 	podInformer cache.SharedIndexInformer,
+	migrationInformer cache.SharedIndexInformer,
 	pvcInformer cache.SharedIndexInformer,
 	storageClassInformer cache.SharedIndexInformer,
 	recorder record.EventRecorder,
@@ -97,6 +98,7 @@ func NewController(templateService services.TemplateService,
 		vmiIndexer:              vmiInformer.GetIndexer(),
 		vmStore:                 vmInformer.GetStore(),
 		podIndexer:              podInformer.GetIndexer(),
+		migrationIndexer:        migrationInformer.GetIndexer(),
 		pvcIndexer:              pvcInformer.GetIndexer(),
 		recorder:                recorder,
 		clientset:               clientset,
@@ -188,6 +190,7 @@ type Controller struct {
 	vmiIndexer              cache.Indexer
 	vmStore                 cache.Store
 	podIndexer              cache.Indexer
+	migrationIndexer        cache.Indexer
 	pvcIndexer              cache.Indexer
 	topologyHinter          topology.Hinter
 	recorder                record.EventRecorder
@@ -971,11 +974,6 @@ func (c *Controller) sync(vmi *virtv1.VirtualMachineInstance, pod *k8sv1.Pod, da
 		// do not return; just log the error
 	}
 
-	backendStoragePVCName, syncErr := c.handleBackendStorage(vmi)
-	if syncErr != nil {
-		return syncErr
-	}
-
 	dataVolumesReady, isWaitForFirstConsumer, syncErr := c.handleSyncDataVolumes(vmi, dataVolumes)
 	if syncErr != nil {
 		return syncErr
@@ -998,12 +996,16 @@ func (c *Controller) sync(vmi *virtv1.VirtualMachineInstance, pod *k8sv1.Pod, da
 			return nil
 		}
 
+		backendStoragePVCName, syncErr := c.handleBackendStorage(vmi)
+		if syncErr != nil {
+			return syncErr
+		}
+
 		// If a backend-storage PVC was just created but not yet seen by the informer, give it time
 		if !c.pvcExpectations.SatisfiedExpectations(key) {
 			return nil
 		}
 
-		var backendStorageReady bool
 		backendStorageReady, err := c.backendStorage.IsPVCReady(vmi, backendStoragePVCName)
 		if err != nil {
 			return common.NewSyncError(err, controller.FailedBackendStorageProbeReason)
@@ -1111,7 +1113,15 @@ func (c *Controller) handleBackendStorage(vmi *virtv1.VirtualMachineInstance) (s
 		return "", nil
 	}
 
-	pvc := backendstorage.PVCForVMI(c.pvcIndexer, vmi)
+	pvc, err := backendstorage.RecoverFromBrokenMigration(c.clientset, c.pvcIndexer, vmi, c.templateService.GetLauncherImage())
+	if err != nil {
+		return "", common.NewSyncError(err, controller.FailedBackendStorageCreateReason)
+	}
+	if pvc != nil {
+		return pvc.Name, nil
+	}
+
+	pvc = backendstorage.PVCForVMI(c.pvcIndexer, vmi)
 	if pvc == nil {
 		c.pvcExpectations.ExpectCreations(key, 1)
 		if pvc, err = c.backendStorage.CreatePVCForVMI(vmi); err != nil {

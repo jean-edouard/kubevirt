@@ -24,23 +24,23 @@ import (
 	"fmt"
 	"strings"
 
-	"k8s.io/apimachinery/pkg/types"
-
-	"kubevirt.io/kubevirt/pkg/apimachinery/patch"
-
-	"kubevirt.io/client-go/log"
-	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
-
-	"k8s.io/client-go/tools/cache"
-
-	virtconfig "kubevirt.io/kubevirt/pkg/virt-config"
-
+	batchv1 "k8s.io/api/batch/v1"
 	v1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/tools/cache"
+
 	corev1 "kubevirt.io/api/core/v1"
 	"kubevirt.io/client-go/kubecli"
+	"kubevirt.io/client-go/log"
+	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
+
+	"kubevirt.io/kubevirt/pkg/apimachinery/patch"
+	"kubevirt.io/kubevirt/pkg/pointer"
+	"kubevirt.io/kubevirt/pkg/util/migrations"
+	virtconfig "kubevirt.io/kubevirt/pkg/virt-config"
 )
 
 const (
@@ -107,6 +107,62 @@ func PVCForMigrationTarget(pvcStore cache.Store, migration *corev1.VirtualMachin
 	}
 
 	return pvcForMigrationTargetFromStore(pvcStore, migration)
+}
+
+func RecoverFromBrokenMigration(client kubecli.KubevirtClient, migrationStore cache.Store, vmi *corev1.VirtualMachineInstance, launcherImage string) (*v1.PersistentVolumeClaim, error) {
+	migration := migrations.MigrationForVMI(migrationStore, vmi)
+	if migration == nil {
+		return nil, nil
+	}
+	if !migration.IsRunning() || migration.Status.MigrationState == nil ||
+		migration.Status.MigrationState.TargetPersistentStatePVCName == migration.Status.MigrationState.SourcePersistentStatePVCName {
+		// The migration either didn't actually start, or the backend storage is RWX. Either way we're good, we can delete it.
+		err := client.VirtualMachineInstanceMigration(migration.Namespace).Delete(context.Background(), migration.Name, metav1.DeleteOptions{})
+		return nil, err
+	}
+
+	// TODO: run job attached to source PVC to see if its meta dir contains a file named "migrated"
+	// If the file is found:
+	// 1. Get target PVC from informer
+	// 2. Remove source PVC
+	// 3. Delete migration object
+	// 4. Return PVC from 1
+	//
+	// If the file is not found:
+	// 1. Get the source PVC from informer
+	// 2. Remove target PVC
+	// 3. Delete migration object
+	// 4. Return PVC from 1
+	job := batchv1.Job{
+		ObjectMeta: metav1.ObjectMeta{
+			GenerateName: "backend-storage-recover-",
+		},
+		Spec: batchv1.JobSpec{
+			ActiveDeadlineSeconds:   nil,
+			BackoffLimit:            pointer.P(int32(1)),
+			TTLSecondsAfterFinished: pointer.P(int32(60)),
+			Template: v1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					GenerateName: "backend-storage-recover-",
+				},
+				Spec: v1.PodSpec{
+					Containers: []v1.Container{{
+						Name:    "container",
+						Image:   launcherImage,
+						Command: []string{"ls"},
+						Args:    []string{"/meta/migrated"},
+					}},
+				},
+			},
+		},
+	}
+
+	_, err := client.BatchV1().Jobs(vmi.Namespace).Create(context.Background(), &job, metav1.CreateOptions{})
+	if err != nil {
+		return nil, err
+	}
+
+	return nil, nil
 }
 
 func labelLegacyPVC(client kubecli.KubevirtClient, pvc *v1.PersistentVolumeClaim, name string) {

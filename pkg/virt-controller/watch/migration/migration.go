@@ -330,14 +330,16 @@ func (c *Controller) execute(key string) error {
 	}
 
 	if !vmiExists {
-		var err error
-
+		if migration.IsRunning() {
+			logger.V(3).Infof("Migration for deleted VMI %s/%s didn't finish. Keeping VMIM around so VMI controller can resolve issues on next start.", migration.Namespace, migration.Spec.VMIName)
+			return nil
+		}
 		if migration.DeletionTimestamp == nil {
 			logger.V(3).Infof("Deleting migration for deleted vmi %s/%s", migration.Namespace, migration.Spec.VMIName)
-			err = c.clientset.VirtualMachineInstanceMigration(migration.Namespace).Delete(context.Background(), migration.Name, v1.DeleteOptions{})
+			return c.clientset.VirtualMachineInstanceMigration(migration.Namespace).Delete(context.Background(), migration.Name, v1.DeleteOptions{})
 		}
-		// nothing to process for a migration that's being deleted
-		return err
+		// nothing to process for a migration that has no VMI
+		return nil
 	}
 
 	vmi = vmiObj.(*virtv1.VirtualMachineInstance)
