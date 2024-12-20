@@ -1644,12 +1644,12 @@ var _ = Describe("Converter", func() {
 			Expect(domain.Spec.Devices.Video).To(HaveLen(devices))
 			Expect(domain.Spec.Devices.Graphics).To(HaveLen(devices))
 
-			if isARM64(arch) && (autoAttach == nil || *autoAttach) {
+			if (isARM64(arch) || isS390X(arch)) && (autoAttach == nil || *autoAttach) {
 				Expect(domain.Spec.Devices.Video[0].Model.Type).To(Equal(v1.VirtIO))
 				Expect(domain.Spec.Devices.Inputs[0].Type).To(Equal(v1.InputTypeTablet))
 				Expect(domain.Spec.Devices.Inputs[1].Type).To(Equal(v1.InputTypeKeyboard))
 			}
-			if isAMD64(arch) && (autoAttach == nil || *autoAttach) {
+			if (isAMD64(arch) || isS390X(arch)) && (autoAttach == nil || *autoAttach) {
 				Expect(domain.Spec.Devices.Video[0].Model.Type).To(Equal("vga"))
 			}
 		},
