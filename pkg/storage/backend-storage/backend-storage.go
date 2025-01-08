@@ -111,18 +111,16 @@ func PVCForMigrationTarget(pvcStore cache.Store, migration *corev1.VirtualMachin
 	return pvcForMigrationTargetFromStore(pvcStore, migration)
 }
 
-func RecoverFromBrokenMigration(client kubecli.KubevirtClient, migrationIndexer cache.Indexer, pvcStore cache.Store, vmi *corev1.VirtualMachineInstance, launcherImage string) (*v1.PersistentVolumeClaim, error, bool) {
-	var pvc *v1.PersistentVolumeClaim
-
-	migration, err := migrations.InterruptedMigrationForVMI(migrationIndexer, vmi)
+func RecoverFromBrokenMigration(client kubecli.KubevirtClient, migrationIndexer cache.Indexer, pvcStore cache.Store, vm *corev1.VirtualMachine, launcherImage string) error {
+	migration, err := migrations.InterruptedMigrationForVM(migrationIndexer, vm)
 	if err != nil || migration == nil {
-		return nil, err, false
+		return err
 	}
 	if migration.Status.MigrationState == nil ||
 		migration.Status.MigrationState.TargetPersistentStatePVCName == migration.Status.MigrationState.SourcePersistentStatePVCName {
 		// The migration either didn't actually start, or the backend storage is RWX. Either way we're good, we can delete it.
 		err := client.VirtualMachineInstanceMigration(migration.Namespace).Delete(context.Background(), migration.Name, metav1.DeleteOptions{})
-		return nil, err, false
+		return err
 	}
 
 	// An interrupted migration exists. Creating a job to check if the source PVC contains /meta/migrated,
@@ -180,13 +178,12 @@ func RecoverFromBrokenMigration(client kubecli.KubevirtClient, migrationIndexer 
 		},
 	}
 
-	job, err = client.BatchV1().Jobs(vmi.Namespace).Create(context.Background(), job, metav1.CreateOptions{})
+	job, err = client.BatchV1().Jobs(vm.Namespace).Create(context.Background(), job, metav1.CreateOptions{})
 	if err != nil {
-		return nil, err, false
+		return err
 	}
 
 	// Give the job 35 seconds to complete
-	success := false
 	err = virtwait.PollImmediately(time.Second, 35*time.Second, func(ctx context.Context) (done bool, err error) {
 		job, err := client.BatchV1().Jobs(job.Namespace).Get(ctx, job.Name, metav1.GetOptions{})
 		if err != nil {
@@ -196,13 +193,12 @@ func RecoverFromBrokenMigration(client kubecli.KubevirtClient, migrationIndexer 
 			switch c.Type {
 			case batchv1.JobComplete:
 				if c.Status == v1.ConditionTrue {
-					pvc, err = MigrationHandoff(client, pvcStore, migration)
-					success = true
+					err = MigrationHandoff(client, pvcStore, migration)
 					return true, err
 				}
 			case batchv1.JobFailed:
 				if c.Status == v1.ConditionTrue {
-					pvc, err = MigrationAbort(client, migration)
+					err = MigrationAbort(client, migration)
 					return true, err
 				}
 			case batchv1.JobSuspended, batchv1.JobFailureTarget, batchv1.JobSuccessCriteriaMet:
@@ -212,20 +208,20 @@ func RecoverFromBrokenMigration(client kubecli.KubevirtClient, migrationIndexer 
 		return false, nil
 	})
 	if err != nil && !errors.Is(err, context.DeadlineExceeded) {
-		return nil, err, false
+		return err
 	}
 	if errors.Is(err, context.DeadlineExceeded) {
-		return nil, fmt.Errorf("migration recovery job failed to finish"), false
+		return fmt.Errorf("migration recovery job failed to finish")
 	}
 
 	// The handoff/abort was successful, we don't want to fail if the job deletion fails
-	_ = client.BatchV1().Jobs(vmi.Namespace).Delete(context.Background(), job.Name, metav1.DeleteOptions{
+	_ = client.BatchV1().Jobs(vm.Namespace).Delete(context.Background(), job.Name, metav1.DeleteOptions{
 		PropagationPolicy: pointer.P(metav1.DeletePropagationBackground),
 	})
 
-	err = client.VirtualMachineInstanceMigration(vmi.Namespace).Delete(context.Background(), migration.Name, metav1.DeleteOptions{})
+	err = client.VirtualMachineInstanceMigration(vm.Namespace).Delete(context.Background(), migration.Name, metav1.DeleteOptions{})
 
-	return pvc, err, success
+	return err
 }
 
 func (bs *BackendStorage) labelLegacyPVC(pvc *v1.PersistentVolumeClaim, name string) {
@@ -279,11 +275,11 @@ func IsBackendStorageNeededForVM(vm *corev1.VirtualMachine) bool {
 	return HasPersistentTPMDevice(&vm.Spec.Template.Spec) || HasPersistentEFI(&vm.Spec.Template.Spec)
 }
 
-func MigrationHandoff(client kubecli.KubevirtClient, pvcStore cache.Store, migration *corev1.VirtualMachineInstanceMigration) (*v1.PersistentVolumeClaim, error) {
+func MigrationHandoff(client kubecli.KubevirtClient, pvcStore cache.Store, migration *corev1.VirtualMachineInstanceMigration) error {
 	if migration == nil || migration.Status.MigrationState == nil ||
 		migration.Status.MigrationState.SourcePersistentStatePVCName == "" ||
 		migration.Status.MigrationState.TargetPersistentStatePVCName == "" {
-		return nil, fmt.Errorf("missing source and/or target PVC name(s)")
+		return fmt.Errorf("missing source and/or target PVC name(s)")
 	}
 
 	sourcePVC := migration.Status.MigrationState.SourcePersistentStatePVCName
@@ -291,14 +287,14 @@ func MigrationHandoff(client kubecli.KubevirtClient, pvcStore cache.Store, migra
 
 	if sourcePVC == targetPVC {
 		// RWX backend-storage, nothing to do
-		return nil, nil
+		return nil
 	}
 
 	// Let's label the target first, then remove the source.
 	// The target might already be labelled if this function was already called for this migration
 	target := pvcForMigrationTargetFromStore(pvcStore, migration)
 	if target == nil {
-		return nil, fmt.Errorf("target PVC not found for migration %s/%s", migration.Namespace, migration.Name)
+		return fmt.Errorf("target PVC not found for migration %s/%s", migration.Namespace, migration.Name)
 	}
 	labels := target.Labels
 	if labels == nil {
@@ -307,7 +303,7 @@ func MigrationHandoff(client kubecli.KubevirtClient, pvcStore cache.Store, migra
 
 	existing, ok := labels[PVCPrefix]
 	if ok && existing != migration.Spec.VMIName {
-		return nil, fmt.Errorf("target PVC for %s is already labelled for another VMI: %s", migration.Spec.VMIName, existing)
+		return fmt.Errorf("target PVC for %s is already labelled for another VMI: %s", migration.Spec.VMIName, existing)
 	}
 
 	if _, migrationLabelExists := target.Labels[corev1.MigrationNameLabel]; migrationLabelExists {
@@ -318,26 +314,26 @@ func MigrationHandoff(client kubecli.KubevirtClient, pvcStore cache.Store, migra
 		).GeneratePayload()
 
 		if err != nil {
-			return nil, fmt.Errorf("failed to generate PVC patch: %v", err)
+			return fmt.Errorf("failed to generate PVC patch: %v", err)
 		}
 		target, err = client.CoreV1().PersistentVolumeClaims(migration.Namespace).Patch(context.Background(), targetPVC, types.JSONPatchType, labelPatchPayload, metav1.PatchOptions{})
 		if err != nil {
-			return nil, fmt.Errorf("failed to patch PVC: %v", err)
+			return fmt.Errorf("failed to patch PVC: %v", err)
 		}
 	}
 
 	err := client.CoreV1().PersistentVolumeClaims(migration.Namespace).Delete(context.Background(), sourcePVC, metav1.DeleteOptions{})
 	if err != nil {
-		return nil, fmt.Errorf("failed to delete PVC: %v", err)
+		return fmt.Errorf("failed to delete PVC: %v", err)
 	}
 
-	return target, nil
+	return nil
 }
 
-func MigrationAbort(client kubecli.KubevirtClient, migration *corev1.VirtualMachineInstanceMigration) (*v1.PersistentVolumeClaim, error) {
+func MigrationAbort(client kubecli.KubevirtClient, migration *corev1.VirtualMachineInstanceMigration) error {
 	if migration == nil || migration.Status.MigrationState == nil ||
 		migration.Status.MigrationState.TargetPersistentStatePVCName == "" {
-		return nil, nil
+		return nil
 	}
 
 	sourcePVC := migration.Status.MigrationState.SourcePersistentStatePVCName
@@ -345,15 +341,15 @@ func MigrationAbort(client kubecli.KubevirtClient, migration *corev1.VirtualMach
 
 	if sourcePVC == targetPVC {
 		// RWX backend-storage, nothing to delete
-		return nil, nil
+		return nil
 	}
 
 	err := client.CoreV1().PersistentVolumeClaims(migration.Namespace).Delete(context.Background(), targetPVC, metav1.DeleteOptions{})
 	if err != nil {
-		return nil, fmt.Errorf("failed to delete PVC: %v", err)
+		return fmt.Errorf("failed to delete PVC: %v", err)
 	}
 
-	return client.CoreV1().PersistentVolumeClaims(migration.Namespace).Get(context.Background(), sourcePVC, metav1.GetOptions{})
+	return nil
 }
 
 type BackendStorage struct {

@@ -133,6 +133,8 @@ var _ = Describe("VirtualMachine", func() {
 
 			config, _, kvStore = testutils.NewFakeClusterConfigUsingKVConfig(&v1.KubeVirtConfiguration{})
 
+			migrationInformer, _ := testutils.NewFakeInformerFor(&v1.VirtualMachineInstanceMigration{})
+
 			controller, _ = NewController(vmiInformer,
 				vmInformer,
 				dataVolumeInformer,
@@ -140,7 +142,9 @@ var _ = Describe("VirtualMachine", func() {
 				namespaceInformer.GetStore(),
 				pvcInformer,
 				crInformer,
+				migrationInformer,
 				podInformer,
+				"a",
 				instancetypeMethods,
 				recorder,
 				virtClient,
@@ -313,7 +317,7 @@ var _ = Describe("VirtualMachine", func() {
 		sanityExecute := func(vm *v1.VirtualMachine) {
 			controllertesting.SanityExecute(controller, []cache.Store{
 				controller.vmiIndexer, controller.vmIndexer, controller.dataSourceStore, controller.dataVolumeStore,
-				controller.namespaceStore, controller.pvcStore, controller.crIndexer,
+				controller.namespaceStore, controller.pvcIndexer, controller.crIndexer,
 			}, Default)
 		}
 
@@ -1400,7 +1404,7 @@ var _ = Describe("VirtualMachine", func() {
 					Phase: k8sv1.ClaimBound,
 				},
 			}
-			Expect(controller.pvcStore.Add(&pvc)).To(Succeed())
+			Expect(controller.pvcIndexer.Add(&pvc)).To(Succeed())
 
 			createCount := 0
 			if expectedCreations > 0 {
@@ -1811,7 +1815,7 @@ var _ = Describe("VirtualMachine", func() {
 					if pvc.Namespace == "" {
 						pvc.Namespace = vm.Namespace
 					}
-					Expect(controller.pvcStore.Add(&pvc)).To(Succeed())
+					Expect(controller.pvcIndexer.Add(&pvc)).To(Succeed())
 				}
 
 				controller.cloneAuthFunc = func(dv *cdiv1.DataVolume, requestNamespace, requestName string, proxy cdiv1.AuthorizationHelperProxy, saNamespace, saName string) (bool, string, error) {
@@ -3424,7 +3428,7 @@ var _ = Describe("VirtualMachine", func() {
 						Namespace: vm.Namespace,
 					},
 				}
-				Expect(controller.pvcStore.Add(&pvc)).To(Succeed())
+				Expect(controller.pvcIndexer.Add(&pvc)).To(Succeed())
 
 				pvcAnnotationUpdated := make(chan bool, 1)
 				defer close(pvcAnnotationUpdated)
@@ -3781,7 +3785,7 @@ var _ = Describe("VirtualMachine", func() {
 							Phase: k8sv1.ClaimPending,
 						},
 					}
-					Expect(controller.pvcStore.Add(&pvc)).To(Succeed())
+					Expect(controller.pvcIndexer.Add(&pvc)).To(Succeed())
 
 					sanityExecute(vm)
 
@@ -3960,7 +3964,7 @@ var _ = Describe("VirtualMachine", func() {
 							Phase: pvcPhase,
 						},
 					}
-					Expect(controller.pvcStore.Add(&pvc)).To(Succeed())
+					Expect(controller.pvcIndexer.Add(&pvc)).To(Succeed())
 
 					sanityExecute(vm)
 

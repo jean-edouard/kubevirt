@@ -70,7 +70,6 @@ func NewController(templateService services.TemplateService,
 	vmiInformer cache.SharedIndexInformer,
 	vmInformer cache.SharedIndexInformer,
 	podInformer cache.SharedIndexInformer,
-	migrationInformer cache.SharedIndexInformer,
 	pvcInformer cache.SharedIndexInformer,
 	storageClassInformer cache.SharedIndexInformer,
 	recorder record.EventRecorder,
@@ -95,7 +94,6 @@ func NewController(templateService services.TemplateService,
 		vmiIndexer:              vmiInformer.GetIndexer(),
 		vmStore:                 vmInformer.GetStore(),
 		podIndexer:              podInformer.GetIndexer(),
-		migrationIndexer:        migrationInformer.GetIndexer(),
 		pvcIndexer:              pvcInformer.GetIndexer(),
 		recorder:                recorder,
 		clientset:               clientset,
@@ -190,7 +188,6 @@ type Controller struct {
 	vmiIndexer              cache.Indexer
 	vmStore                 cache.Store
 	podIndexer              cache.Indexer
-	migrationIndexer        cache.Indexer
 	pvcIndexer              cache.Indexer
 	topologyHinter          topology.Hinter
 	recorder                record.EventRecorder
@@ -1107,21 +1104,7 @@ func (c *Controller) handleBackendStorage(vmi *virtv1.VirtualMachineInstance) (s
 		return "", nil
 	}
 
-	// If we found a successful migration, critical PVC labels were updated, we need to refresh the informer
-	c.pvcExpectations.ExpectCreations(key, 1)
-	pvc, err, success := backendstorage.RecoverFromBrokenMigration(c.clientset, c.migrationIndexer, c.pvcIndexer, vmi, c.templateService.GetLauncherImage())
-	if err != nil || pvc == nil || !success {
-		// Clear the expectation in all cases except after recovering from a successful migration
-		c.pvcExpectations.CreationObserved(key)
-	}
-	if err != nil {
-		return "", common.NewSyncError(err, controller.FailedBackendStorageCreateReason)
-	}
-	if pvc != nil {
-		return pvc.Name, nil
-	}
-
-	pvc = backendstorage.PVCForVMI(c.pvcIndexer, vmi)
+	pvc := backendstorage.PVCForVMI(c.pvcIndexer, vmi)
 	if pvc == nil {
 		c.pvcExpectations.ExpectCreations(key, 1)
 		if pvc, err = c.backendStorage.CreatePVCForVMI(vmi); err != nil {
@@ -1196,15 +1179,6 @@ func (c *Controller) updatePVC(old, cur interface{}) {
 	}
 	if curPVC.DeletionTimestamp != nil {
 		return
-	}
-
-	_, existsOld := oldPVC.Labels[backendstorage.PVCPrefix]
-	persistentStateFor, existsCur := curPVC.Labels[backendstorage.PVCPrefix]
-	if !existsOld && existsCur {
-		vmiKey := controller.NamespacedKey(curPVC.Namespace, persistentStateFor)
-		c.pvcExpectations.CreationObserved(vmiKey)
-		c.Queue.Add(vmiKey)
-		return // The PVC is a backend-storage PVC, won't be listed by `c.listVMIsMatchingDV()`
 	}
 
 	if equality.Semantic.DeepEqual(curPVC.Status.Capacity, oldPVC.Status.Capacity) {

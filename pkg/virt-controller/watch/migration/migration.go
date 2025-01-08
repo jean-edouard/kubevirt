@@ -415,7 +415,7 @@ func (c *Controller) canMigrateVMI(migration *virtv1.VirtualMachineInstanceMigra
 }
 
 func (c *Controller) failMigration(migration *virtv1.VirtualMachineInstanceMigration) error {
-	_, err := backendstorage.MigrationAbort(c.clientset, migration)
+	err := backendstorage.MigrationAbort(c.clientset, migration)
 	if err != nil {
 		return err
 	}
@@ -660,7 +660,7 @@ func (c *Controller) processMigrationPhase(
 		_, exists := pod.Annotations[virtv1.MigrationTargetReadyTimestamp]
 		if !exists && vmi.Status.MigrationState.TargetNodeDomainReadyTimestamp != nil {
 			if backendstorage.IsBackendStorageNeededForVMI(&vmi.Spec) {
-				_, err := backendstorage.MigrationHandoff(c.clientset, c.pvcStore, migration)
+				err := backendstorage.MigrationHandoff(c.clientset, c.pvcStore, migration)
 				if err != nil {
 					return err
 				}

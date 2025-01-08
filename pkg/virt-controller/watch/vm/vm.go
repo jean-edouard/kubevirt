@@ -31,6 +31,8 @@ import (
 	"strings"
 	"time"
 
+	backendstorage "kubevirt.io/kubevirt/pkg/storage/backend-storage"
+
 	"kubevirt.io/kubevirt/pkg/liveupdate/memory"
 
 	netadmitter "kubevirt.io/kubevirt/pkg/network/admitter"
@@ -130,7 +132,9 @@ func NewController(vmiInformer cache.SharedIndexInformer,
 	namespaceStore cache.Store,
 	pvcInformer cache.SharedIndexInformer,
 	crInformer cache.SharedIndexInformer,
+	migrationInformer cache.SharedIndexInformer,
 	podInformer cache.SharedIndexInformer,
+	launcherImage string,
 	instancetypeMethods instancetype.Methods,
 	recorder record.EventRecorder,
 	clientset kubecli.KubevirtClient,
@@ -148,8 +152,10 @@ func NewController(vmiInformer cache.SharedIndexInformer,
 		dataVolumeStore:        dataVolumeInformer.GetStore(),
 		dataSourceStore:        dataSourceInformer.GetStore(),
 		namespaceStore:         namespaceStore,
-		pvcStore:               pvcInformer.GetStore(),
+		pvcIndexer:             pvcInformer.GetIndexer(),
 		crIndexer:              crInformer.GetIndexer(),
+		migrationIndexer:       migrationInformer.GetIndexer(),
+		launcherImage:          launcherImage,
 		instancetypeMethods:    instancetypeMethods,
 		recorder:               recorder,
 		clientset:              clientset,
@@ -246,8 +252,10 @@ type Controller struct {
 	dataVolumeStore        cache.Store
 	dataSourceStore        cache.Store
 	namespaceStore         cache.Store
-	pvcStore               cache.Store
+	pvcIndexer             cache.Indexer
 	crIndexer              cache.Indexer
+	migrationIndexer       cache.Indexer
+	launcherImage          string
 	instancetypeMethods    instancetype.Methods
 	recorder               record.EventRecorder
 	expectations           *controller.UIDTrackingControllerExpectations
@@ -425,7 +433,7 @@ func (c *Controller) handleCloneDataVolume(vm *virtv1.VirtualMachine, dv *cdiv1.
 	// For this reason, we check if the source PVC exists and, if not, we trigger an event to let users know of this behavior.
 	if dv.Spec.Source.PVC != nil {
 		// TODO: a lot of CDI knowledge, maybe an API to check if source exists?
-		pvc, err := storagetypes.GetPersistentVolumeClaimFromCache(dv.Spec.Source.PVC.Namespace, dv.Spec.Source.PVC.Name, c.pvcStore)
+		pvc, err := storagetypes.GetPersistentVolumeClaimFromCache(dv.Spec.Source.PVC.Namespace, dv.Spec.Source.PVC.Name, c.pvcIndexer)
 		if err != nil {
 			return err
 		}
@@ -476,7 +484,7 @@ func (c *Controller) handleDataVolumes(vm *virtv1.VirtualMachine) (bool, error) 
 		}
 		if curDataVolume == nil {
 			// Don't create DV if PVC already exists
-			pvc, err := storagetypes.GetPersistentVolumeClaimFromCache(vm.Namespace, template.Name, c.pvcStore)
+			pvc, err := storagetypes.GetPersistentVolumeClaimFromCache(vm.Namespace, template.Name, c.pvcIndexer)
 			if err != nil {
 				return false, err
 			}
@@ -613,7 +621,7 @@ func needUpdatePVCMemoryDumpAnnotation(pvc *k8score.PersistentVolumeClaim, reque
 
 func (c *Controller) updatePVCMemoryDumpAnnotation(vm *virtv1.VirtualMachine) error {
 	request := vm.Status.MemoryDumpRequest
-	pvc, err := storagetypes.GetPersistentVolumeClaimFromCache(vm.Namespace, request.ClaimName, c.pvcStore)
+	pvc, err := storagetypes.GetPersistentVolumeClaimFromCache(vm.Namespace, request.ClaimName, c.pvcIndexer)
 	if err != nil {
 		log.Log.Object(vm).Errorf("Error getting PersistentVolumeClaim to update memory dump annotation: %v", err)
 		return err
@@ -1037,7 +1045,7 @@ func (c *Controller) handleVolumeUpdateRequest(vm *virtv1.VirtualMachine, vmi *v
 			setRestartRequired(vm, err.Error())
 			return nil
 		}
-		migVols, err := volumemig.GenerateMigratedVolumes(c.pvcStore, vmi, vm)
+		migVols, err := volumemig.GenerateMigratedVolumes(c.pvcIndexer, vmi, vm)
 		if err != nil {
 			log.Log.Object(vm).Errorf("failed to generate the migrating volumes for vm: %v", err)
 			return err
@@ -1342,6 +1350,11 @@ func (c *Controller) startVMI(vm *virtv1.VirtualMachine) (*virtv1.VirtualMachine
 	if !ready {
 		log.Log.Object(vm).V(4).Info("Waiting for DataVolumes to be created, delaying start")
 		return vm, nil
+	}
+
+	err = backendstorage.RecoverFromBrokenMigration(c.clientset, c.migrationIndexer, c.pvcIndexer, vm, c.launcherImage)
+	if err != nil {
+		return vm, err
 	}
 
 	if controller.NewVirtualMachineConditionManager().HasConditionWithStatus(vm, virtv1.VirtualMachineManualRecoveryRequired, k8score.ConditionTrue) {
@@ -2701,7 +2714,7 @@ func (c *Controller) isVirtualMachineStatusWaitingForVolumeBinding(vm *virtv1.Vi
 		return false
 	}
 
-	return storagetypes.HasUnboundPVC(vm.Namespace, vm.Spec.Template.Spec.Volumes, c.pvcStore)
+	return storagetypes.HasUnboundPVC(vm.Namespace, vm.Spec.Template.Spec.Volumes, c.pvcIndexer)
 }
 
 // isVirtualMachineStatusStarting determines whether the VM status field should be set to "Starting".
