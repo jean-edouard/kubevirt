@@ -168,18 +168,18 @@ func (c *BaseController) prepareNetwork(vmi *v1.VirtualMachineInstance, res isol
 	return nil
 }
 
-func (c *BaseController) nonRootSetup(origVMI *v1.VirtualMachineInstance) error {
-	res, err := c.podIsolationDetector.Detect(origVMI)
+func (c *BaseController) nonRootSetup(vmi *v1.VirtualMachineInstance) error {
+	res, err := c.podIsolationDetector.Detect(vmi)
 	if err != nil {
 		return err
 	}
-	if err := c.prepareStorage(origVMI, res); err != nil {
+	if err := c.prepareStorage(vmi, res); err != nil {
 		return err
 	}
 	if err := c.prepareVFIO(res); err != nil {
 		return err
 	}
-	if err := c.prepareNetwork(origVMI, res); err != nil {
+	if err := c.prepareNetwork(vmi, res); err != nil {
 		return err
 	}
 	return nil
