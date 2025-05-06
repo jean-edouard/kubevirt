@@ -150,9 +150,8 @@ func (l *launcherClientsManager) CloseLauncherClient(vmi *v1.VirtualMachineInsta
 }
 
 // used by unit tests to add mock clients
-func (l *launcherClientsManager) addLauncherClient(vmUID types.UID, info *virtcache.LauncherClientInfo) error {
+func (l *launcherClientsManager) addLauncherClient(vmUID types.UID, info *virtcache.LauncherClientInfo) {
 	l.launcherClients.Store(vmUID, info)
-	return nil
 }
 
 func (l *launcherClientsManager) IsLauncherClientUnresponsive(vmi *v1.VirtualMachineInstance) (unresponsive bool, initialized bool, err error) {
@@ -165,32 +164,27 @@ func (l *launcherClientsManager) IsLauncherClientUnresponsive(vmi *v1.VirtualMac
 			// use cached socket if we previously established a connection
 			socketFile = clientInfo.SocketFile
 			fmt.Println("IsLauncherClientUnresponsive Ready")
+			if !cmdclient.IsSocketUnresponsive(socketFile) {
+				return false, true, nil
+			}
 		} else {
 			socketFile, err = cmdclient.FindSocketOnHost(vmi)
-			if err != nil {
-				// socket does not exist, but let's see if the pod is still there
-				if _, err = cmdclient.FindPodDirOnHost(vmi); err != nil {
-					// no pod meanst that waiting for it to initialize makes no sense
-					fmt.Println("IsLauncherClientUnresponsive no pod meanst that waiting for it to initialize makes no sense")
-					return true, true, nil
+			if err == nil {
+				clientInfo.Ready = true
+				clientInfo.SocketFile = socketFile
+				if !cmdclient.IsSocketUnresponsive(socketFile) {
+					return false, true, nil
 				}
-				// pod is still there, if there is no socket let's wait for it to become ready
-				if clientInfo.NotInitializedSince.Before(time.Now().Add(-3 * time.Minute)) {
-					fmt.Println("IsLauncherClientUnresponsive NotInitializedSince")
-					return true, true, nil
-				}
-				return false, false, nil
 			}
-			clientInfo.Ready = true
-			clientInfo.SocketFile = socketFile
 		}
-	} else {
+	}
+	{
 		fmt.Println("IsLauncherClientUnresponsive not exists")
 		clientInfo := &virtcache.LauncherClientInfo{
 			NotInitializedSince: time.Now(),
 			Ready:               false,
 		}
-		l.launcherClients.Store(vmi.UID, clientInfo)
+		l.addLauncherClient(vmi.UID, clientInfo)
 		// attempt to find the socket if the established connection doesn't currently exist.
 		socketFile, err = cmdclient.FindSocketOnHost(vmi)
 		// no socket file, no VMI, so it's unresponsive

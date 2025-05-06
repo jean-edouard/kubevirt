@@ -165,7 +165,11 @@ func (store *GhostRecordStore) Add(namespace string, name string, socketFile str
 	}
 
 	key := namespace + "/" + name
-	record, ok := store.cache[key]
+	_, ok := store.cache[key]
+	if ok {
+		_ = store.Delete(namespace, name)
+	}
+
 	if !ok {
 		// record doesn't exist, so add new one.
 		record := ghostRecord{
@@ -178,18 +182,6 @@ func (store *GhostRecordStore) Add(namespace string, name string, socketFile str
 			return fmt.Errorf("failed to checkpoint %s, %w", uid, err)
 		}
 		store.cache[key] = record
-	}
-
-	// This protects us from stomping on a previous ghost record
-	// that was not cleaned up properly. A ghost record that was
-	// not deleted indicates that the VMI shutdown process did not
-	// properly handle cleanup of local data.
-	if ok && record.UID != uid {
-		return fmt.Errorf("can not add ghost record when entry already exists with differing UID")
-	}
-
-	if ok && record.SocketFile != socketFile {
-		return fmt.Errorf("can not add ghost record when entry already exists with differing socket file location")
 	}
 
 	return nil
