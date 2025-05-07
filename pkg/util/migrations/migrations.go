@@ -63,6 +63,10 @@ func IsMigrating(vmi *v1.VirtualMachineInstance) bool {
 		return false
 	}
 
+	if vmi.Status.MigrationState != nil && (vmi.Status.MigrationState.Completed || vmi.Status.MigrationState.Failed) {
+		return false
+	}
+
 	now := metav1.Now()
 
 	running := false
@@ -81,12 +85,7 @@ func IsMigrating(vmi *v1.VirtualMachineInstance) bool {
 }
 
 func MigrationFailed(vmi *v1.VirtualMachineInstance) bool {
-
-	if vmi.Status.MigrationState != nil && vmi.Status.MigrationState.Failed {
-		return true
-	}
-
-	return false
+	return vmi.Status.MigrationState != nil && vmi.Status.MigrationState.Failed
 }
 
 func VMIEvictionStrategy(clusterConfig *virtconfig.ClusterConfig, vmi *v1.VirtualMachineInstance) *v1.EvictionStrategy {

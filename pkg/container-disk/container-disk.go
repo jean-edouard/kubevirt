@@ -75,6 +75,9 @@ func GetVolumeMountDirOnHost(vmi *v1.VirtualMachineInstance) (*safepath.Path, er
 		if err != nil {
 			return nil, err
 		} else if exists {
+			if foundEntries == 1 {
+				return nil, fmt.Errorf("JED FOUND 2 CONTAINERDISK PODS: %s AND %s", foundBasepath, basepath)
+			}
 			foundEntries++
 			foundBasepath = basepath
 		}

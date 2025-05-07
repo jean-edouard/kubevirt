@@ -1599,7 +1599,7 @@ var _ = Describe(SIG("VM Live Migration", decorators.RequiresTwoSchedulableNodes
 				libmigration.ConfirmVMIPostMigration(virtClient, vmi, migration)
 			})
 
-			It("old finalized migrations should get garbage collected", func() {
+			FIt("old finalized migrations should get garbage collected", func() {
 				vmi := libvmifact.NewFedora(
 					libnet.WithMasqueradeNetworking(),
 					libvmi.WithResourceMemory("1Gi"),

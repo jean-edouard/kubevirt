@@ -30,6 +30,8 @@ import (
 	"strings"
 	"sync"
 
+	"k8s.io/apimachinery/pkg/types"
+
 	"kubevirt.io/client-go/log"
 
 	diskutils "kubevirt.io/kubevirt/pkg/ephemeral-disk-utils"
@@ -76,6 +78,7 @@ type MigrationProxyListener interface {
 }
 
 type migrationProxy struct {
+	migrationID    types.UID
 	unixSocketPath string
 	tcpBindAddress string
 	tcpBindPort    int

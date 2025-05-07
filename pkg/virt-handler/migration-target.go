@@ -31,6 +31,8 @@ import (
 	"strings"
 	"time"
 
+	cmdv1 "kubevirt.io/kubevirt/pkg/handler-launcher-com/cmd/v1"
+
 	"libvirt.org/go/libvirtxml"
 
 	k8sv1 "k8s.io/api/core/v1"
@@ -48,7 +50,6 @@ import (
 	"kubevirt.io/client-go/log"
 
 	"kubevirt.io/kubevirt/pkg/controller"
-	cmdv1 "kubevirt.io/kubevirt/pkg/handler-launcher-com/cmd/v1"
 	hostdisk "kubevirt.io/kubevirt/pkg/host-disk"
 	"kubevirt.io/kubevirt/pkg/network/domainspec"
 	netsetup "kubevirt.io/kubevirt/pkg/network/setup"
@@ -213,7 +214,7 @@ func (c *MigrationTargetController) updateStatus(vmi *v1.VirtualMachineInstance,
 
 	// detect domain on target node
 	if domainExists && !vmi.Status.MigrationState.TargetNodeDomainDetected {
-		// record that we've see the domain populated on the target's node
+		// record that we've seen the domain populated on the target's node
 		log.Log.Object(vmi).Info("The target node received the migrated domain")
 		vmi.Status.MigrationState.TargetNodeDomainDetected = true
 
@@ -337,11 +338,10 @@ func (c *MigrationTargetController) Execute() bool {
 }
 
 func (c *MigrationTargetController) sync(key string, vmi *v1.VirtualMachineInstance, domain *api.Domain) error {
-	// post migration clean up
-	if vmi.Status.MigrationState == nil ||
-		(vmi.Status.MigrationState.EndTimestamp != nil &&
-			(vmi.Status.MigrationState.Completed || vmi.Status.MigrationState.Failed)) {
-		c.migrationProxy.StopTargetListener(string(vmi.UID))
+	if vmi.Status.MigrationState == nil {
+		log.Log.Object(vmi).Infof("JED SYNCING NIL VMI %s", vmi.GetName())
+	} else {
+		log.Log.Object(vmi).Infof("JED SYNCING VMI %s TARGET POD %s", vmi.GetName(), vmi.Status.MigrationState.TargetPod)
 	}
 
 	if domain != nil {
@@ -451,8 +451,7 @@ func migrationNeedsFinalization(migrationState *v1.VirtualMachineInstanceMigrati
 	return migrationState != nil &&
 		migrationState.StartTimestamp != nil &&
 		migrationState.EndTimestamp != nil &&
-		!migrationState.Completed &&
-		!migrationState.Failed
+		!migrationState.Completed && !migrationState.Failed
 }
 
 func (c *MigrationTargetController) handleTargetMigrationProxy(vmi *v1.VirtualMachineInstance) error {
@@ -500,8 +499,8 @@ func replaceMigratedVolumesStatus(vmi *v1.VirtualMachineInstance) {
 }
 
 func (c *MigrationTargetController) syncVolumes(vmi *v1.VirtualMachineInstance) error {
-	// The VolumeStatus is used to retrive additional information for the volume handling.
-	// For example, for filesystem PVC, the information are used to create a right size image.
+	// The VolumeStatus is used to retrieve additional information for the volume handling.
+	// For example, for filesystem PVC, the information is used to create a right size image.
 	// In the case of migrated volumes, we need to replace the original volume information with the
 	// destination volume properties.
 	replaceMigratedVolumesStatus(vmi)
@@ -541,6 +540,45 @@ func (c *MigrationTargetController) syncVolumes(vmi *v1.VirtualMachineInstance) 
 }
 
 func (c *MigrationTargetController) processVMI(vmi *v1.VirtualMachineInstance) error {
+	if migrationNeedsFinalization(vmi.Status.MigrationState) {
+		log.Log.Object(vmi).V(4).Info("finalize migration")
+		err := c.finalizeMigration(vmi)
+		if err != nil {
+			return err
+		}
+	}
+
+	client, err := c.launcherClients.GetLauncherClient(vmi)
+	if err != nil {
+		return fmt.Errorf("%s: %v", "meh", err)
+	}
+	defer c.launcherClients.CloseLauncherClient(vmi)
+
+	if vmi.Status.MigrationState != nil && vmi.Status.MigrationState.EndTimestamp != nil &&
+		(vmi.Status.MigrationState.Failed || vmi.Status.MigrationState.Completed) {
+		log.Log.Object(vmi).Infof("Signaling target pod %s for failed migration to clean up", vmi.Status.MigrationState.TargetPod)
+		err = client.SignalTargetPodCleanup(vmi)
+		if err != nil {
+			return err
+		}
+		log.Log.Object(vmi).Infof("Signaled target pod %s for failed migration to clean up", vmi.Status.MigrationState.TargetPod)
+
+		//err = c.launcherClients.CloseLauncherClient(vmi)
+		//if err != nil {
+		//	return fmt.Errorf("%s: %v", "meh", err)
+		//}
+
+		delete(vmi.Labels, v1.MigrationTargetNodeNameLabel)
+		c.migrationProxy.StopTargetListener(string(vmi.UID))
+	}
+
+	if migrations.IsMigrating(vmi) {
+		// If the migration has already started,
+		// then there's nothing left to prepare on the target side
+		log.Log.Object(vmi).V(4).Info("migration is already in progress")
+		return nil
+	}
+
 	isUnresponsive, isInitialized, err := c.launcherClients.IsLauncherClientUnresponsive(vmi)
 	if err != nil {
 		return err
@@ -552,38 +590,6 @@ func (c *MigrationTargetController) processVMI(vmi *v1.VirtualMachineInstance) e
 		return nil
 	} else if isUnresponsive {
 		return goerror.New(fmt.Sprintf("Can not update a VirtualMachineInstance with unresponsive command server."))
-	}
-
-	if migrationNeedsFinalization(vmi.Status.MigrationState) {
-		log.Log.Object(vmi).V(4).Info("finalize migration")
-		c.finalizeMigration(vmi)
-		return nil
-	}
-
-	client, err := c.launcherClients.GetLauncherClient(vmi)
-	if err != nil {
-		return fmt.Errorf(unableCreateVirtLauncherConnectionFmt, err)
-	}
-
-	if migrations.MigrationFailed(vmi) {
-		// if the migration failed, signal the target pod it's okay to exit
-		err = client.SignalTargetPodCleanup(vmi)
-		if err != nil {
-			return err
-		}
-		log.Log.Object(vmi).Infof("Signaled target pod for failed migration to clean up")
-		// nothing left to do here if the migration failed.
-		// Re-enqueue to trigger handler final cleanup
-		c.queue.AddAfter(controller.VirtualMachineInstanceKey(vmi), time.Second)
-		delete(vmi.Labels, v1.MigrationTargetNodeNameLabel)
-		return nil
-	}
-
-	if migrations.IsMigrating(vmi) {
-		// If the migration has already started,
-		// then there's nothing left to prepare on the target side
-		log.Log.Object(vmi).V(4).Info("migration is already in progress")
-		return nil
 	}
 
 	if err := c.setupNetwork(vmi, netsetup.FilterNetsForMigrationTarget(vmi), c.netConf); err != nil {
@@ -827,6 +833,7 @@ func (c *MigrationTargetController) finalizeMigration(vmi *v1.VirtualMachineInst
 	if err != nil {
 		return fmt.Errorf("%s: %v", errorMessage, err)
 	}
+	defer c.launcherClients.CloseLauncherClient(vmi)
 
 	if err := c.hotplugCPU(vmi, client); err != nil {
 		log.Log.Object(vmi).Reason(err).Error(errorMessage)
@@ -842,12 +849,11 @@ func (c *MigrationTargetController) finalizeMigration(vmi *v1.VirtualMachineInst
 	options := &cmdv1.VirtualMachineOptions{}
 	options.InterfaceMigration = domainspec.BindingMigrationByInterfaceName(vmi.Spec.Domain.Devices.Interfaces, c.clusterConfig.GetNetworkBindings())
 	if err := client.FinalizeVirtualMachineMigration(vmi, options); err != nil {
-		log.Log.Object(vmi).Reason(err).Error(errorMessage)
-		return fmt.Errorf("%s: %v", errorMessage, err)
+		log.Log.Object(vmi).Reason(err).Error("meh")
+		return fmt.Errorf("%s: %v", "meh", err)
 	}
 
 	vmi.Status.MigrationState.Completed = true
-	delete(vmi.Labels, v1.MigrationTargetNodeNameLabel)
 
 	return nil
 }

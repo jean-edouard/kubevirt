@@ -822,7 +822,7 @@ func (c *Controller) setActivePods(vmi *virtv1.VirtualMachineInstance) (*virtv1.
 	activePods := make(map[types.UID]string)
 	count := 0
 	for _, pod := range pods {
-		if !controller.IsControlledBy(pod, vmi) {
+		if pod.Status.Phase == k8sv1.PodFailed || pod.Status.Phase == k8sv1.PodSucceeded || !controller.IsControlledBy(pod, vmi) {
 			continue
 		}
 		count++
