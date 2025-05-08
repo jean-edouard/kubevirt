@@ -321,7 +321,9 @@ func (c *MigrationTargetController) runWorker() {
 }
 
 func (c *MigrationTargetController) Execute() bool {
+	log.Log.Infof("JED PRETICK %v", c.queue.Len())
 	key, quit := c.queue.Get()
+	log.Log.Infof("JED POSTICK %v %v", key, quit)
 	if quit {
 		return false
 	}
@@ -336,13 +338,96 @@ func (c *MigrationTargetController) Execute() bool {
 	return true
 }
 
+func (c *MigrationTargetController) updateVMI(vmi *v1.VirtualMachineInstance, oldStatus *v1.VirtualMachineInstanceStatus, oldLabels map[string]string, shouldExpect bool) error {
+	// update the VMI if necessary
+	if !equality.Semantic.DeepEqual(oldStatus, vmi.Status) || !equality.Semantic.DeepEqual(oldLabels, vmi.Labels) {
+		key := controller.VirtualMachineInstanceKey(vmi)
+		pregen := vmi.Generation
+		if shouldExpect {
+			log.Log.Object(vmi).Infof("JED updateVMI PRE %v ## %v ## %v ## %v ## %v ##", vmi.Generation, oldStatus.MigrationState, vmi.Status.MigrationState, oldLabels, vmi.Labels)
+			c.vmiExpectations.SetExpectations(key, 1, 0)
+		}
+		vmi, err := c.clientset.VirtualMachineInstance(vmi.ObjectMeta.Namespace).Update(context.Background(), vmi, metav1.UpdateOptions{})
+		if shouldExpect && (err != nil || vmi.Generation == pregen) {
+			c.vmiExpectations.LowerExpectations(key, 1, 0)
+			if vmi != nil {
+				log.Log.Object(vmi).Infof("JED updateVMI POST %v ## %v ## %v ##", vmi.Generation, vmi.Status.MigrationState, vmi.Labels)
+			}
+			//if err == nil {
+			//	c.queue.AddAfter(controller.VirtualMachineInstanceKey(vmi), time.Second*1)
+			//}
+		}
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (c *MigrationTargetController) finalCleanup(vmi *v1.VirtualMachineInstance, oldLabels map[string]string) error {
+	log.Log.Object(vmi).Infof("JED cleanup 1")
+	client, err := c.launcherClients.GetVerifiedLauncherClient(vmi)
+	if err != nil {
+		return err
+	}
+	defer c.launcherClients.CloseLauncherClient(vmi)
+	log.Log.Object(vmi).Infof("JED cleanup 2")
+	//defer c.migrationProxy.StopTargetListener(string(vmi.UID))
+
+	if vmi.Status.MigrationState.Failed {
+		log.Log.Object(vmi).Infof("JED cleanup 2.1")
+		err = client.SignalTargetPodCleanup(vmi)
+		if err != nil {
+			return err
+		}
+		log.Log.Object(vmi).Infof("JED cleanup 2.2")
+		err = c.unmountVolumes(vmi)
+		if err != nil {
+			return err
+		}
+		log.Log.Object(vmi).Infof("JED cleanup 2.3")
+		log.Log.Object(vmi).Infof("Signaled target pod for failed migration to clean up")
+	} else {
+		options := &cmdv1.VirtualMachineOptions{}
+		options.InterfaceMigration = domainspec.BindingMigrationByInterfaceName(vmi.Spec.Domain.Devices.Interfaces, c.clusterConfig.GetNetworkBindings())
+		if err := client.FinalizeVirtualMachineMigration(vmi, options); err != nil {
+			log.Log.Object(vmi).Reason(err).Error("meh")
+			return err
+		}
+	}
+	log.Log.Object(vmi).Infof("JED cleanup 3")
+
+	delete(vmi.Labels, v1.MigrationTargetNodeNameLabel)
+	err = c.updateVMI(vmi, &vmi.Status, oldLabels, false)
+	if err != nil {
+		return err
+	}
+
+	c.migrationProxy.StopTargetListener(string(vmi.UID))
+
+	return nil
+}
+
 func (c *MigrationTargetController) sync(key string, vmi *v1.VirtualMachineInstance, domain *api.Domain) error {
+	oldVmi := vmi.DeepCopy()
+	oldStatus := oldVmi.Status
+	oldLabels := oldVmi.Labels
+
+	if vmi.Status.MigrationState == nil {
+		log.Log.Object(vmi).Infof("JED sync 1 nil")
+	} else {
+		log.Log.Object(vmi).Infof("JED sync 1 %v %v %v", vmi.Status.MigrationState.EndTimestamp, vmi.Status.MigrationState.Completed, vmi.Status.MigrationState.Failed)
+	}
+
 	// post migration clean up
 	if vmi.Status.MigrationState == nil ||
 		(vmi.Status.MigrationState.EndTimestamp != nil &&
 			(vmi.Status.MigrationState.Completed || vmi.Status.MigrationState.Failed)) {
-		c.migrationProxy.StopTargetListener(string(vmi.UID))
+		return c.finalCleanup(vmi, oldLabels)
 	}
+
+	log.Log.Object(vmi).Infof("JED sync 2")
 
 	if domain != nil {
 		log.Log.Object(vmi).Infof("VMI is in phase: %v | Domain status: %v, reason: %v", vmi.Status.Phase, domain.Status.Status, domain.Status.Reason)
@@ -350,12 +435,8 @@ func (c *MigrationTargetController) sync(key string, vmi *v1.VirtualMachineInsta
 		log.Log.Object(vmi).Infof("VMI is in phase: %v | Domain does not exist", vmi.Status.Phase)
 	}
 
-	oldVmi := vmi.DeepCopy()
-	oldStatus := oldVmi.Status
-	oldLabels := oldVmi.Labels
-
+	log.Log.Object(vmi).Infof("JED sync 3")
 	syncErr := c.processVMI(vmi)
-
 	if syncErr != nil {
 		c.recorder.Event(vmi, k8sv1.EventTypeWarning, v1.SyncFailed.String(), syncErr.Error())
 		// `syncErr` will be propagated anyway, and it will be logged in `re-enqueueing`
@@ -363,34 +444,23 @@ func (c *MigrationTargetController) sync(key string, vmi *v1.VirtualMachineInsta
 		log.Log.Object(vmi).Reason(syncErr).Error("Synchronizing the VirtualMachineInstance failed.")
 	}
 
+	log.Log.Object(vmi).Infof("JED sync 4")
 	updateErr := c.updateStatus(vmi, domain)
-
 	if updateErr != nil {
 		log.Log.Object(vmi).Reason(updateErr).Error("Updating the migration status failed.")
-	}
-
-	// update the VMI if necessary
-	if !equality.Semantic.DeepEqual(oldStatus, vmi.Status) || !equality.Semantic.DeepEqual(oldLabels, vmi.Labels) {
-		key := controller.VirtualMachineInstanceKey(vmi)
-		c.vmiExpectations.SetExpectations(key, 1, 0)
-		_, err := c.clientset.VirtualMachineInstance(vmi.ObjectMeta.Namespace).Update(context.Background(), vmi, metav1.UpdateOptions{})
-		if err != nil {
-			c.vmiExpectations.LowerExpectations(key, 1, 0)
-			return err
-		}
-	}
-
-	if syncErr != nil {
-		return syncErr
-	}
-
-	if updateErr != nil {
 		return updateErr
 	}
 
-	log.Log.Object(vmi).V(4).Info("Target synchronization loop succeeded.")
-	return nil
+	log.Log.Object(vmi).Infof("JED sync 5")
+	updateVMIErr := c.updateVMI(vmi, &oldStatus, oldLabels, true)
+	if updateVMIErr != nil {
+		return updateVMIErr
+	}
 
+	log.Log.Object(vmi).Infof("JED sync 6")
+
+	log.Log.Object(vmi).V(4).Info("Target synchronization loop done.")
+	return syncErr
 }
 
 func (c *MigrationTargetController) isMigrationTarget(vmi *v1.VirtualMachineInstance) bool {
@@ -451,8 +521,7 @@ func migrationNeedsFinalization(migrationState *v1.VirtualMachineInstanceMigrati
 	return migrationState != nil &&
 		migrationState.StartTimestamp != nil &&
 		migrationState.EndTimestamp != nil &&
-		!migrationState.Completed &&
-		!migrationState.Failed
+		!migrationState.Completed
 }
 
 func (c *MigrationTargetController) handleTargetMigrationProxy(vmi *v1.VirtualMachineInstance) error {
@@ -540,11 +609,48 @@ func (c *MigrationTargetController) syncVolumes(vmi *v1.VirtualMachineInstance) 
 	return nil
 }
 
+func (c *MigrationTargetController) unmountVolumes(vmi *v1.VirtualMachineInstance) error {
+	// The VolumeStatus is used to retrive additional information for the volume handling.
+	// For example, for filesystem PVC, the information are used to create a right size image.
+	// In the case of migrated volumes, we need to replace the original volume information with the
+	// destination volume properties.
+	replaceMigratedVolumesStatus(vmi)
+	err := hostdisk.ReplacePVCByHostDisk(vmi)
+	if err != nil {
+		return err
+	}
+
+	if err = c.containerDiskMounter.Unmount(vmi); err != nil {
+		return err
+	}
+
+	// Mount hotplug disks
+	if attachmentPodUID := vmi.Status.MigrationState.TargetAttachmentPodUID; attachmentPodUID != types.UID("") {
+		cgroupManager, err := getCgroupManager(vmi, c.host)
+		if err != nil {
+			return err
+		}
+		if err = c.hotplugVolumeMounter.Unmount(vmi, cgroupManager); err != nil {
+			return fmt.Errorf("failed to unmount hotplug volumes: %v", err)
+		}
+	}
+
+	return nil
+}
+
 func (c *MigrationTargetController) processVMI(vmi *v1.VirtualMachineInstance) error {
+	log.Log.Object(vmi).Infof("JED processVMI 1")
+	if migrationNeedsFinalization(vmi.Status.MigrationState) {
+		log.Log.Object(vmi).V(4).Info("finalize migration")
+		return c.finalizeMigration(vmi)
+	}
+	log.Log.Object(vmi).Infof("JED processVMI 2")
+
 	isUnresponsive, isInitialized, err := c.launcherClients.IsLauncherClientUnresponsive(vmi)
 	if err != nil {
 		return err
 	}
+	log.Log.Object(vmi).Infof("JED processVMI 3")
 
 	if !isInitialized {
 		log.Log.Object(vmi).V(4).Info("launcher client is not initialized")
@@ -553,30 +659,13 @@ func (c *MigrationTargetController) processVMI(vmi *v1.VirtualMachineInstance) e
 	} else if isUnresponsive {
 		return goerror.New(fmt.Sprintf("Can not update a VirtualMachineInstance with unresponsive command server."))
 	}
-
-	if migrationNeedsFinalization(vmi.Status.MigrationState) {
-		log.Log.Object(vmi).V(4).Info("finalize migration")
-		c.finalizeMigration(vmi)
-		return nil
-	}
+	log.Log.Object(vmi).Infof("JED processVMI 4")
 
 	client, err := c.launcherClients.GetLauncherClient(vmi)
 	if err != nil {
 		return fmt.Errorf(unableCreateVirtLauncherConnectionFmt, err)
 	}
-
-	if migrations.MigrationFailed(vmi) {
-		// if the migration failed, signal the target pod it's okay to exit
-		err = client.SignalTargetPodCleanup(vmi)
-		if err != nil {
-			return err
-		}
-		log.Log.Object(vmi).Infof("Signaled target pod for failed migration to clean up")
-		// nothing left to do here if the migration failed.
-		// Re-enqueue to trigger handler final cleanup
-		c.queue.AddAfter(controller.VirtualMachineInstanceKey(vmi), time.Second)
-		return nil
-	}
+	log.Log.Object(vmi).Infof("JED processVMI 5")
 
 	if migrations.IsMigrating(vmi) {
 		// If the migration has already started,
@@ -584,12 +673,20 @@ func (c *MigrationTargetController) processVMI(vmi *v1.VirtualMachineInstance) e
 		log.Log.Object(vmi).V(4).Info("migration is already in progress")
 		return nil
 	}
+	log.Log.Object(vmi).Infof("JED processVMI 7")
+
+	vmiCopy := vmi.DeepCopy()
+
+	err = c.handleTargetMigrationProxy(vmiCopy)
+	if err != nil {
+		return fmt.Errorf("failed to handle post sync migration proxy: %v", err)
+	}
+	log.Log.Object(vmi).Infof("JED processVMI 7.5")
 
 	if err := c.setupNetwork(vmi, netsetup.FilterNetsForMigrationTarget(vmi), c.netConf); err != nil {
 		return fmt.Errorf("failed to configure vmi network for migration target: %w", err)
 	}
-
-	vmiCopy := vmi.DeepCopy()
+	log.Log.Object(vmi).Infof("JED processVMI 8")
 
 	err = c.syncVolumes(vmiCopy)
 	if goerror.Is(err, container_disk.ErrWaitingForDisks) {
@@ -597,10 +694,12 @@ func (c *MigrationTargetController) processVMI(vmi *v1.VirtualMachineInstance) e
 		c.queue.AddAfter(controller.VirtualMachineInstanceKey(vmi), time.Second*1)
 		return nil
 	}
+	log.Log.Object(vmi).Infof("JED processVMI 9")
 	if err != nil {
 		log.Log.Object(vmi).Reason(err).Error("Failed to sync Volumes")
 		return err
 	}
+	log.Log.Object(vmi).Infof("JED processVMI 10")
 	if err := c.setupDevicesOwnerships(vmiCopy, c.recorder); err != nil {
 		return err
 	}
@@ -611,12 +710,10 @@ func (c *MigrationTargetController) processVMI(vmi *v1.VirtualMachineInstance) e
 	if err := client.SyncMigrationTarget(vmiCopy, options); err != nil {
 		return fmt.Errorf("syncing migration target failed: %v", err)
 	}
+	log.Log.Object(vmi).Infof("JED processVMI 11")
 	c.recorder.Event(vmi, k8sv1.EventTypeNormal, v1.PreparingTarget.String(), VMIMigrationTargetPrepared)
 
-	err = c.handleTargetMigrationProxy(vmiCopy)
-	if err != nil {
-		return fmt.Errorf("failed to handle post sync migration proxy: %v", err)
-	}
+	log.Log.Object(vmi).Infof("JED processVMI 12")
 	return nil
 }
 
@@ -821,11 +918,13 @@ func removeMigratedVolumes(vmi *v1.VirtualMachineInstance) {
 
 func (c *MigrationTargetController) finalizeMigration(vmi *v1.VirtualMachineInstance) error {
 	const errorMessage = "failed to finalize migration"
+	log.Log.Object(vmi).Infof("JED finalize 1")
 
 	client, err := c.launcherClients.GetVerifiedLauncherClient(vmi)
 	if err != nil {
 		return fmt.Errorf("%s: %v", errorMessage, err)
 	}
+	log.Log.Object(vmi).Infof("JED finalize 2")
 
 	if err := c.hotplugCPU(vmi, client); err != nil {
 		log.Log.Object(vmi).Reason(err).Error(errorMessage)
@@ -837,6 +936,7 @@ func (c *MigrationTargetController) finalizeMigration(vmi *v1.VirtualMachineInst
 		c.recorder.Event(vmi, k8sv1.EventTypeWarning, err.Error(), "failed to update guest memory")
 	}
 	removeMigratedVolumes(vmi)
+	log.Log.Object(vmi).Infof("JED finalize 3")
 
 	options := &cmdv1.VirtualMachineOptions{}
 	options.InterfaceMigration = domainspec.BindingMigrationByInterfaceName(vmi.Spec.Domain.Devices.Interfaces, c.clusterConfig.GetNetworkBindings())
@@ -844,9 +944,9 @@ func (c *MigrationTargetController) finalizeMigration(vmi *v1.VirtualMachineInst
 		log.Log.Object(vmi).Reason(err).Error(errorMessage)
 		return fmt.Errorf("%s: %v", errorMessage, err)
 	}
+	log.Log.Object(vmi).Infof("JED finalize 4")
 
 	vmi.Status.MigrationState.Completed = true
-	delete(vmi.Labels, v1.MigrationTargetNodeNameLabel)
 
 	return nil
 }
