@@ -136,7 +136,6 @@ func (c *BaseController) getVMIFromCache(key string) (vmi *v1.VirtualMachineInst
 }
 
 func (c *BaseController) getDomainFromCache(key string) (domain *api.Domain, exists bool, cachedUID types.UID, err error) {
-
 	obj, exists, err := c.domainStore.GetByKey(key)
 
 	if err != nil {

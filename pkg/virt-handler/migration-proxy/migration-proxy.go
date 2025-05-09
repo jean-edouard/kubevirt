@@ -129,6 +129,7 @@ func SourceUnixFile(baseDir string, key string) string {
 }
 
 func (m *migrationProxyManager) StartTargetListener(key string, targetUnixFiles []string) error {
+	log.Log.Infof("JED Starting target listener for %v", targetUnixFiles)
 	m.managerLock.Lock()
 	defer m.managerLock.Unlock()
 
@@ -186,7 +187,10 @@ func (m *migrationProxyManager) StartTargetListener(key string, targetUnixFiles 
 			for _, curProxy := range proxiesList {
 				curProxy.Stop()
 			}
+			log.Log.Infof("JED Target listener mega fail for %v", targetUnixFile)
 			return err
+		} else {
+			log.Log.Infof("JED Started target listener for %v", targetUnixFile)
 		}
 		proxiesList = append(proxiesList, proxy)
 		proxy.logger.Infof("Manager created proxy on target")
@@ -244,6 +248,7 @@ func (m *migrationProxyManager) GetTargetListenerPorts(key string) map[string]in
 }
 
 func (m *migrationProxyManager) StopTargetListener(key string) {
+	log.Log.Infof("JED STOPPING target listener for %v", key)
 	m.managerLock.Lock()
 	defer m.managerLock.Unlock()
 
