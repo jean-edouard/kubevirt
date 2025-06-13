@@ -3146,11 +3146,11 @@ func (c *VirtualMachineController) setupDevicesOwnerships(vmi *v1.VirtualMachine
 		}
 	}
 
-	if err := c.configureHostDisks(vmi, isolationRes, virtLauncherRootMount); err != nil {
+	if err := c.configureHostDisks(vmi, virtLauncherRootMount); err != nil {
 		return err
 	}
 
-	if err := c.configureSEVDeviceOwnership(vmi, isolationRes, virtLauncherRootMount); err != nil {
+	if err := c.configureSEVDeviceOwnership(vmi, virtLauncherRootMount); err != nil {
 		return err
 	}
 
@@ -3167,7 +3167,7 @@ func (c *VirtualMachineController) setupDevicesOwnerships(vmi *v1.VirtualMachine
 	return nil
 }
 
-func (c *VirtualMachineController) configureHostDisks(vmi *v1.VirtualMachineInstance, isolationRes isolation.IsolationResult, virtLauncherRootMount *safepath.Path) error {
+func (c *VirtualMachineController) configureHostDisks(vmi *v1.VirtualMachineInstance, virtLauncherRootMount *safepath.Path) error {
 	lessPVCSpaceToleration := c.clusterConfig.GetLessPVCSpaceToleration()
 	minimumPVCReserveBytes := c.clusterConfig.GetMinimumReservePVCBytes()
 
@@ -3178,7 +3178,7 @@ func (c *VirtualMachineController) configureHostDisks(vmi *v1.VirtualMachineInst
 	return nil
 }
 
-func (c *VirtualMachineController) configureSEVDeviceOwnership(vmi *v1.VirtualMachineInstance, isolationRes isolation.IsolationResult, virtLauncherRootMount *safepath.Path) error {
+func (c *VirtualMachineController) configureSEVDeviceOwnership(vmi *v1.VirtualMachineInstance, virtLauncherRootMount *safepath.Path) error {
 	if virtutil.IsSEVVMI(vmi) {
 		sevDevice, err := safepath.JoinNoFollow(virtLauncherRootMount, filepath.Join("dev", "sev"))
 		if err != nil {
