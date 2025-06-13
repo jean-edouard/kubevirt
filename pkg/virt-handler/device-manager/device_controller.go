@@ -253,7 +253,7 @@ func (c *DeviceController) updatePermittedHostDevicePlugins() []Device {
 func removeSelectorSpaces(selectorName string) string {
 	// The name usually contain spaces which should be replaced with _
 	// Such as GRID T4-1Q
-	typeNameStr := strings.Replace(string(selectorName), " ", "_", -1)
+	typeNameStr := strings.Replace(selectorName, " ", "_", -1)
 	typeNameStr = strings.TrimSpace(typeNameStr)
 	return typeNameStr
 }
@@ -375,7 +375,7 @@ func (c *DeviceController) stopDevice(resourceName string) {
 	}
 }
 
-func (c *DeviceController) Run(stop chan struct{}) error {
+func (c *DeviceController) Run(stop chan struct{}) {
 	logger := log.DefaultLogger()
 
 	// start the permanent DevicePlugins
@@ -406,7 +406,6 @@ func (c *DeviceController) Run(stop chan struct{}) error {
 		}
 	}()
 	logger.Info("Shutting down device plugin controller")
-	return nil
 }
 
 func (c *DeviceController) Initialized() bool {
