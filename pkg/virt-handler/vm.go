@@ -2237,7 +2237,7 @@ func (c *VirtualMachineController) isLauncherClientUnresponsive(vmi *v1.VirtualM
 				}
 
 				// pod is still there, if there is no socket let's wait for it to become ready
-				if c.hotplugVolumesReady(vmi) && clientInfo.NotInitializedSince.Before(time.Now().Add(-3*time.Minute)) {
+				if hotplugVolumesReady(vmi) && clientInfo.NotInitializedSince.Before(time.Now().Add(-3*time.Minute)) {
 					return true, true, nil
 				}
 				return false, false, nil
@@ -3083,7 +3083,7 @@ func (c *VirtualMachineController) handleStartingVMI(
 		c.recorder.Event(vmi, k8sv1.EventTypeWarning, "HotplugFailed", err.Error())
 	}
 
-	if !c.hotplugVolumesReady(vmi) {
+	if !hotplugVolumesReady(vmi) {
 		c.queue.AddAfter(controller.VirtualMachineInstanceKey(vmi), time.Second*1)
 		return false, nil
 	}
@@ -3341,7 +3341,7 @@ func (c *VirtualMachineController) getMemoryDump(vmi *v1.VirtualMachineInstance)
 	return nil
 }
 
-func (d *VirtualMachineController) hotplugVolumesReady(vmi *v1.VirtualMachineInstance) bool {
+func hotplugVolumesReady(vmi *v1.VirtualMachineInstance) bool {
 	hasHotplugVolume := false
 	for _, v := range vmi.Spec.Volumes {
 		if storagetypes.IsHotplugVolume(&v) {
