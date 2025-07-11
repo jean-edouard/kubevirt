@@ -117,10 +117,12 @@ const (
 	defaultCAConfigMapName = "kubevirt-ca"
 
 	// Default certificate and key paths
-	defaultClientCertFilePath = "/etc/virt-handler/clientcertificates/tls.crt"
-	defaultClientKeyFilePath  = "/etc/virt-handler/clientcertificates/tls.key"
-	defaultTlsCertFilePath    = "/etc/virt-handler/servercertificates/tls.crt"
-	defaultTlsKeyFilePath     = "/etc/virt-handler/servercertificates/tls.key"
+	defaultClientCertFilePath     = "/etc/virt-handler/clientcertificates/tls.crt"
+	defaultClientKeyFilePath      = "/etc/virt-handler/clientcertificates/tls.key"
+	defaultTlsCertFilePath        = "/etc/virt-handler/servercertificates/tls.crt"
+	defaultTlsKeyFilePath         = "/etc/virt-handler/servercertificates/tls.key"
+	defaultHandlerAPICertFilePath = "/etc/virt-handler/apicertificates/tls.crt"
+	defaultHandlerAPIKeyFilePath  = "/etc/virt-handler/apicertificates/tls.key"
 )
 
 type virtHandlerApp struct {
@@ -137,21 +139,25 @@ type virtHandlerApp struct {
 	domainResyncPeriodSeconds int
 	gracefulShutdownSeconds   int
 
-	caConfigMapName    string
-	clientCertFilePath string
-	clientKeyFilePath  string
-	serverCertFilePath string
-	serverKeyFilePath  string
-	externallyManaged  bool
+	caConfigMapName        string
+	clientCertFilePath     string
+	clientKeyFilePath      string
+	serverCertFilePath     string
+	serverKeyFilePath      string
+	handlerAPICertFilePath string
+	handlerAPIKeyFilePath  string
+	externallyManaged      bool
 
 	virtCli   kubecli.KubevirtClient
 	namespace string
 
 	serverTLSConfig       *tls.Config
 	clientTLSConfig       *tls.Config
+	handlerAPITLSConfig   *tls.Config
 	consoleServerPort     int
 	clientcertmanager     certificate.Manager
 	servercertmanager     certificate.Manager
+	handlerapicertmanager certificate.Manager
 	promTLSConfig         *tls.Config
 	clusterConfig         *virtconfig.ClusterConfig
 	reloadableRateLimiter *ratelimiter.ReloadableRateLimiter
@@ -166,6 +172,7 @@ var (
 func (app *virtHandlerApp) prepareCertManager() (err error) {
 	app.clientcertmanager = bootstrap.NewFileCertificateManager(app.clientCertFilePath, app.clientKeyFilePath)
 	app.servercertmanager = bootstrap.NewFileCertificateManager(app.serverCertFilePath, app.serverKeyFilePath)
+	app.handlerapicertmanager = bootstrap.NewFileCertificateManager(app.handlerAPICertFilePath, app.handlerAPIKeyFilePath)
 	return
 }
 
@@ -419,6 +426,7 @@ func (app *virtHandlerApp) Run() {
 
 	go app.clientcertmanager.Start()
 	go app.servercertmanager.Start()
+	go app.handlerapicertmanager.Start()
 
 	// Bootstrapping. From here on the startup order matters
 
@@ -651,6 +659,12 @@ func (app *virtHandlerApp) AddFlags() {
 	flag.StringVar(&app.serverKeyFilePath, "tls-key-file", defaultTlsKeyFilePath,
 		"File containing the default x509 private key matching --tls-cert-file")
 
+	flag.StringVar(&app.handlerAPICertFilePath, "handler-api-cert-file", defaultHandlerAPICertFilePath,
+		"Client certificate used for virt-api <-> virt-handler communication")
+
+	flag.StringVar(&app.handlerAPIKeyFilePath, "handler-api-key-file", defaultHandlerAPIKeyFilePath,
+		"Private key for the client certificate used for virt-api <-> virt-handler communication")
+
 	flag.BoolVar(&app.externallyManaged, "externally-managed", false,
 		"Allow intermediate certificates to be used in building up the chain of trust when certificates are externally managed")
 
@@ -687,6 +701,7 @@ func (app *virtHandlerApp) setupTLS(factory controller.KubeInformerFactory) erro
 	app.promTLSConfig = kvtls.SetupPromTLS(app.servercertmanager, app.clusterConfig)
 	app.serverTLSConfig = kvtls.SetupTLSForVirtHandlerServer(app.caManager, app.servercertmanager, app.externallyManaged, app.clusterConfig)
 	app.clientTLSConfig = kvtls.SetupTLSForVirtHandlerClients(app.caManager, app.clientcertmanager, app.externallyManaged)
+	app.handlerAPITLSConfig = kvtls.SetupTLSForVirtHandlerClients(app.caManager, app.handlerapicertmanager, app.externallyManaged)
 
 	return nil
 }

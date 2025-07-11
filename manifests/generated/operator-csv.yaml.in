@@ -1477,6 +1477,7 @@ spec:
           - kubevirt-export-ca
           - kubevirt-virt-handler-certs
           - kubevirt-virt-handler-server-certs
+          - kubevirt-virt-handler-api-certs
           - kubevirt-operator-certs
           - kubevirt-virt-api-certs
           - kubevirt-controller-certs

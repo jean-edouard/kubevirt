@@ -89,11 +89,11 @@ const (
 
 	DefaultConsoleServerPort = 8186
 
-	defaultCAConfigMapName     = "kubevirt-ca"
-	defaultTlsCertFilePath     = "/etc/virt-api/certificates/tls.crt"
-	defaultTlsKeyFilePath      = "/etc/virt-api/certificates/tls.key"
-	defaultHandlerCertFilePath = "/etc/virt-handler/clientcertificates/tls.crt"
-	defaultHandlerKeyFilePath  = "/etc/virt-handler/clientcertificates/tls.key"
+	defaultCAConfigMapName        = "kubevirt-ca"
+	defaultTlsCertFilePath        = "/etc/virt-api/certificates/tls.crt"
+	defaultTlsKeyFilePath         = "/etc/virt-api/certificates/tls.key"
+	defaultHandlerAPICertFilePath = "/etc/virt-handler/apicertificates/tls.crt"
+	defaultHandlerAPIKeyFilePath  = "/etc/virt-handler/apicertificates/tls.key"
 
 	httpStatusNotFoundMessage     = "Not Found"
 	httpStatusBadRequestMessage   = "Bad Request"
@@ -1227,9 +1227,9 @@ func (app *virtAPIApp) AddFlags() {
 		"File containing the default x509 Certificate for HTTPS")
 	flag.StringVar(&app.tlsKeyFilePath, "tls-key-file", defaultTlsKeyFilePath,
 		"File containing the default x509 private key matching --tls-cert-file")
-	flag.StringVar(&app.handlerCertFilePath, "handler-cert-file", defaultHandlerCertFilePath,
+	flag.StringVar(&app.handlerCertFilePath, "handler-cert-file", defaultHandlerAPICertFilePath,
 		"Client certificate used to prove the identity of the virt-api when it must call virt-handler during a request")
-	flag.StringVar(&app.handlerKeyFilePath, "handler-key-file", defaultHandlerKeyFilePath,
+	flag.StringVar(&app.handlerKeyFilePath, "handler-key-file", defaultHandlerAPIKeyFilePath,
 		"Private key for the client certificate used to prove the identity of the virt-api when it must call virt-handler during a request")
 	flag.BoolVar(&app.externallyManaged, "externally-managed", false,
 		"Allow intermediate certificates to be used in building up the chain of trust when certificates are externally managed")

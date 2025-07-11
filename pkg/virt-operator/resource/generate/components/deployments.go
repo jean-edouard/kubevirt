@@ -322,7 +322,7 @@ func NewApiServerDeployment(namespace, repository, imagePrefix, version, product
 	deployment.Spec.Template.Annotations["openshift.io/required-scc"] = "restricted-v2"
 
 	attachCertificateSecret(&deployment.Spec.Template.Spec, VirtApiCertSecretName, "/etc/virt-api/certificates")
-	attachCertificateSecret(&deployment.Spec.Template.Spec, VirtHandlerCertSecretName, "/etc/virt-handler/clientcertificates")
+	attachCertificateSecret(&deployment.Spec.Template.Spec, VirtHandlerAPICertSecretName, "/etc/virt-handler/clientcertificates")
 	attachProfileVolume(&deployment.Spec.Template.Spec)
 
 	pod := &deployment.Spec.Template.Spec
