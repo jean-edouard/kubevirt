@@ -373,10 +373,7 @@ func (m *mounter) ContainerDisksReady(vmi *v1.VirtualMachineInstance, notInitial
 	}
 	for i, volume := range vmi.Spec.Volumes {
 		if volume.ContainerDisk != nil {
-			sock, err := m.socketPathGetter(vmi, i)
-			if err == nil {
-				_, err = m.podIsolationDetector.DetectForSocket(vmi, sock)
-			}
+			_, err := m.podIsolationDetector.DetectForDisk(vmi, fmt.Sprintf("disk_%d", i))
 
 			if err != nil {
 				log.DefaultLogger().Object(vmi).Reason(err).Infof("containerdisk %s not yet ready", volume.Name)
@@ -390,10 +387,7 @@ func (m *mounter) ContainerDisksReady(vmi *v1.VirtualMachineInstance, notInitial
 	}
 
 	if util.HasKernelBootContainerImage(vmi) {
-		sock, err := m.kernelBootSocketPathGetter(vmi)
-		if err == nil {
-			_, err = m.podIsolationDetector.DetectForSocket(vmi, sock)
-		}
+		_, err := m.podIsolationDetector.DetectForDisk(vmi, containerdisk.KernelBootName)
 		if err != nil {
 			log.DefaultLogger().Object(vmi).Reason(err).Info("kernelboot container not yet ready")
 			if time.Now().After(notInitializedSince.Add(m.suppressWarningTimeout)) {
@@ -609,12 +603,12 @@ func (m *mounter) unmountKernelArtifacts(vmi *v1.VirtualMachineInstance) error {
 }
 
 func (m *mounter) getContainerDiskPath(vmi *v1.VirtualMachineInstance, volume *v1.Volume, volumeIndex int) (*safepath.Path, error) {
-	sock, err := m.socketPathGetter(vmi, volumeIndex)
+	_, err := m.socketPathGetter(vmi, volumeIndex)
 	if err != nil {
 		return nil, ErrDiskContainerGone
 	}
 
-	res, err := m.podIsolationDetector.DetectForSocket(vmi, sock)
+	res, err := m.podIsolationDetector.DetectForDisk(vmi, fmt.Sprintf("disk_%d", volumeIndex))
 	if err != nil {
 		return nil, fmt.Errorf("failed to detect socket for containerDisk %v: %v", volume.Name, err)
 	}
@@ -628,12 +622,12 @@ func (m *mounter) getContainerDiskPath(vmi *v1.VirtualMachineInstance, volume *v
 }
 
 func (m *mounter) getKernelArtifactPaths(vmi *v1.VirtualMachineInstance) (*kernelArtifacts, error) {
-	sock, err := m.kernelBootSocketPathGetter(vmi)
+	_, err := m.kernelBootSocketPathGetter(vmi)
 	if err != nil {
 		return nil, ErrDiskContainerGone
 	}
 
-	res, err := m.podIsolationDetector.DetectForSocket(vmi, sock)
+	res, err := m.podIsolationDetector.DetectForDisk(vmi, containerdisk.KernelBootName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to detect socket for kernelboot container: %v", err)
 	}

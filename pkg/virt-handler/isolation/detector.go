@@ -23,10 +23,9 @@ package isolation
 
 import (
 	"fmt"
-	"net"
+	"os"
 	"runtime"
-	"syscall"
-	"time"
+	"strings"
 	"unsafe"
 
 	ps "github.com/mitchellh/go-ps"
@@ -38,7 +37,6 @@ import (
 
 	"kubevirt.io/kubevirt/pkg/util"
 	"kubevirt.io/kubevirt/pkg/virt-controller/services"
-	cmdclient "kubevirt.io/kubevirt/pkg/virt-handler/cmd-client"
 )
 
 // PodIsolationDetector helps detecting cgroups, namespaces and PIDs of Pods from outside of them.
@@ -48,7 +46,8 @@ type PodIsolationDetector interface {
 	// It returns an IsolationResult containing all isolation information
 	Detect(vm *v1.VirtualMachineInstance) (IsolationResult, error)
 
-	DetectForSocket(vm *v1.VirtualMachineInstance, socket string) (IsolationResult, error)
+	DetectForDisk(vm *v1.VirtualMachineInstance, diskName string) (IsolationResult, error)
+	DetectForVirtLauncher(vm *v1.VirtualMachineInstance) (IsolationResult, error)
 
 	// Adjust system resources to run the passed VM
 	AdjustResources(vm *v1.VirtualMachineInstance, additionalOverheadRatio *string) error
@@ -69,25 +68,21 @@ func NewSocketBasedIsolationDetector(socketDir string) PodIsolationDetector {
 }
 
 func (s *socketBasedIsolationDetector) Detect(vm *v1.VirtualMachineInstance) (IsolationResult, error) {
-	// Look up the socket of the virt-launcher Pod which was created for that VM, and extract the PID from it
-	socket, err := cmdclient.FindSocket(vm)
-	if err != nil {
-		return nil, err
-	}
-
-	return s.DetectForSocket(vm, socket)
+	return s.DetectForVirtLauncher(vm)
 }
 
-func (s *socketBasedIsolationDetector) DetectForSocket(vm *v1.VirtualMachineInstance, socket string) (IsolationResult, error) {
-	pid, err := s.getPid(socket)
+func (s *socketBasedIsolationDetector) DetectForDisk(vm *v1.VirtualMachineInstance, diskName string) (IsolationResult, error) {
+	pid, ppid, err := getPids("container-disk", string(vm.UID)+"/"+diskName)
 	if err != nil {
-		log.Log.Object(vm).Reason(err).Errorf("Could not get owner Pid of socket %s", socket)
 		return nil, err
 	}
 
-	ppid, err := getPPid(pid)
+	return NewIsolationResult(pid, ppid), nil
+}
+
+func (s *socketBasedIsolationDetector) DetectForVirtLauncher(vm *v1.VirtualMachineInstance) (IsolationResult, error) {
+	pid, ppid, err := getPids("virt-launcher", string(vm.UID))
 	if err != nil {
-		log.Log.Object(vm).Reason(err).Errorf("Could not get owner PPid of socket %s", socket)
 		return nil, err
 	}
 
@@ -207,39 +202,23 @@ func setProcessMemoryLockRLimit(pid int, size int64) error {
 	return nil
 }
 
-func (s *socketBasedIsolationDetector) getPid(socket string) (int, error) {
-	sock, err := net.DialTimeout("unix", socket, time.Duration(isolationDialTimeout)*time.Second)
+func getPids(exec, needle string) (int, int, error) {
+	processes, err := ps.Processes()
 	if err != nil {
-		return -1, err
+		return 0, 0, err
 	}
-	defer sock.Close()
-
-	ufile, err := sock.(*net.UnixConn).File()
-	if err != nil {
-		return -1, err
-	}
-	defer ufile.Close()
-
-	// This is the tricky part, which will give us the PID of the owning socket
-	ucreds, err := syscall.GetsockoptUcred(int(ufile.Fd()), syscall.SOL_SOCKET, syscall.SO_PEERCRED)
-	if err != nil {
-		return -1, err
-	}
-
-	if int(ucreds.Pid) == 0 {
-		return -1, fmt.Errorf("the detected PID is 0. Is the isolation detector running in the host PID namespace?")
+	for _, process := range processes {
+		if process.Executable() != exec {
+			continue
+		}
+		cmdLine, err := os.ReadFile(fmt.Sprintf("/proc/%d/cmdline", process.Pid()))
+		if err != nil {
+			return 0, 0, err
+		}
+		if strings.Contains(string(cmdLine), needle) {
+			return process.Pid(), process.PPid(), nil
+		}
 	}
 
-	return int(ucreds.Pid), nil
-}
-
-func getPPid(pid int) (int, error) {
-	process, err := ps.FindProcess(pid)
-	if err != nil {
-		return -1, err
-	}
-	if process == nil {
-		return -1, fmt.Errorf("failed to find process with pid: %d", pid)
-	}
-	return process.PPid(), nil
+	return 0, 0, fmt.Errorf("no virt-launcher process found for %s %s", exec, needle)
 }
