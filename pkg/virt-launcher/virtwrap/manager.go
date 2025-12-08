@@ -33,6 +33,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -119,6 +120,9 @@ const (
 	hotplugLargeMemoryMinRequiredFreePorts = 6
 	hotplugDefaultTotalPorts               = 8
 	hotplugMinRequiredFreePorts            = 3
+
+	// Must be odd
+	historySize = 127
 )
 
 const maxConcurrentHotplugHostDevices = 1
@@ -201,6 +205,11 @@ type LibvirtDomainManager struct {
 	cpuSetGetter                  func() ([]int, error)
 	imageVolumeFeatureGateEnabled bool
 	setTimeOnce                   sync.Once
+
+	memBpsHistory         [historySize]uint64
+	memBpsHistoryIndex    uint
+	dirtyRateHistory      [historySize]uint64
+	dirtyRateHistoryIndex uint
 }
 
 type pausedVMIs struct {
@@ -260,6 +269,9 @@ func newLibvirtDomainManager(connection cli.Connection, virtShareDir, ephemeralD
 	manager.hotplugHostDevicesInProgress = make(chan struct{}, maxConcurrentHotplugHostDevices)
 	manager.memoryDumpInProgress = make(chan struct{}, maxConcurrentMemoryDumps)
 	manager.credManager = accesscredentials.NewManager(connection, &manager.domainModifyLock, metadataCache)
+
+	manager.memBpsHistory[historySize-1] = math.MaxUint64
+	manager.dirtyRateHistory[historySize-1] = math.MaxUint64
 
 	reCalcDomainStats := func() (*stats.DomainStats, error) {
 		list, err := manager.getDomainStats()

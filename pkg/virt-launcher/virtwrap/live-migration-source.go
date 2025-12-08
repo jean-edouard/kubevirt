@@ -23,7 +23,9 @@ import (
 	"encoding/json"
 	"encoding/xml"
 	"fmt"
+	"math"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -65,6 +67,8 @@ const (
 	monitorSleepPeriodMS = 400
 	monitorLogPeriodMS   = 4000
 	monitorLogInterval   = monitorLogPeriodMS / monitorSleepPeriodMS
+
+	minIterationsForSwitch = 3
 )
 
 type migrationDisks struct {
@@ -484,8 +488,44 @@ func (m *migrationMonitor) shouldTriggerTimeout(elapsed int64) bool {
 	return elapsed/int64(time.Second) > m.acceptableCompletionTime
 }
 
+func (m *migrationMonitor) detectStall(elapsed int64) bool {
+	// Stall detection only happens past minIterationsForSwitch
+	if !m.l.migrateInfoStats.IterationSet || m.l.migrateInfoStats.Iteration < minIterationsForSwitch {
+		return false
+	}
+
+	// No stall detection if we have less than historySize data points
+	if m.l.memBpsHistory[historySize-1] == math.MaxUint64 || m.l.dirtyRateHistory[historySize-1] == math.MaxUint64 {
+		return false
+	}
+
+	sortedMemBpsHistory := m.l.memBpsHistory
+	slices.Sort(sortedMemBpsHistory[:])
+	sortedDirtyRateHistory := m.l.dirtyRateHistory
+	slices.Sort(sortedDirtyRateHistory[:])
+	medianMemBps := sortedMemBpsHistory[historySize/2+1]
+	medianDirtyRate := sortedDirtyRateHistory[historySize/2+1]
+	if medianMemBps <= medianDirtyRate {
+		// we know that this will never converge
+		return true
+	}
+
+	// Here there is a chance for it to converge in a reasonable time so we can calculate if it's true
+	r := float64(medianDirtyRate) / float64(medianMemBps)
+	pageSize := 4096.0
+	// That's based on th math: log(remaining / pageSize) / log(1/r) = log_{1/λ} (remaining / pageSize)
+	predictedN := math.Log(float64(m.remainingData)/pageSize) / math.Log(1/r)
+	// Approximate time per iteration based on current remaining and bandwidth
+	avgIterTime := float64(m.remainingData) / float64(medianMemBps)
+	predictedTime := predictedN * avgIterTime
+	totalProjected := float64(elapsed) + predictedTime
+	// completionTimeout is acceptableCompletionTime
+
+	return totalProjected > float64(m.acceptableCompletionTime)
+}
+
 func (m *migrationMonitor) shouldAssistMigrationToComplete(elapsed int64) bool {
-	return m.shouldTriggerTimeout(elapsed) && m.options.AllowWorkloadDisruption
+	return (m.shouldTriggerTimeout(elapsed) && m.options.AllowWorkloadDisruption) || m.detectStall(elapsed)
 }
 
 func (m *migrationMonitor) isMigrationProgressing() bool {
@@ -556,6 +596,21 @@ func (m *migrationMonitor) processInflightMigration(dom cli.VirDomain, stats *li
 		m.lastProgressUpdate = now
 	}
 	m.progressWatermark = m.remainingData
+
+	if m.l.migrateInfoStats.MemoryBpsSet {
+		m.l.memBpsHistory[m.l.memBpsHistoryIndex] = m.l.migrateInfoStats.MemoryBps
+		m.l.memBpsHistoryIndex++
+		if m.l.memBpsHistoryIndex >= historySize {
+			m.l.memBpsHistoryIndex = 0
+		}
+	}
+	if m.l.migrateInfoStats.MemDirtyRateSet {
+		m.l.dirtyRateHistory[m.l.dirtyRateHistoryIndex] = m.l.migrateInfoStats.MemDirtyRate
+		m.l.dirtyRateHistoryIndex++
+		if m.l.dirtyRateHistoryIndex >= historySize {
+			m.l.dirtyRateHistoryIndex = 0
+		}
+	}
 
 	switch {
 	case m.isMigrationPostCopy():
