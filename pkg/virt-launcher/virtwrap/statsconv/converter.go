@@ -233,6 +233,8 @@ func Convert_libvirt_DomainJobInfo_To_stats_DomainJobInfo(info *libvirt.DomainJo
 		DataRemaining:    info.DataRemaining,
 		MemDirtyRateSet:  info.MemDirtyRateSet && info.MemPageSizeSet,
 		MemDirtyRate:     info.MemDirtyRate * info.MemPageSize,
+		Iteration:        info.MemIteration,
+		IterationSet:     info.MemIterationSet,
 	}
 }
 

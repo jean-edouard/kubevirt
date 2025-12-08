@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 	"encoding/xml"
 	"fmt"
+	"math"
 	"path/filepath"
 	"strings"
 	"time"
@@ -65,6 +66,8 @@ const (
 	monitorSleepPeriodMS = 400
 	monitorLogPeriodMS   = 4000
 	monitorLogInterval   = monitorLogPeriodMS / monitorSleepPeriodMS
+
+	minIterationsForSwitch = 3
 )
 
 type migrationDisks struct {
@@ -484,8 +487,38 @@ func (m *migrationMonitor) shouldTriggerTimeout(elapsed int64) bool {
 	return elapsed/int64(time.Second) > m.acceptableCompletionTime
 }
 
+func (m *migrationMonitor) detectStall(elapsed int64) bool {
+	if !m.l.migrateInfoStats.IterationSet {
+		return false
+	}
+
+	if m.l.migrateInfoStats.Iteration < minIterationsForSwitch {
+		return false
+	}
+
+	// we know that this will never converge
+	// TODO: use longer averages (new float64 struct members
+	// TODO: check set bools
+	if m.l.migrateInfoStats.MemoryBps <= m.l.migrateInfoStats.MemDirtyRate {
+		return true
+	}
+
+	// Here there is a chance for it to converge in a reasonable time so we can calculate if it's true
+	r := float64(m.l.migrateInfoStats.MemDirtyRate) / float64(m.l.migrateInfoStats.MemoryBps)
+	pageSize := 4096.0
+	// That's based on th math: log(remaining / pageSize) / log(1/r) = log_{1/λ} (remaining / pageSize)
+	predictedN := math.Log(float64(m.remainingData)/pageSize) / math.Log(1/r)
+	// Approximate time per iteration based on current remaining and bandwidth
+	avgIterTime := float64(m.remainingData) / float64(m.l.migrateInfoStats.MemoryBps)
+	predictedTime := predictedN * avgIterTime
+	totalProjected := float64(elapsed) + predictedTime
+	// completionTimeout is acceptableCompletionTime
+
+	return totalProjected > float64(m.acceptableCompletionTime)
+}
+
 func (m *migrationMonitor) shouldAssistMigrationToComplete(elapsed int64) bool {
-	return m.shouldTriggerTimeout(elapsed) && m.options.AllowWorkloadDisruption
+	return m.shouldTriggerTimeout(elapsed) || m.detectStall(elapsed)
 }
 
 func (m *migrationMonitor) isMigrationProgressing() bool {
@@ -544,6 +577,20 @@ func (m *migrationMonitor) determineNonRunningMigrationStatus(dom cli.VirDomain)
 	return nil
 }
 
+func (m *migrationMonitor) abortMigration(dom cli.VirDomain, message string) *inflightMigrationAborted {
+	logger := log.Log.Object(m.vmi)
+
+	err := dom.AbortJob()
+	if err != nil {
+		logger.Reason(err).Error("failed to abort migration")
+		return nil
+	}
+	aborted := &inflightMigrationAborted{}
+	aborted.message = message
+	aborted.abortStatus = v1.MigrationAbortSucceeded
+	return aborted
+}
+
 func (m *migrationMonitor) processInflightMigration(dom cli.VirDomain, stats *libvirt.DomainJobInfo) *inflightMigrationAborted {
 	logger := log.Log.Object(m.vmi)
 
@@ -578,8 +625,7 @@ func (m *migrationMonitor) processInflightMigration(dom cli.VirDomain, stats *li
 				return nil
 			}
 			m.l.updateVMIMigrationMode(v1.MigrationPostCopy)
-		} else {
-
+		} else if m.options.AllowWorkloadDisruption {
 			logger.Info("Pausing the guest to allow migration to complete")
 			// if a migration has stalled too long, the guest will be paused
 			// to complete the migration when allowPostCopy is disabled
@@ -595,39 +641,24 @@ func (m *migrationMonitor) processInflightMigration(dom cli.VirDomain, stats *li
 			m.acceptableCompletionTime *= 2
 			m.l.paused.add(m.vmi.UID)
 			m.l.updateVMIMigrationMode(v1.MigrationPaused)
+		} else {
+			return m.abortMigration(dom, "Migration couldn't finish on its own")
 		}
 
 	case !m.isMigrationProgressing():
 		// check if the migration is still progressing
 		// a stuck migration will get terminated when post copy
 		// isn't enabled
-		err := dom.AbortJob()
-		if err != nil {
-			logger.Reason(err).Error("failed to abort migration")
-			return nil
-		}
 
 		progressDelay := now - m.lastProgressUpdate
-		aborted := &inflightMigrationAborted{}
-		aborted.message = fmt.Sprintf("Live migration stuck for %d seconds and has been aborted", progressDelay/int64(time.Second))
-		aborted.abortStatus = v1.MigrationAbortSucceeded
-		return aborted
+		return m.abortMigration(dom, fmt.Sprintf("Live migration stuck for %d seconds and has been aborted", progressDelay/int64(time.Second)))
 	case m.shouldTriggerTimeout(elapsed):
 		// check the overall migration time
 		// if the total migration time exceeds an acceptable
 		// limit, then the migration will get aborted, but
 		// only if post copy migration hasn't been enabled
 
-		err := dom.AbortJob()
-		if err != nil {
-			logger.Reason(err).Error("failed to abort migration")
-			return nil
-		}
-
-		aborted := &inflightMigrationAborted{}
-		aborted.message = fmt.Sprintf("Live migration is not completed after %d seconds and has been aborted", m.acceptableCompletionTime)
-		aborted.abortStatus = v1.MigrationAbortSucceeded
-		return aborted
+		return m.abortMigration(dom, fmt.Sprintf("Live migration is not completed after %d seconds and has been aborted", m.acceptableCompletionTime))
 	}
 
 	return nil
