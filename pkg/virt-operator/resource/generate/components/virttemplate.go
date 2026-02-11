@@ -297,7 +297,7 @@ func updateDeployment(deployment *appsv1.Deployment, config *operatorutil.KubeVi
 	container := &deployment.Spec.Template.Spec.Containers[0]
 
 	if config.GetImageRegistry() != "" || config.GetImagePrefix() != "" {
-		container.Image = replaceImageRegistryAndPrefix(container.Image, config.GetImageRegistry(), config.GetImagePrefix())
+		container.Image = replaceImageRegistryAndPrefixAndVersion(container.Image, config.GetImageRegistry(), config.GetImagePrefix(), config.KubeVirtVersion)
 	}
 
 	if config.GetImagePullPolicy() != "" {
@@ -318,20 +318,17 @@ func updateDeployment(deployment *appsv1.Deployment, config *operatorutil.KubeVi
 	return nil
 }
 
-func replaceImageRegistryAndPrefix(image, newRegistry, newPrefix string) string {
-	registry := ""
-	imageNameAndTagOrDigest := ""
-
-	if lastSlash := strings.LastIndex(image, "/"); lastSlash > -1 {
-		registry = image[:lastSlash]
-		imageNameAndTagOrDigest = image[lastSlash+1:]
-	} else {
-		imageNameAndTagOrDigest = image
+func replaceImageRegistryAndPrefixAndVersion(image, newRegistry, newPrefix, version string) string {
+	lastSlash := strings.LastIndex(image, "/")
+	lastColon := strings.LastIndex(image, ":")
+	if lastSlash == -1 || lastColon == -1 {
+		// Can't replace image registry/prefix/version, using upstream image instead
+		return image
 	}
-
 	if newRegistry == "" {
-		newRegistry = registry
+		newRegistry = image[:lastSlash]
 	}
+	imageName := image[lastSlash+1 : lastColon]
 
-	return fmt.Sprintf("%s/%s%s", newRegistry, newPrefix, imageNameAndTagOrDigest)
+	return fmt.Sprintf("%s/%s%s:%s", newRegistry, newPrefix, imageName, version)
 }
