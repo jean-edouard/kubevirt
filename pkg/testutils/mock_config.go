@@ -120,6 +120,7 @@ func AddServiceMonitorAPI(crdInformer cache.SharedIndexInformer) {
 			Names: extv1.CustomResourceDefinitionNames{
 				Kind: "ServiceMonitor",
 			},
+			Group: virtconfig.MonitoringGroupName,
 		},
 	})
 }
@@ -137,6 +138,7 @@ func AddPrometheusRuleAPI(crdInformer cache.SharedIndexInformer) {
 			Names: extv1.CustomResourceDefinitionNames{
 				Kind: "PrometheusRule",
 			},
+			Group: virtconfig.MonitoringGroupName,
 		},
 	})
 }

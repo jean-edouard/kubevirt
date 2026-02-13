@@ -878,7 +878,7 @@ var _ = Describe("test configuration", func() {
 		})
 
 		It("returns true for a ServiceMonitor CRD", func() {
-			addCustomResourceDefinition(crdInformer, virtconfig.PrometheusGroupName, "ServiceMonitor")
+			addCustomResourceDefinition(crdInformer, virtconfig.MonitoringGroupName, "ServiceMonitor")
 
 			Expect(cfg.HasServiceMonitorAPI()).To(BeTrue())
 		})
@@ -890,7 +890,7 @@ var _ = Describe("test configuration", func() {
 		})
 
 		It("returns false when kind differs even if group matches", func() {
-			addCustomResourceDefinition(crdInformer, virtconfig.PrometheusGroupName, "NotServiceMonitor")
+			addCustomResourceDefinition(crdInformer, virtconfig.MonitoringGroupName, "NotServiceMonitor")
 
 			Expect(cfg.HasServiceMonitorAPI()).To(BeFalse())
 		})

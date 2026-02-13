@@ -40,7 +40,7 @@ import (
 const (
 	NodeDrainTaintDefaultKey = "kubevirt.io/drain"
 	CdiGroupName             = "cdi.kubevirt.io"
-	PrometheusGroupName      = "monitoring.coreos.com"
+	MonitoringGroupName      = "monitoring.coreos.com"
 )
 
 type ConfigModifiedFn func()
@@ -129,11 +129,11 @@ func isDataSourceCrd(crd *extv1.CustomResourceDefinition) bool {
 }
 
 func isServiceMonitor(crd *extv1.CustomResourceDefinition) bool {
-	return crd.Spec.Names.Kind == "ServiceMonitor" && crd.Spec.Group == PrometheusGroupName
+	return crd.Spec.Names.Kind == "ServiceMonitor" && crd.Spec.Group == MonitoringGroupName
 }
 
 func isPrometheusRules(crd *extv1.CustomResourceDefinition) bool {
-	return crd.Spec.Names.Kind == "PrometheusRule" && crd.Spec.Group == PrometheusGroupName
+	return crd.Spec.Names.Kind == "PrometheusRule" && crd.Spec.Group == MonitoringGroupName
 }
 
 func (c *ClusterConfig) crdAddedDeleted(obj interface{}) {
