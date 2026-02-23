@@ -2565,53 +2565,67 @@ var _ = Describe(SIG("VM Live Migration", decorators.RequiresTwoSchedulableNodes
 	})
 
 	Context("with a dedicated migration network", Serial, func() {
-		var nadName string
+		const nonexistentMigrationNetworkName = "nonexistent-migration-network"
 
-		BeforeEach(func() {
+		DescribeTable("Should migrate over that network", func(networkExists bool, allowFallback bool) {
 			virtClient = kubevirt.Client()
 
-			if flags.MigrationNetworkName != "" {
-				By(fmt.Sprintf("Using the provided Network Attachment Definition: %s", flags.MigrationNetworkName))
-				nadName = flags.MigrationNetworkName
+			var nadName string
+			if networkExists {
+				if flags.MigrationNetworkName != "" {
+					By(fmt.Sprintf("Using the provided Network Attachment Definition: %s", flags.MigrationNetworkName))
+					nadName = flags.MigrationNetworkName
+				} else {
+					By("Creating the Network Attachment Definition")
+					nad := libmigration.GenerateMigrationCNINetworkAttachmentDefinition()
+					nadName = nad.Name
+					_, err := virtClient.NetworkClient().K8sCniCncfIoV1().NetworkAttachmentDefinitions(flags.KubeVirtInstallNamespace).Create(context.Background(), nad, metav1.CreateOptions{})
+					Expect(err).NotTo(HaveOccurred(), "Failed to create the Network Attachment Definition")
+					DeferCleanup(func() {
+						By("Deleting the Network Attachment Definition")
+						Expect(virtClient.NetworkClient().K8sCniCncfIoV1().NetworkAttachmentDefinitions(flags.KubeVirtInstallNamespace).Delete(context.Background(), nadName, metav1.DeleteOptions{})).To(Succeed(), "Failed to delete the Network Attachment Definition")
+					})
+				}
+				By("Setting it as the migration network in the KubeVirt CR")
+				libmigration.SetDedicatedMigrationNetwork(nadName)
 			} else {
-				By("Creating the Network Attachment Definition")
-				nad := libmigration.GenerateMigrationCNINetworkAttachmentDefinition()
-				nadName = nad.Name
-				_, err := virtClient.NetworkClient().K8sCniCncfIoV1().NetworkAttachmentDefinitions(flags.KubeVirtInstallNamespace).Create(context.Background(), nad, metav1.CreateOptions{})
-				Expect(err).NotTo(HaveOccurred(), "Failed to create the Network Attachment Definition")
-				DeferCleanup(func() {
-					By("Deleting the Network Attachment Definition")
-					Expect(virtClient.NetworkClient().K8sCniCncfIoV1().NetworkAttachmentDefinitions(flags.KubeVirtInstallNamespace).Delete(context.Background(), nadName, metav1.DeleteOptions{})).To(Succeed(), "Failed to delete the Network Attachment Definition")
-				})
+				nadName = nonexistentMigrationNetworkName
+				By(fmt.Sprintf("Setting a non-existent migration network in the KubeVirt CR (allowMigrationNetworkFallback=%v)", allowFallback))
+				libmigration.SetDedicatedMigrationNetworkWithFallback(nadName, allowFallback)
 			}
+			DeferCleanup(func() {
+				By("Clearing the migration network in the KubeVirt CR")
+				libmigration.ClearDedicatedMigrationNetwork()
+			})
 
-			By("Setting it as the migration network in the KubeVirt CR")
-			libmigration.SetDedicatedMigrationNetwork(nadName)
-		})
-
-		AfterEach(func() {
-			By("Clearing the migration network in the KubeVirt CR")
-			libmigration.ClearDedicatedMigrationNetwork()
-		})
-
-		It("Should migrate over that network", func() {
 			vmi := libvmifact.NewAlpine(
 				libvmi.WithInterface(libvmi.InterfaceDeviceWithMasqueradeBinding()),
 				libvmi.WithNetwork(v1.DefaultPodNetwork()),
 			)
-
 			vmi = libvmops.RunVMIAndExpectLaunch(vmi, libvmops.StartupTimeoutSecondsHuge)
 
 			By("Starting the migration")
 			migration := libmigration.New(vmi.Name, vmi.Namespace)
-			migration = libmigration.RunMigrationAndExpectToCompleteWithDefaultTimeout(virtClient, migration)
 
-			By("Checking if the migration happened, and over the right network")
-			vmi = libmigration.ConfirmVMIPostMigration(virtClient, vmi, migration)
-			targetHandler, err := libnode.GetVirtHandlerPod(kubevirt.Client(), vmi.Status.NodeName)
-			Expect(err).ToNot(HaveOccurred())
-			Expect(vmi.Status.MigrationState.TargetNodeAddress).ToNot(Equal(targetHandler.Status.PodIP), "The migration did not appear to go over the dedicated migration network")
-		})
+			expectMigrationToSucceed := networkExists || allowFallback
+			if expectMigrationToSucceed {
+				migration = libmigration.RunMigrationAndExpectToCompleteWithDefaultTimeout(virtClient, migration)
+				By("Checking if the migration happened, and over the right network when applicable")
+				vmi = libmigration.ConfirmVMIPostMigration(virtClient, vmi, migration)
+				if networkExists {
+					targetHandler, err := libnode.GetVirtHandlerPod(kubevirt.Client(), vmi.Status.NodeName)
+					Expect(err).ToNot(HaveOccurred())
+					Expect(vmi.Status.MigrationState.TargetNodeAddress).ToNot(Equal(targetHandler.Status.PodIP), "The migration did not appear to go over the dedicated migration network")
+				}
+				// When !networkExists && allowFallback: migration succeeded over pod network; no target IP range check.
+			} else {
+				_ = libmigration.RunMigrationAndExpectFailure(migration, libmigration.MigrationWaitTime)
+			}
+		},
+			Entry("with existing migration network", true, false),
+			Entry("with non-existent migration network and allowMigrationNetworkFallback enabled", false, true),
+			Entry("with non-existent migration network and allowMigrationNetworkFallback disabled (default)", false, false),
+		)
 	})
 	It("should update MigrationState's MigrationConfiguration of VMI status", func() {
 		By("Starting a VMI")

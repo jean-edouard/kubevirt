@@ -207,7 +207,7 @@ func ConfirmVMIPostMigration(virtClient kubecli.KubevirtClient, vmi *v1.VirtualM
 	return vmi
 }
 
-func setOrClearDedicatedMigrationNetwork(nad string, set bool) *v1.KubeVirt {
+func setOrClearDedicatedMigrationNetwork(nad string, set bool, allowFallback *bool) *v1.KubeVirt {
 	virtClient := kubevirt.Client()
 
 	kv := libkubevirt.GetCurrentKv(virtClient)
@@ -222,9 +222,13 @@ func setOrClearDedicatedMigrationNetwork(nad string, set bool) *v1.KubeVirt {
 			kv.Spec.Configuration.MigrationConfiguration = &v1.MigrationConfiguration{}
 		}
 		kv.Spec.Configuration.MigrationConfiguration.Network = &nad
+		if allowFallback != nil {
+			kv.Spec.Configuration.MigrationConfiguration.AllowMigrationNetworkFallback = allowFallback
+		}
 	} else {
 		if kv.Spec.Configuration.MigrationConfiguration != nil {
 			kv.Spec.Configuration.MigrationConfiguration.Network = nil
+			kv.Spec.Configuration.MigrationConfiguration.AllowMigrationNetworkFallback = nil
 		}
 	}
 
@@ -264,11 +268,17 @@ func setOrClearDedicatedMigrationNetwork(nad string, set bool) *v1.KubeVirt {
 }
 
 func SetDedicatedMigrationNetwork(nad string) *v1.KubeVirt {
-	return setOrClearDedicatedMigrationNetwork(nad, true)
+	return setOrClearDedicatedMigrationNetwork(nad, true, nil)
+}
+
+// SetDedicatedMigrationNetworkWithFallback sets the migration network and optionally allowMigrationNetworkFallback.
+// When allowFallback is true, migrations will use the pod network if the NAD does not exist.
+func SetDedicatedMigrationNetworkWithFallback(nad string, allowFallback bool) *v1.KubeVirt {
+	return setOrClearDedicatedMigrationNetwork(nad, true, &allowFallback)
 }
 
 func ClearDedicatedMigrationNetwork() *v1.KubeVirt {
-	return setOrClearDedicatedMigrationNetwork("", false)
+	return setOrClearDedicatedMigrationNetwork("", false, nil)
 }
 
 func GenerateMigrationCNINetworkAttachmentDefinition() *k8snetworkplumbingwgv1.NetworkAttachmentDefinition {
