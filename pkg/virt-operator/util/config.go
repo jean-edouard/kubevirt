@@ -85,6 +85,9 @@ const (
 	// lookup key in AdditionalProperties
 	AdditionalPropertiesMigrationNetwork = "MigrationNetwork"
 
+	// lookup key in AdditionalProperties for allowing fallback to pod network when migration network does not exist
+	AdditionalPropertiesMigrationNetworkAllowFallback = "MigrationNetworkAllowFallback"
+
 	// lookup key in AdditionalProperties
 	AdditionalPropertiesPersistentReservationEnabled = "PersistentReservationEnabled"
 
@@ -169,6 +172,10 @@ func GetTargetConfigFromKVWithEnvVarManager(kv *v1.KubeVirt, envVarManager EnvVa
 	if kv.Spec.Configuration.MigrationConfiguration != nil &&
 		kv.Spec.Configuration.MigrationConfiguration.Network != nil {
 		additionalProperties[AdditionalPropertiesMigrationNetwork] = *kv.Spec.Configuration.MigrationConfiguration.Network
+		if kv.Spec.Configuration.MigrationConfiguration.AllowMigrationNetworkFallback != nil &&
+			*kv.Spec.Configuration.MigrationConfiguration.AllowMigrationNetworkFallback {
+			additionalProperties[AdditionalPropertiesMigrationNetworkAllowFallback] = "true"
+		}
 	}
 
 	if isFeatureGateEnabledInKvConfig(&kv.Spec.Configuration, featuregate.PersistentReservation) {
@@ -545,9 +552,21 @@ func (c *KubeVirtDeploymentConfig) GetMigrationNetwork() *string {
 	value, enabled := c.AdditionalProperties[AdditionalPropertiesMigrationNetwork]
 	if enabled {
 		return &value
-	} else {
-		return nil
 	}
+	return nil
+}
+
+// GetAllowMigrationNetworkFallback returns true if fallback to the pod network is allowed when the
+// configured migration network does not exist.
+func (c *KubeVirtDeploymentConfig) GetAllowMigrationNetworkFallback() bool {
+	value, enabled := c.AdditionalProperties[AdditionalPropertiesMigrationNetworkAllowFallback]
+	return enabled && value == "true"
+}
+
+// ClearMigrationNetwork removes the migration network from the config so that the pod network is used instead.
+func (c *KubeVirtDeploymentConfig) ClearMigrationNetwork() {
+	delete(c.AdditionalProperties, AdditionalPropertiesMigrationNetwork)
+	delete(c.AdditionalProperties, AdditionalPropertiesMigrationNetworkAllowFallback)
 }
 
 func (c *KubeVirtDeploymentConfig) GetSynchronizationPort() int32 {

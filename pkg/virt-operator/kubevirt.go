@@ -23,6 +23,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -31,6 +32,7 @@ import (
 	"golang.org/x/time/rate"
 	appsv1 "k8s.io/api/apps/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/tools/cache"
@@ -884,6 +886,32 @@ func (c *KubeVirtController) execute(key string) error {
 	return syncError
 }
 
+// resolveMigrationNetwork clears the migration network from config when fallback is enabled
+// and the configured migration network (NAD) does not exist, so that the pod network is used instead.
+func (c *KubeVirtController) resolveMigrationNetwork(config *operatorutil.KubeVirtDeploymentConfig) {
+	migrationNetwork := config.GetMigrationNetwork()
+	if migrationNetwork == nil || !config.GetAllowMigrationNetworkFallback() {
+		return
+	}
+	namespace := config.GetNamespace()
+	name := *migrationNetwork
+	if idx := strings.Index(name, "/"); idx >= 0 {
+		namespace = name[:idx]
+		name = name[idx+1:]
+	}
+	_, err := c.clientset.NetworkClient().K8sCniCncfIoV1().NetworkAttachmentDefinitions(namespace).Get(context.Background(), name, metav1.GetOptions{})
+	if err == nil {
+		return
+	}
+	if errors.IsNotFound(err) {
+		log.Log.Infof("Migration network %s does not exist in namespace %s; falling back to pod network (allowMigrationNetworkFallback=true)", *migrationNetwork, config.GetNamespace())
+		config.ClearMigrationNetwork()
+		return
+	}
+	log.Log.Reason(err).Errorf("Failed to look up migration network %s in namespace %s; will not apply fallback", *migrationNetwork, namespace)
+	// On transient API errors we keep the config and retry on the next sync; only fall back when NAD is confirmed missing.
+}
+
 // Loads install strategies into memory, and generates jobs to
 // create install strategies that don't exist yet.
 func (c *KubeVirtController) loadInstallStrategy(kv *v1.KubeVirt) (*install.Strategy, bool, error) {
@@ -894,6 +922,7 @@ func (c *KubeVirtController) loadInstallStrategy(kv *v1.KubeVirt) (*install.Stra
 	}
 
 	config := operatorutil.GetTargetConfigFromKV(kv)
+	c.resolveMigrationNetwork(config)
 	// 1. see if we already loaded the install strategy
 	strategy, ok := c.getCachedInstallStrategy(config, kv.Generation)
 	if ok {
