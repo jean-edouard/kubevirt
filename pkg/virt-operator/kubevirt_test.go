@@ -63,6 +63,7 @@ import (
 	instancetypev1beta1 "kubevirt.io/api/instancetype/v1beta1"
 	"kubevirt.io/client-go/kubecli"
 	kubevirtfake "kubevirt.io/client-go/kubevirt/fake"
+	networkattachmentdefinitionclientfake "kubevirt.io/client-go/networkattachmentdefinitionclient/fake"
 	promclientfake "kubevirt.io/client-go/prometheusoperator/fake"
 	kvtesting "kubevirt.io/client-go/testing"
 	"kubevirt.io/client-go/version"
@@ -265,6 +266,7 @@ func (k *KubeVirtTestData) BeforeTest() {
 	k.virtClient.EXPECT().RouteClient().Return(k.routeClient).AnyTimes()
 	k.virtClient.EXPECT().VirtualMachineClusterInstancetype().Return(k.virtFakeClient.InstancetypeV1beta1().VirtualMachineClusterInstancetypes()).AnyTimes()
 	k.virtClient.EXPECT().VirtualMachineClusterPreference().Return(k.virtFakeClient.InstancetypeV1beta1().VirtualMachineClusterPreferences()).AnyTimes()
+	k.virtClient.EXPECT().NetworkClient().Return(networkattachmentdefinitionclientfake.NewSimpleClientset()).AnyTimes()
 
 	// Make sure that all unexpected calls to kubeClient will fail
 	k.kubeClient.Fake.PrependReactor("*", "*", func(action testing.Action) (handled bool, obj runtime.Object, err error) {
@@ -2508,6 +2510,57 @@ var _ = Describe("KubeVirt Operator", func() {
 			Expect(err).ToNot(HaveOccurred())
 
 			Expect(job.Spec.Template.ObjectMeta.Labels).Should(HaveKeyWithValue(v1.AppLabel, virtOperatorJobAppLabel))
+		})
+
+		It("should clear migration network from install strategy config when allowMigrationNetworkFallback is true and NAD does not exist", func() {
+			kvTestData := KubeVirtTestData{}
+			kvTestData.BeforeTest()
+			defer kvTestData.AfterTest()
+
+			kv := &v1.KubeVirt{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:       "test-install",
+					Namespace:  NAMESPACE,
+					Finalizers: []string{util.KubeVirtFinalizer},
+				},
+				Spec: v1.KubeVirtSpec{
+					Configuration: v1.KubeVirtConfiguration{
+						MigrationConfiguration: &v1.MigrationConfiguration{
+							Network:                       pointer.P("nonexistent-migration-net"),
+							AllowMigrationNetworkFallback: pointer.P(true),
+						},
+					},
+				},
+				Status: v1.KubeVirtStatus{},
+			}
+			enableTemplateFeatureGate(kv)
+			kubecontroller.SetLatestApiVersionAnnotation(kv)
+			kvTestData.addKubeVirt(kv)
+			// Do NOT add install strategy to cache so loadInstallStrategy will create a job.
+			// NetworkClient() is stubbed to return a fake with no NADs, so Get returns NotFound
+			// and resolveMigrationNetwork clears the migration network from config.
+			var jobConfigJSON string
+			kvTestData.shouldExpectJobCreation()
+			kvTestData.kubeClient.Fake.PrependReactor("create", "jobs", func(action testing.Action) (handled bool, obj runtime.Object, err error) {
+				create, ok := action.(testing.CreateAction)
+				Expect(ok).To(BeTrue())
+				job := create.GetObject().(*batchv1.Job)
+				for _, env := range job.Spec.Template.Spec.Containers[0].Env {
+					if env.Name == util.TargetDeploymentConfig {
+						jobConfigJSON = env.Value
+						break
+					}
+				}
+				return false, nil, nil
+			})
+			kvTestData.shouldExpectKubeVirtUpdateStatus(1)
+			kvTestData.controller.Execute()
+			Expect(jobConfigJSON).ToNot(BeEmpty())
+			var configMap map[string]interface{}
+			Expect(json.Unmarshal([]byte(jobConfigJSON), &configMap)).To(Succeed())
+			additionalProps, ok := configMap["additionalProperties"].(map[string]interface{})
+			Expect(ok).To(BeTrue())
+			Expect(additionalProps).ToNot(HaveKey(util.AdditionalPropertiesMigrationNetwork))
 		})
 
 		It("should delete install strategy creation job if job has failed", func() {

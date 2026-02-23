@@ -25,10 +25,12 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	v1 "kubevirt.io/api/core/v1"
-
 	k8sv1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/rand"
+
+	v1 "kubevirt.io/api/core/v1"
+
+	"kubevirt.io/kubevirt/pkg/pointer"
 )
 
 var _ = Describe("Operator Config", func() {
@@ -396,5 +398,72 @@ var _ = Describe("Operator Config", func() {
 					imageName: "blablabla",
 					version:   "latest",
 				}))
+	})
+
+	Describe("Migration network configuration", func() {
+		DescribeTable("GetTargetConfigFromKV with MigrationConfiguration", func(kv *v1.KubeVirt, expectNetwork string, expectFallback bool) {
+			config := GetTargetConfigFromKV(kv)
+			if expectNetwork == "" {
+				Expect(config.GetMigrationNetwork()).To(BeNil())
+			} else {
+				Expect(config.GetMigrationNetwork()).ToNot(BeNil())
+				Expect(*config.GetMigrationNetwork()).To(Equal(expectNetwork))
+			}
+			Expect(config.GetAllowMigrationNetworkFallback()).To(Equal(expectFallback))
+		},
+			Entry("no migration config", &v1.KubeVirt{
+				Spec: v1.KubeVirtSpec{
+					Configuration: v1.KubeVirtConfiguration{},
+				},
+			}, "", false),
+			Entry("network set only, no fallback", &v1.KubeVirt{
+				Spec: v1.KubeVirtSpec{
+					Configuration: v1.KubeVirtConfiguration{
+						MigrationConfiguration: &v1.MigrationConfiguration{
+							Network: pointer.P("mynet"),
+						},
+					},
+				},
+			}, "mynet", false),
+			Entry("network set with fallback true", &v1.KubeVirt{
+				Spec: v1.KubeVirtSpec{
+					Configuration: v1.KubeVirtConfiguration{
+						MigrationConfiguration: &v1.MigrationConfiguration{
+							Network:                       pointer.P("mynet"),
+							AllowMigrationNetworkFallback: pointer.P(true),
+						},
+					},
+				},
+			}, "mynet", true),
+			Entry("network set with fallback false", &v1.KubeVirt{
+				Spec: v1.KubeVirtSpec{
+					Configuration: v1.KubeVirtConfiguration{
+						MigrationConfiguration: &v1.MigrationConfiguration{
+							Network:                       pointer.P("mynet"),
+							AllowMigrationNetworkFallback: pointer.P(false),
+						},
+					},
+				},
+			}, "mynet", false),
+		)
+
+		It("ClearMigrationNetwork removes migration network and fallback from config", func() {
+			config := GetTargetConfigFromKV(&v1.KubeVirt{
+				Spec: v1.KubeVirtSpec{
+					Configuration: v1.KubeVirtConfiguration{
+						MigrationConfiguration: &v1.MigrationConfiguration{
+							Network:                       pointer.P("mynet"),
+							AllowMigrationNetworkFallback: pointer.P(true),
+						},
+					},
+				},
+			})
+			Expect(config.GetMigrationNetwork()).ToNot(BeNil())
+			Expect(config.GetAllowMigrationNetworkFallback()).To(BeTrue())
+
+			config.ClearMigrationNetwork()
+			Expect(config.GetMigrationNetwork()).To(BeNil())
+			Expect(config.GetAllowMigrationNetworkFallback()).To(BeFalse())
+		})
 	})
 })
