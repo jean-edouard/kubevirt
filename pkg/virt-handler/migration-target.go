@@ -268,9 +268,6 @@ func (c *MigrationTargetController) updateStatus(vmi *v1.VirtualMachineInstance,
 	}
 
 	vmiUID := string(vmi.UID)
-	if vmi.Status.MigrationState.SourceState != nil && vmi.Status.MigrationState.SourceState.VirtualMachineInstanceUID != nil {
-		vmiUID = string(*vmi.Status.MigrationState.SourceState.VirtualMachineInstanceUID)
-	}
 	destSrcPortsMap := c.migrationProxy.GetTargetListenerPorts(vmiUID)
 	if len(destSrcPortsMap) == 0 {
 		msg := "target migration listener is not up for this vmi, giving it time"
@@ -583,10 +580,12 @@ func (c *MigrationTargetController) handleTargetMigrationProxy(vmi *v1.VirtualMa
 	if err != nil {
 		return err
 	}
+	// Always use the local VMI's UID for the proxy key and socket paths.
+	// The virt-launcher creates migration sockets using vmi.UID, so the
+	// proxy must use the same UID to match those paths. In decentralized
+	// migrations the source VMI has a different UID; using it here would
+	// cause the proxy to point to non-existent sockets.
 	vmiUID := string(vmi.UID)
-	if vmi.Status.MigrationState.SourceState != nil && vmi.Status.MigrationState.SourceState.VirtualMachineInstanceUID != nil {
-		vmiUID = string(*vmi.Status.MigrationState.SourceState.VirtualMachineInstanceUID)
-	}
 
 	// Get the libvirt connection socket file on the destination pod.
 	socketFile := fmt.Sprintf(filepath.Join(c.virtLauncherFSRunDirPattern, "libvirt/virtqemud-sock"), res.Pid())
