@@ -308,7 +308,13 @@ func (l *LibvirtDomainManager) initializeMigrationMetadata(vmi *v1.VirtualMachin
 	if vmi.Status.MigrationState.SourceState != nil {
 		migrationUID = vmi.Status.MigrationState.SourceState.MigrationUID
 	}
-	if exists && migrationMetadata.UID == migrationUID {
+	// In decentralized migrations, the metadata may have been initialized
+	// with MigrationState.MigrationUID (target migration UID) before
+	// SourceState was synced from the remote. Once SourceState arrives,
+	// migrationUID switches to SourceState.MigrationUID (source migration
+	// UID). Both refer to the same logical migration, so treat either as
+	// a match to preserve idempotency.
+	if exists && (migrationMetadata.UID == migrationUID || migrationMetadata.UID == vmi.Status.MigrationState.MigrationUID) {
 		if migrationMetadata.EndTimestamp == nil {
 			// don't stop on currently executing migrations
 			return true, nil
