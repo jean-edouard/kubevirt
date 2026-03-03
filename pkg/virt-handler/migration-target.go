@@ -175,6 +175,26 @@ func NewMigrationTargetController(
 	return c, nil
 }
 
+// domainKeyForVMI returns the key under which the libvirt domain is stored
+// in the domain cache. For regular migrations this matches the VMI key
+// (namespace/name). For decentralized migrations the domain arrives via
+// libvirt with the source VMI's namespace baked into its name, so the
+// domain is stored under source-ns/name while the target VMI lives in
+// target-ns/name. The correct key is derived from the migration state's
+// DomainNamespace and DomainName fields.
+func domainKeyForVMI(vmi *v1.VirtualMachineInstance) string {
+	if vmi.Status.MigrationState != nil &&
+		vmi.Status.MigrationState.TargetState != nil &&
+		vmi.Status.MigrationState.TargetState.DomainNamespace != nil &&
+		vmi.Status.MigrationState.TargetState.DomainName != nil {
+		return controller.NamespacedKey(
+			*vmi.Status.MigrationState.TargetState.DomainNamespace,
+			*vmi.Status.MigrationState.TargetState.DomainName,
+		)
+	}
+	return controller.VirtualMachineInstanceKey(vmi)
+}
+
 func domainIsActiveOnTarget(domain *api.Domain) bool {
 	if domain == nil {
 		return false
@@ -332,7 +352,9 @@ func (c *MigrationTargetController) Run(threadiness int, stopCh chan struct{}) {
 
 		_, exists, _ := c.vmiStore.GetByKey(key)
 		if !exists {
-			c.queue.Add(key)
+			// Also enqueue the VMI key for decentralized migrations
+			// where the domain namespace differs from the VMI namespace.
+			c.enqueueDomainKey(key)
 		}
 	}
 
@@ -489,13 +511,7 @@ func (c *MigrationTargetController) sync(vmi *v1.VirtualMachineInstance, domain 
 	// If processVMI is just waiting for something to be ready, we can't and don't need to increase expectations.
 	// We can't because the VMI may not update before the thing is ready, deadlocking us
 	// We don't need to because every time processVMI is waiting for something it re-adds the key to the queue
-	//
-	// Decentralized migrations also skip expectations because the
-	// synchronization controller patches the VMI independently, which can
-	// race with the target controller's own updates and leave expectations
-	// permanently unsatisfied.
-	shouldExpect := !syncReEnqueued && !updateReEnqueued && !vmi.IsDecentralizedMigration()
-	updateVMIErr := c.updateVMI(vmi, &oldSpec, &oldStatus, oldLabels, shouldExpect)
+	updateVMIErr := c.updateVMI(vmi, &oldSpec, &oldStatus, oldLabels, !syncReEnqueued && !updateReEnqueued)
 	if updateVMIErr != nil {
 		return updateVMIErr
 	}
@@ -530,16 +546,17 @@ func (c *MigrationTargetController) execute(key string) error {
 		return nil
 	}
 
-	// In decentralized migrations the synchronization controller patches the
-	// VMI from a cross-namespace context, racing with the target controller's
-	// own updates. These external patches can leave expectations permanently
-	// unsatisfied, so we skip the expectations gate for decentralized VMIs.
-	if !vmi.IsDecentralizedMigration() && !c.vmiExpectations.SatisfiedExpectations(key) {
+	if !c.vmiExpectations.SatisfiedExpectations(key) {
 		log.Log.V(4).Object(vmi).Info("waiting for expectations to be satisfied")
 		return nil
 	}
 
-	domain, domainExists, domUID, err := c.getDomainFromCache(key)
+	// In decentralized migrations the domain's libvirt name embeds the
+	// source VMI's namespace, so it is stored in the domain cache under a
+	// different key than the target VMI. Use the migration state's
+	// DomainNamespace/DomainName to look it up correctly.
+	domKey := domainKeyForVMI(vmi)
+	domain, domainExists, domUID, err := c.getDomainFromCache(domKey)
 	if err != nil {
 		return err
 	}
@@ -805,10 +822,24 @@ func (c *MigrationTargetController) updateFunc(_, new interface{}) {
 	}
 }
 
+// enqueueDomainKey enqueues the domain key and, for decentralized
+// migrations where the domain namespace differs from the VMI namespace,
+// also enqueues the owning VMI key so the target controller processes it.
+func (c *MigrationTargetController) enqueueDomainKey(domainKey string) {
+	c.queue.Add(domainKey)
+	for _, obj := range c.vmiStore.List() {
+		vmi := obj.(*v1.VirtualMachineInstance)
+		vmiKey := controller.VirtualMachineInstanceKey(vmi)
+		if vmiKey != domainKey && domainKeyForVMI(vmi) == domainKey {
+			c.queue.Add(vmiKey)
+		}
+	}
+}
+
 func (c *MigrationTargetController) addDomainFunc(obj interface{}) {
 	key, err := controller.KeyFunc(obj)
 	if err == nil {
-		c.queue.Add(key)
+		c.enqueueDomainKey(key)
 	}
 }
 func (c *MigrationTargetController) deleteDomainFunc(obj interface{}) {
@@ -828,7 +859,7 @@ func (c *MigrationTargetController) deleteDomainFunc(obj interface{}) {
 	c.logger.Object(domain).Info("Domain deleted")
 	key, err := controller.KeyFunc(obj)
 	if err == nil {
-		c.queue.Add(key)
+		c.enqueueDomainKey(key)
 	}
 }
 func (c *MigrationTargetController) updateDomainFunc(old, new interface{}) {
@@ -844,7 +875,7 @@ func (c *MigrationTargetController) updateDomainFunc(old, new interface{}) {
 
 	key, err := controller.KeyFunc(new)
 	if err == nil {
-		c.queue.Add(key)
+		c.enqueueDomainKey(key)
 	}
 }
 
