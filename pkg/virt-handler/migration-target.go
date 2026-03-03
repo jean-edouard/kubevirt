@@ -753,6 +753,24 @@ func (c *MigrationTargetController) processVMI(vmi *v1.VirtualMachineInstance) (
 	}
 
 	if vmi.Status.Phase == v1.WaitingForSync {
+		// In decentralized migrations the target VMI is created without
+		// MigrationMethod or MigratedVolumes — those fields live on the
+		// source VMI and are synced to the target by the synchronization
+		// controller alongside SourceState. If we proceed before the
+		// sync, IsBlockMigration() may return false while the source
+		// expects block migration, causing the proxy to be created with
+		// too few ports. The source then fails to connect to the missing
+		// NBD port, producing a blockdev-add EOF error. Wait until
+		// SourceState is present so IsBlockMigration() is consistent
+		// between source and target.
+		if vmi.Status.MigrationState != nil && vmi.Status.MigrationState.SourceState == nil {
+			c.logger.Object(vmi).V(4).Info("waiting for source migration state to be synced before preparing target")
+			c.queue.AddAfter(controller.VirtualMachineInstanceKey(vmi), time.Second*1)
+			return nil, true
+		}
+	}
+
+	if vmi.Status.Phase == v1.WaitingForSync {
 		// clear the start timestamp to avoid the migration being considered as running
 		log.Log.Object(vmi).Infof("clearing the start timestamp to avoid the migration being considered as running")
 		vmi.Status.MigrationState.StartTimestamp = nil
