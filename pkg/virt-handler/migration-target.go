@@ -736,6 +736,22 @@ func (c *MigrationTargetController) processVMI(vmi *v1.VirtualMachineInstance) (
 		return fmt.Errorf(unableCreateVirtLauncherConnectionFmt, err), false
 	}
 
+	// Once the migration target has been fully prepared (indicated by the
+	// migration proxy listening), there is nothing left for processVMI to
+	// do until the migration completes. Return early to avoid re-running
+	// the full preparation (preStartHook, SyncMigrationTarget, network
+	// setup, etc.) while QEMU may be actively migrating. This is
+	// particularly important for WaitingForSync (decentralized) VMIs,
+	// where IsMigrating always returns false because StartTimestamp is
+	// intentionally cleared. Without this guard every reconciliation
+	// would re-enter prepareMigrationTarget, and the resulting side
+	// effects (e.g. disk image expansion, network reconfiguration) can
+	// disrupt the in-flight migration.
+	if len(c.migrationProxy.GetTargetListenerPorts(string(vmi.UID))) > 0 {
+		c.logger.Object(vmi).V(4).Info("migration target already prepared, nothing to do")
+		return nil, false
+	}
+
 	if vmi.Status.Phase == v1.WaitingForSync {
 		// clear the start timestamp to avoid the migration being considered as running
 		log.Log.Object(vmi).Infof("clearing the start timestamp to avoid the migration being considered as running")
