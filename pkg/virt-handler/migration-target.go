@@ -489,7 +489,13 @@ func (c *MigrationTargetController) sync(vmi *v1.VirtualMachineInstance, domain 
 	// If processVMI is just waiting for something to be ready, we can't and don't need to increase expectations.
 	// We can't because the VMI may not update before the thing is ready, deadlocking us
 	// We don't need to because every time processVMI is waiting for something it re-adds the key to the queue
-	updateVMIErr := c.updateVMI(vmi, &oldSpec, &oldStatus, oldLabels, !syncReEnqueued && !updateReEnqueued)
+	//
+	// Decentralized migrations also skip expectations because the
+	// synchronization controller patches the VMI independently, which can
+	// race with the target controller's own updates and leave expectations
+	// permanently unsatisfied.
+	shouldExpect := !syncReEnqueued && !updateReEnqueued && !vmi.IsDecentralizedMigration()
+	updateVMIErr := c.updateVMI(vmi, &oldSpec, &oldStatus, oldLabels, shouldExpect)
 	if updateVMIErr != nil {
 		return updateVMIErr
 	}
@@ -524,7 +530,11 @@ func (c *MigrationTargetController) execute(key string) error {
 		return nil
 	}
 
-	if !c.vmiExpectations.SatisfiedExpectations(key) {
+	// In decentralized migrations the synchronization controller patches the
+	// VMI from a cross-namespace context, racing with the target controller's
+	// own updates. These external patches can leave expectations permanently
+	// unsatisfied, so we skip the expectations gate for decentralized VMIs.
+	if !vmi.IsDecentralizedMigration() && !c.vmiExpectations.SatisfiedExpectations(key) {
 		log.Log.V(4).Object(vmi).Info("waiting for expectations to be satisfied")
 		return nil
 	}
