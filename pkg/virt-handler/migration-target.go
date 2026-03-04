@@ -267,7 +267,7 @@ func (c *MigrationTargetController) updateStatus(vmi *v1.VirtualMachineInstance,
 		return nil, false
 	}
 
-	vmiUID := string(vmi.UID)
+	vmiUID := migrationProxyKey(vmi)
 	destSrcPortsMap := c.migrationProxy.GetTargetListenerPorts(vmiUID)
 	if len(destSrcPortsMap) == 0 {
 		msg := "target migration listener is not up for this vmi, giving it time"
@@ -413,7 +413,7 @@ func (c *MigrationTargetController) finalCleanup(vmi *v1.VirtualMachineInstance,
 		}
 	}
 
-	defer c.migrationProxy.StopTargetListener(string(vmi.UID))
+	defer c.migrationProxy.StopTargetListener(migrationProxyKey(vmi))
 	defer c.launcherClients.CloseLauncherClient(vmi)
 	client, err := c.launcherClients.GetLauncherClient(vmi)
 	if err != nil {
@@ -573,31 +573,40 @@ func migrationNeedsFinalization(migrationState *v1.VirtualMachineInstanceMigrati
 		!migrationState.Failed
 }
 
+// migrationProxyKey returns the UID to use as the migration proxy key.
+// For decentralized migrations using UNIX transport, the source generates
+// migrURI and DisksURI using its own UID, and the destination QEMU creates
+// migration sockets at paths containing that source UID. The outer proxy
+// on the target host must use the same UID to reach those sockets. For
+// regular migrations the source and target share a single VMI (same UID),
+// so this distinction is irrelevant. For legacy TCP transport the inner
+// proxies in the target pod use vmi.UID and no QEMU sockets are involved.
+func migrationProxyKey(vmi *v1.VirtualMachineInstance) string {
+	if vmi.Status.MigrationTransport == v1.MigrationTransportUnix &&
+		vmi.IsMigrationTarget() &&
+		vmi.Status.MigrationState != nil &&
+		vmi.Status.MigrationState.SourceState != nil &&
+		vmi.Status.MigrationState.SourceState.VirtualMachineInstanceUID != nil {
+		return string(*vmi.Status.MigrationState.SourceState.VirtualMachineInstanceUID)
+	}
+	return string(vmi.UID)
+}
+
 func (c *MigrationTargetController) handleTargetMigrationProxy(vmi *v1.VirtualMachineInstance) error {
-	// handle starting/stopping target migration proxy
 	var migrationTargetSockets []string
 	res, err := c.podIsolationDetector.Detect(vmi)
 	if err != nil {
 		return err
 	}
-	// Always use the local VMI's UID for the proxy key and socket paths.
-	// The virt-launcher creates migration sockets using vmi.UID, so the
-	// proxy must use the same UID to match those paths. In decentralized
-	// migrations the source VMI has a different UID; using it here would
-	// cause the proxy to point to non-existent sockets.
-	vmiUID := string(vmi.UID)
+	vmiUID := migrationProxyKey(vmi)
 
-	// Get the libvirt connection socket file on the destination pod.
 	socketFile := fmt.Sprintf(filepath.Join(c.virtLauncherFSRunDirPattern, "libvirt/virtqemud-sock"), res.Pid())
-	// the migration-proxy is no longer shared via host mount, so we
-	// pass in the virt-launcher's baseDir to reach the unix sockets.
 	baseDir := fmt.Sprintf(filepath.Join(c.virtLauncherFSRunDirPattern, "kubevirt"), res.Pid())
 	migrationTargetSockets = append(migrationTargetSockets, socketFile)
 
 	migrationPortsRange := migrationproxy.GetMigrationPortsList(vmi.IsBlockMigration())
 	for _, port := range migrationPortsRange {
 		key := migrationproxy.ConstructProxyKey(vmiUID, port)
-		// a proxy between the target direct qemu channel and the connector in the destination pod
 		destSocketFile := migrationproxy.SourceUnixFile(baseDir, key)
 		migrationTargetSockets = append(migrationTargetSockets, destSocketFile)
 	}
@@ -707,6 +716,37 @@ func (c *MigrationTargetController) processVMI(vmi *v1.VirtualMachineInstance) (
 	client, err := c.launcherClients.GetLauncherClient(vmi)
 	if err != nil {
 		return fmt.Errorf(unableCreateVirtLauncherConnectionFmt, err), false
+	}
+
+	// Once the migration target has been fully prepared (indicated by the
+	// migration proxy listening), there is nothing left for processVMI to
+	// do until the migration completes. Return early to avoid re-running
+	// the full preparation while QEMU may be actively migrating.
+	if len(c.migrationProxy.GetTargetListenerPorts(migrationProxyKey(vmi))) > 0 {
+		c.logger.Object(vmi).V(4).Info("migration target already prepared, nothing to do")
+		return nil, false
+	}
+
+	// In decentralized migrations the target VMI is created before the
+	// synchronization controller has propagated MigrationMethod,
+	// MigratedVolumes, and MigrationTransport from the source. These
+	// fields determine whether block migration is active (port count)
+	// and whether to use UNIX or legacy TCP transport. Additionally,
+	// for UNIX transport the outer proxy must use the source VMI's UID
+	// (SourceState.VirtualMachineInstanceUID) to match the socket paths
+	// QEMU creates on the destination. Wait for both SourceState and
+	// MigrationTransport before proceeding.
+	if vmi.IsMigrationTarget() {
+		if vmi.Status.MigrationState != nil && vmi.Status.MigrationState.SourceState == nil {
+			c.logger.Object(vmi).V(4).Info("waiting for source migration state to be synced before preparing target")
+			c.queue.AddAfter(controller.VirtualMachineInstanceKey(vmi), time.Second*1)
+			return nil, true
+		}
+		if vmi.Status.MigrationTransport == "" {
+			c.logger.Object(vmi).V(4).Info("waiting for migration transport to be set before preparing target")
+			c.queue.AddAfter(controller.VirtualMachineInstanceKey(vmi), time.Second*1)
+			return nil, true
+		}
 	}
 
 	if vmi.Status.Phase == v1.WaitingForSync {
