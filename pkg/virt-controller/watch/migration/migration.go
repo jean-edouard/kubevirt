@@ -1108,14 +1108,12 @@ func (c *Controller) handleMigrationBackoff(key string, vmi *virtv1.VirtualMachi
 
 func (c *Controller) handleMarkMigrationFailedOnVMI(migration *virtv1.VirtualMachineInstanceMigration, vmi *virtv1.VirtualMachineInstance) error {
 
-	// Mark Migration Done on VMI if virt handler never started it.
-	// Once virt-handler starts the migration, it's up to handler
-	// to finalize it.
-
 	vmiCopy := vmi.DeepCopy()
 
 	now := v1.NewTime(time.Now())
-	vmiCopy.Status.MigrationState.StartTimestamp = &now
+	if vmiCopy.Status.MigrationState.StartTimestamp == nil {
+		vmiCopy.Status.MigrationState.StartTimestamp = &now
+	}
 	vmiCopy.Status.MigrationState.EndTimestamp = &now
 	vmiCopy.Status.MigrationState.Failed = true
 	vmiCopy.Status.MigrationState.Completed = true
@@ -1125,8 +1123,8 @@ func (c *Controller) handleMarkMigrationFailedOnVMI(migration *virtv1.VirtualMac
 		log.Log.Reason(err).Object(vmi).Errorf("Failed to patch VMI status to indicate migration %s/%s failed.", migration.Namespace, migration.Name)
 		return err
 	}
-	log.Log.Object(vmi).Infof("Marked Migration %s/%s failed on vmi due to target pod disappearing before migration kicked off.", migration.Namespace, migration.Name)
-	failureReason := "Target pod is down"
+	log.Log.Object(vmi).Infof("Marked Migration %s/%s failed on vmi due to migration %s/%s being in Failed phase.", vmi.Namespace, vmi.Name, migration.Namespace, migration.Name)
+	failureReason := "Migration failed"
 	c.recorder.Event(vmi, k8sv1.EventTypeWarning, controller.FailedMigrationReason, fmt.Sprintf("VirtualMachineInstance migration uid %s failed. reason: %s", string(migration.UID), failureReason))
 	if vmiCopy.Status.MigrationState.FailureReason == "" {
 		// Only set the failure reason if empty, as virt-handler may already have provided a better one
@@ -1801,11 +1799,23 @@ func (c *Controller) sync(key string, migration *virtv1.VirtualMachineInstanceMi
 			}
 			return c.handleTargetPodHandoff(migration, vmi, pod)
 		}
-	case virtv1.MigrationPreparingTarget, virtv1.MigrationTargetReady, virtv1.MigrationFailed:
+	case virtv1.MigrationPreparingTarget, virtv1.MigrationTargetReady:
 		if migration.IsLocalOrDecentralizedTarget() && (!targetPodExists || controller.PodIsDown(pod)) &&
 			vmi.IsMigrationSynchronized(migration) &&
 			len(vmi.Status.MigrationState.TargetDirectMigrationNodePorts) == 0 &&
 			vmi.Status.MigrationState.StartTimestamp == nil &&
+			!vmi.Status.MigrationState.Failed &&
+			!vmi.Status.MigrationState.Completed {
+
+			err = c.handleMarkMigrationFailedOnVMI(migration, vmi)
+			if err != nil {
+				return err
+			}
+		}
+		return nil
+	case virtv1.MigrationFailed:
+		if migration.IsLocalOrDecentralizedTarget() &&
+			vmi.IsMigrationSynchronized(migration) &&
 			!vmi.Status.MigrationState.Failed &&
 			!vmi.Status.MigrationState.Completed {
 

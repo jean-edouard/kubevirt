@@ -447,7 +447,7 @@ func (c *Controller) updateStatus(vmi *virtv1.VirtualMachineInstance, pod *k8sv1
 
 	case vmi.IsRunning():
 		if !vmiPodExists {
-			if vmiCopy.IsDecentralizedMigration() && vmiCopy.IsMigrationTarget() {
+			if vmiCopy.IsMigrationTarget() {
 				log.Log.Object(vmi).V(2).Infof("setting VMI to WaitingForSync while running because pod does not exist")
 				vmiCopy.Status.Phase = virtv1.WaitingForSync
 				if vmiCopy.Status.MigrationState != nil {
