@@ -722,13 +722,12 @@ func (c *MigrationTargetController) processVMI(vmi *v1.VirtualMachineInstance) (
 	// migration proxy listening), there is nothing left for processVMI to
 	// do until the migration completes. Return early to avoid re-running
 	// the full preparation while QEMU may be actively migrating.
-	// Re-enqueue so that updateStatus can periodically detect domain
-	// arrival and migration completion. Returning true (re-enqueued)
-	// also prevents updateVMI from setting expectations, keeping the
-	// controller responsive to all events during the migration.
+	// Return true (re-enqueued) so that updateVMI skips setting
+	// expectations — this keeps the controller responsive to all
+	// external events (domain updates, sync controller VMI patches)
+	// without any window where they would be blocked.
 	if len(c.migrationProxy.GetTargetListenerPorts(migrationProxyKey(vmi))) > 0 {
-		c.logger.Object(vmi).V(4).Info("migration target already prepared, rechecking")
-		c.queue.AddAfter(controller.VirtualMachineInstanceKey(vmi), time.Second*1)
+		c.logger.Object(vmi).V(4).Info("migration target already prepared, nothing to do")
 		return nil, true
 	}
 
