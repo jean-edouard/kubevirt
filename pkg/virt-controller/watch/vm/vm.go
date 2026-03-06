@@ -1150,7 +1150,7 @@ func (c *Controller) syncRunStrategy(vm *virtv1.VirtualMachine, vmi *virtv1.Virt
 		if vmi != nil {
 			// Check if this is a receiver VMI
 			if val, ok := vmi.Annotations[virtv1.CreateMigrationTarget]; !ok || val != "true" {
-				if vmi.Status.MigrationState != nil && vmi.Status.MigrationState.Completed && !vmi.Status.MigrationState.Failed {
+				if vmi.Status.MigrationState != nil && vmi.Status.MigrationState.Completed {
 					log.Log.Object(vm).V(4).Infof("VMI %s/%s is a receiver VMI and has completed migration", vmi.Namespace, vmi.Name)
 					// Restore the original run strategy
 					if val, ok := vm.Annotations[virtv1.RestoreRunStrategy]; ok {
@@ -2539,8 +2539,8 @@ func (c *Controller) setPrintableStatus(vm *virtv1.VirtualMachine, vmi *virtv1.V
 		{virtv1.VirtualMachineStatusImagePullBackOff, c.isVirtualMachineStatusImagePullBackOff},
 		{virtv1.VirtualMachineStatusStarting, c.isVirtualMachineStatusStarting},
 		{virtv1.VirtualMachineStatusCrashLoopBackOff, c.isVirtualMachineStatusCrashLoopBackOff},
-		{virtv1.VirtualMachineStatusWaitingForReceiver, c.isVirtualMachineWaitingReceiver},
 		{virtv1.VirtualMachineStatusStopped, c.isVirtualMachineStatusStopped},
+		{virtv1.VirtualMachineStatusWaitingForReceiver, c.isVirtualMachineWaitingReceiver},
 	}
 
 	for _, status := range statuses {
