@@ -450,7 +450,9 @@ func (c *MigrationTargetController) finalCleanup(vmi *v1.VirtualMachineInstance,
 
 	// Effectively removes the VMI from our VMI informer
 	delete(vmi.Labels, v1.MigrationTargetNodeNameLabel)
-	delete(vmi.Annotations, v1.CreateMigrationTarget)
+	if !vmi.Status.MigrationState.Failed {
+		delete(vmi.Annotations, v1.CreateMigrationTarget)
+	}
 	return c.updateVMI(vmi, oldSpec, oldStatus, oldLabels, false)
 }
 
