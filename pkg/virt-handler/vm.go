@@ -399,6 +399,12 @@ func (c *VirtualMachineController) execute(key string) error {
 	}
 
 	if vmiExists && !c.isVMIOwnedByNode(vmi) {
+		// The launcher client is normally released in processVmCleanup. When the VMI is
+		// no longer scheduled on this node (e.g. after live migration) we stop syncing it
+		// but can still observe it via vmiGlobalStore; drop any cached client for this UID.
+		if vmi.UID != "" {
+			c.launcherClients.CloseLauncherClient(vmi)
+		}
 		c.logger.Object(vmi).V(4).Info("ignoring vmi as it is not owned by this node")
 		return nil
 	}

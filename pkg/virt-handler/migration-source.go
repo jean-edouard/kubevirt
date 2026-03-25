@@ -399,6 +399,10 @@ func (c *MigrationSourceController) execute(key string) error {
 	if !vmiExists || ((vmi.IsDecentralizedMigration() && vmi.Status.Phase == v1.Succeeded) ||
 		!vmi.IsDecentralizedMigration() && vmi.IsFinal()) ||
 		vmi.DeletionTimestamp != nil {
+		if vmi != nil && vmi.UID != "" {
+			c.migrationProxy.StopSourceListener(string(vmi.UID))
+			c.launcherClients.CloseLauncherClient(vmi)
+		}
 		c.logger.V(4).Infof("vmi for key %v is terminating, succeeded or does not exists", key)
 		return nil
 	}
@@ -426,6 +430,7 @@ func (c *MigrationSourceController) execute(key string) error {
 	// post migration clean up
 	if isMigrationDone(vmi.Status.MigrationState) {
 		c.migrationProxy.StopSourceListener(string(vmi.UID))
+		c.launcherClients.CloseLauncherClient(vmi)
 		return nil
 	}
 
