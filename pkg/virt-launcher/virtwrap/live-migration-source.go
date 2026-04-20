@@ -61,11 +61,12 @@ const (
 	monitorLogPeriodMS   = 4000
 	monitorLogInterval   = monitorLogPeriodMS / monitorSleepPeriodMS
 
-	stallMargin           float64 = 0.04
-	switchoverTimeout     int64   = 60
-	preCopyPossibleFactor float64 = 1.5
-	bandwidthEWMAAlpha    float64 = 0.4
-	searchLocalMinima             = true
+	stallMargin               float64 = 0.04
+	switchoverTimeout         int64   = 60
+	preCopyPossibleFactor     float64 = 1.5
+	patienceWindowDecayFactor float64 = 0.5
+	bandwidthEWMAAlpha        float64 = 0.4
+	searchLocalMinima                 = true
 )
 
 type convergenceAction int
@@ -450,8 +451,9 @@ func newMigrationMonitor(vmi *v1.VirtualMachineInstance, l *LibvirtDomainManager
 		acceptableCompletionTime: options.CompletionTimeoutPerGiB * getVMIMigrationDataSize(vmi, l.ephemeralDiskDir),
 		stallDetectionEnabled:    options.StallDetectionEnabled,
 		stallDetector: &stallDetector{
-			maxDowntimeMs:          options.MaxDowntimeMs,
-			progressTimeoutSeconds: options.ProgressTimeout,
+			maxDowntimeMs:             options.MaxDowntimeMs,
+			progressTimeoutSeconds:    options.ProgressTimeout,
+			patienceWindowDecayFactor: patienceWindowDecayFactor,
 		},
 		logger: log.Log.Object(vmi),
 	}
