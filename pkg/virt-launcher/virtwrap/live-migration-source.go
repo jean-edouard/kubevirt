@@ -629,6 +629,18 @@ func (m *migrationMonitor) processInflightMigration(dom cli.VirDomain, stats *li
 	}
 
 	if m.stallDetectionEnabled {
+
+		if !sd.initialMaxDowntimeSet {
+			initialMaxDowntime := m.options.MaxDowntimeMs
+			if initialMaxDowntime > migrationutils.QEMUDefaultTargetDowntimeMS {
+				initialMaxDowntime = migrationutils.QEMUDefaultTargetDowntimeMS
+			}
+			if err := dom.MigrateSetMaxDowntime(uint64(initialMaxDowntime), 0); err != nil {
+				logger.Reason(err).Warning("failed to set initial max downtime")
+			}
+			sd.initialMaxDowntimeSet = true
+		}
+
 		m.reconcilePauseState(dom)
 
 		if !m.isAbortInProgress() {
