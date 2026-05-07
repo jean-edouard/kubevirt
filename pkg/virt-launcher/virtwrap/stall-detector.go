@@ -22,6 +22,8 @@ package virtwrap
 import (
 	"math"
 
+	"kubevirt.io/client-go/log"
+
 	utilheap "kubevirt.io/kubevirt/pkg/util/heap"
 )
 
@@ -132,11 +134,22 @@ func (sd *stallDetector) relaxBestRemainingBytes(record iterationRecord) {
 	sd.relaxationDeadlineMs = record.elapsedMs + sd.relaxationPatienceMs
 }
 
+func (sd *stallDetector) canFinishByDeadline(elapsedSeconds int64, deadlineSeconds int64, estimatedDowntimeMs uint32) bool {
+	if sd.ewmaBandwidthBps == 0 {
+		return false
+	}
+	remainingBudgetMs := (deadlineSeconds - elapsedSeconds) * 1000
+	return int64(estimatedDowntimeMs) <= remainingBudgetMs
+}
+
 func (sd *stallDetector) estimateDowntimeMs(record iterationRecord) uint32 {
 	if sd.ewmaBandwidthBps == 0 {
 		return 0
 	}
 	bandwidthBpms := sd.ewmaBandwidthBps / 1000
+	// Note: when calculated from the polling loop, this is (probably) an overestimate. This is not
+	//  a problem since this estimated downtime value is only used to compare to competition timeouts, which
+	//  are typically far larger.
 	estimatedDowntime := float64(record.remainingBytes) / bandwidthBpms
 	if estimatedDowntime > math.MaxUint32 {
 		return math.MaxUint32
