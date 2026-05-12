@@ -62,6 +62,7 @@ const (
 	monitorLogInterval   = monitorLogPeriodMS / monitorSleepPeriodMS
 
 	stallMargin           float64 = 0.04
+	switchoverTimeout     int64   = 60
 	preCopyPossibleFactor float64 = 1.5
 	bandwidthEWMAAlpha    float64 = 0.4
 	searchLocalMinima             = true
@@ -468,16 +469,25 @@ func (m *migrationMonitor) isPausedMigration() bool {
 	return migration.Mode == v1.MigrationPaused
 }
 
-func (m *migrationMonitor) shouldTriggerTimeout(elapsed int64) bool {
+func (m *migrationMonitor) shouldTriggerTimeout(elapsedNs int64) bool {
 	if m.acceptableCompletionTime == 0 {
 		return false
 	}
 
-	return elapsed/int64(time.Second) > m.acceptableCompletionTime
+	elapsedSeconds := elapsedNs / int64(time.Second)
+	if !m.stallDetectionEnabled {
+		return elapsedSeconds > m.acceptableCompletionTime
+	}
+
+	if m.isPausedMigration() {
+		return elapsedSeconds > m.acceptableCompletionTime
+	}
+
+	return elapsedSeconds > m.switchOverDeadline
 }
 
-func (m *migrationMonitor) shouldAssistMigrationToComplete(elapsed int64) bool {
-	return m.options.AllowWorkloadDisruption && m.shouldTriggerTimeout(elapsed)
+func (m *migrationMonitor) shouldAssistMigrationToComplete(elapsedNs int64) bool {
+	return m.options.AllowWorkloadDisruption && m.shouldTriggerTimeout(elapsedNs) && !m.stallDetectionEnabled
 }
 
 func (m *migrationMonitor) isMigrationProgressing() bool {
@@ -499,13 +509,81 @@ func (m *migrationMonitor) isAbortInProgress() bool {
 }
 
 func (m *migrationMonitor) triggerConvergenceAction(dom cli.VirDomain, action convergenceAction, reason string) {
-	// TODO: take the supplied convergence action passed in the parameter with supplied reason for logs
-	return
+	sd := m.stallDetector
+	logger := log.Log.Object(m.vmi)
+
+	sd.switchoverInitiated = true
+
+	switch action {
+	case actionNothing:
+		sd.switchoverInitiated = false
+	case actionAbort:
+		logger.Warningf("aborting migration: %s", reason)
+		m.l.cancelMigration(m.vmi)
+	case actionPostCopy:
+		logger.Infof("starting post copy mode for migration: %s", reason)
+		if err := dom.MigrateStartPostCopy(0); err != nil {
+			sd.switchoverInitiated = false
+			logger.Reason(err).Error("failed to start post migration")
+			return
+		}
+		m.l.updateVMIMigrationMode(v1.MigrationPostCopy)
+	case actionHardStopAndCopy, actionSoftStopAndCopy:
+		now := time.Now().UTC().UnixNano()
+		elapsedSeconds := (now - m.start) / int64(time.Second)
+
+		// since stop-and-copy is not gaurenteed to start immediately (or ever), a "switch-over" deadline is needed
+		m.switchOverDeadline = elapsedSeconds + switchoverTimeout
+
+		var downtime uint64
+		if action == actionHardStopAndCopy {
+			downtime = migrationutils.QEMUMaxMigrationDowntimeMS
+			logger.Infof("forcing switchover by setting max downtime to %dms: %s", downtime, reason)
+		} else {
+			downtime = uint64(sd.maxDowntimeMs)
+			logger.Infof("max downtime set to %dms: %s", downtime, reason)
+		}
+
+		if err := dom.MigrateSetMaxDowntime(downtime, 0); err != nil {
+			sd.switchoverInitiated = false
+			logger.Reason(err).Error("setting max downtime failed")
+		}
+
+	default:
+		logger.Error("unknown convergence action")
+	}
 }
 
 func (m *migrationMonitor) decideAction(record iterationRecord, estimatedDowntimeMs uint32) (convergenceAction, string) {
-	// TODO: decides which convergence action to take based on the iteration record and estimated downtime
-	return actionNothing, "no action decided"
+
+	sd := m.stallDetector
+
+	if sd.switchoverInitiated {
+		return actionNothing, "switchover already initiated"
+	}
+
+	target := uint64(float64(sd.bestRemainingBytes) * (1 + stallMargin))
+	atLocalMinima := record.remainingBytes <= target
+
+	if !atLocalMinima && searchLocalMinima {
+		return actionNothing, "not at a local minima yet"
+	}
+
+	if m.options.AllowWorkloadDisruption && m.options.AllowPostCopy && !vmitrait.HasVFIO(m.vmi) {
+		return actionPostCopy, fmt.Sprintf("estimated downtime %dms is a local minima", estimatedDowntimeMs)
+	}
+
+	if m.options.AllowWorkloadDisruption {
+		return actionHardStopAndCopy, fmt.Sprintf("estimated downtime %dms is a local minima", estimatedDowntimeMs)
+	}
+
+	if float64(estimatedDowntimeMs) <= float64(sd.maxDowntimeMs) {
+		return actionSoftStopAndCopy, fmt.Sprintf("estimated downtime %dms within max allowed downtime %dms", estimatedDowntimeMs, sd.maxDowntimeMs)
+	} else if float64(estimatedDowntimeMs) <= float64(sd.maxDowntimeMs)*preCopyPossibleFactor {
+		return actionSoftStopAndCopy, fmt.Sprintf("estimated downtime %dms within tolerable factor %fx to max allowed downtime %dms", estimatedDowntimeMs, preCopyPossibleFactor, sd.maxDowntimeMs)
+	}
+
+	return actionAbort, fmt.Sprintf("estimated downtime %dms far exceeds max allowed downtime %dms", estimatedDowntimeMs, sd.maxDowntimeMs)
 }
 
 func (m *migrationMonitor) processInflightMigration(dom cli.VirDomain, stats *libvirt.DomainJobInfo, isIterationBoundary bool) {
