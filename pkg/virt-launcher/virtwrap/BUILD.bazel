@@ -6,6 +6,7 @@ go_library(
     srcs = [
         "generated_mock_manager.go",
         "iommufd.go",
+        "live-migration-convergence.go",
         "live-migration-source.go",
         "live-migration-target.go",
         "manager.go",
