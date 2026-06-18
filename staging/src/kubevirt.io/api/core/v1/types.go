@@ -46,6 +46,7 @@ const DefaultGracePeriodSeconds int64 = 30
 
 // VirtualMachineInstance is *the* VirtualMachineInstance Definition. It represents a virtual machine in the runtime environment of kubernetes.
 //
+// ---
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 // +genclient
 // +genclient:noStatus
@@ -68,6 +69,7 @@ func (v *VirtualMachineInstance) UnmarshalBinary(data []byte) error {
 
 // VirtualMachineInstanceList is a list of VirtualMachines
 //
+// ---
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type VirtualMachineInstanceList struct {
 	metav1.TypeMeta `json:",inline"`
@@ -89,6 +91,7 @@ type VirtualMachineInstanceSpec struct {
 	// If specified, indicates the pod's priority.
 	// If not specified, the pod priority will be default or zero if there is no
 	// default.
+	// ---
 	// +optional
 	PriorityClassName string `json:"priorityClassName,omitempty"`
 
@@ -97,18 +100,21 @@ type VirtualMachineInstanceSpec struct {
 	// NodeSelector is a selector which must be true for the vmi to fit on a node.
 	// Selector which must match a node's labels for the vmi to be scheduled on that node.
 	// More info: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/
+	// ---
 	// +optional
 	NodeSelector map[string]string `json:"nodeSelector,omitempty"`
 	// If affinity is specifies, obey all the affinity rules
 	Affinity *k8sv1.Affinity `json:"affinity,omitempty"`
 	// If specified, the VMI will be dispatched by specified scheduler.
 	// If not specified, the VMI will be dispatched by default scheduler.
+	// ---
 	// +optional
 	SchedulerName string `json:"schedulerName,omitempty"`
 	// If toleration is specified, obey all the toleration rules.
 	Tolerations []k8sv1.Toleration `json:"tolerations,omitempty"`
 	// TopologySpreadConstraints describes how a group of VMIs will be spread across a given topology
 	// domains. K8s scheduler will schedule VMI pods in a way which abides by the constraints.
+	// ---
 	// +optional
 	// +patchMergeKey=topologyKey
 	// +patchStrategy=merge
@@ -122,10 +128,12 @@ type VirtualMachineInstanceSpec struct {
 	// - "LiveMigrate": the VirtualMachineInstance will be migrated instead of being shutdown.
 	// - "LiveMigrateIfPossible": the same as "LiveMigrate" but only if the VirtualMachine is Live-Migratable, otherwise it will behave as "None".
 	// - "External": the VirtualMachineInstance will be protected and `vmi.Status.EvacuationNodeName` will be set on eviction. This is mainly useful for cluster-api-provider-kubevirt (capk) which needs a way for VMI's to be blocked from eviction, yet signal capk that eviction has been called on the VMI so the capk controller can handle tearing the VMI down. Details can be found in the commit description https://github.com/kubevirt/kubevirt/commit/c1d77face705c8b126696bac9a3ee3825f27f1fa.
+	// ---
 	// +optional
 	EvictionStrategy *EvictionStrategy `json:"evictionStrategy,omitempty"`
 	// StartStrategy can be set to "Paused" if Virtual Machine should be started in paused state.
 	//
+	// ---
 	// +optional
 	StartStrategy *StartStrategy `json:"startStrategy,omitempty"`
 	// Grace period observed after signalling a VirtualMachineInstance to stop after which the VirtualMachineInstance is force terminated.
@@ -138,21 +146,25 @@ type VirtualMachineInstanceSpec struct {
 	// VirtualmachineInstances will be stopped if the probe fails.
 	// Cannot be updated.
 	// More info: https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle#container-probes
+	// ---
 	// +optional
 	LivenessProbe *Probe `json:"livenessProbe,omitempty"`
 	// Periodic probe of VirtualMachineInstance service readiness.
 	// VirtualmachineInstances will be removed from service endpoints if the probe fails.
 	// Cannot be updated.
 	// More info: https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle#container-probes
+	// ---
 	// +optional
 	ReadinessProbe *Probe `json:"readinessProbe,omitempty"`
 	// Specifies the hostname of the vmi
 	// If not specified, the hostname will be set to the name of the vmi, if dhcp or cloud-init is configured properly.
+	// ---
 	// +optional
 	Hostname string `json:"hostname,omitempty"`
 	// If specified, the fully qualified vmi hostname will be "<hostname>.<subdomain>.<pod namespace>.svc.<cluster domain>".
 	// If not specified, the vmi will not have a domainname at all. The DNS entry will resolve to the vmi,
 	// no matter if the vmi itself can pick up a hostname.
+	// ---
 	// +optional
 	Subdomain string `json:"subdomain,omitempty"`
 	// List of networks that can be attached to a vm's virtual interface.
@@ -165,11 +177,13 @@ type VirtualMachineInstanceSpec struct {
 	// DNS parameters given in DNSConfig will be merged with the policy selected with DNSPolicy.
 	// To have DNS options set along with hostNetwork, you have to specify DNS policy
 	// explicitly to 'ClusterFirstWithHostNet'.
+	// ---
 	// +optional
 	DNSPolicy k8sv1.DNSPolicy `json:"dnsPolicy,omitempty" protobuf:"bytes,6,opt,name=dnsPolicy,casttype=DNSPolicy"`
 	// Specifies the DNS parameters of a pod.
 	// Parameters specified here will be merged to the generated DNS
 	// configuration based on DNSPolicy.
+	// ---
 	// +optional
 	DNSConfig *k8sv1.PodDNSConfig `json:"dnsConfig,omitempty" protobuf:"bytes,26,opt,name=dnsConfig"`
 	// Specifies a set of public keys to inject into the vm guest
@@ -192,6 +206,7 @@ type VirtualMachineInstanceSpec struct {
 	// or NetworkDevicesWithDRA is enabled.
 	// This feature is in alpha.
 	//
+	// ---
 	// +listType=map
 	// +listMapKey=name
 	// +optional
@@ -270,6 +285,7 @@ type VirtualMachineInstanceStatus struct {
 	// NodeName is the name where the VirtualMachineInstance is currently running.
 	NodeName string `json:"nodeName,omitempty"`
 	// A brief CamelCase message indicating details about why the VMI is in this state. e.g. 'NodeUnresponsive'
+	// ---
 	// +optional
 	Reason string `json:"reason,omitempty"`
 	// Conditions are specific points in VirtualMachineInstance's pod runtime.
@@ -277,6 +293,7 @@ type VirtualMachineInstanceStatus struct {
 	// Phase is the status of the VirtualMachineInstance in kubernetes world. It is not the VirtualMachineInstance status, but partially correlates to it.
 	Phase VirtualMachineInstancePhase `json:"phase,omitempty"`
 	// PhaseTransitionTimestamp is the timestamp of when the last phase change occurred
+	// ---
 	// +listType=atomic
 	// +optional
 	PhaseTransitionTimestamps []VirtualMachineInstancePhaseTransitionTimestamp `json:"phaseTransitionTimestamps,omitempty"`
@@ -293,6 +310,7 @@ type VirtualMachineInstanceStatus struct {
 	// The Quality of Service (QOS) classification assigned to the virtual machine instance based on resource requirements
 	// See PodQOSClass type for available QOS classes
 	// More info: https://git.k8s.io/community/contributors/design-proposals/node/resource-qos.md
+	// ---
 	// +optional
 	QOSClass *k8sv1.PodQOSClass `json:"qosClass,omitempty"`
 
@@ -301,6 +319,7 @@ type VirtualMachineInstanceStatus struct {
 
 	// EvacuationNodeName is used to track the eviction process of a VMI. It stores the name of the node that we want
 	// to evacuate. It is meant to be used by KubeVirt core components only and can't be set or modified by users.
+	// ---
 	// +optional
 	EvacuationNodeName string `json:"evacuationNodeName,omitempty"`
 
@@ -309,29 +328,35 @@ type VirtualMachineInstanceStatus struct {
 	ActivePods map[types.UID]string `json:"activePods,omitempty"`
 
 	// VolumeStatus contains the statuses of all the volumes
+	// ---
 	// +optional
 	// +listType=atomic
 	VolumeStatus []VolumeStatus `json:"volumeStatus,omitempty"`
 
 	// KernelBootStatus contains info about the kernelBootContainer
+	// ---
 	// +optional
 	KernelBootStatus *KernelBootStatus `json:"kernelBootStatus,omitempty"`
 
 	// FSFreezeStatus indicates whether a freeze operation was requested for the guest filesystem.
 	// It will be set to "frozen" if the request was made, or unset otherwise.
 	// This does not reflect the actual state of the guest filesystem.
+	// ---
 	// +optional
 	FSFreezeStatus string `json:"fsFreezeStatus,omitempty"`
 
+	// ---
 	// +optional
 	TopologyHints *TopologyHints `json:"topologyHints,omitempty"`
 
 	//VirtualMachineRevisionName is used to get the vm revision of the vmi when doing
 	// an online vm snapshot
+	// ---
 	// +optional
 	VirtualMachineRevisionName string `json:"virtualMachineRevisionName,omitempty"`
 
 	// RuntimeUser is used to determine what user will be used in launcher
+	// ---
 	// +optional
 	RuntimeUser uint64 `json:"runtimeUser"`
 
@@ -344,11 +369,13 @@ type VirtualMachineInstanceStatus struct {
 	VSOCKCID *uint32 `json:"VSOCKCID,omitempty"`
 
 	// SELinuxContext is the actual SELinux context of the virt-launcher pod
+	// ---
 	// +optional
 	SelinuxContext string `json:"selinuxContext,omitempty"`
 
 	// Machine shows the final resulting qemu machine type. This can be different
 	// than the machine type selected in the spec, due to qemus machine type alias mechanism.
+	// ---
 	// +optional
 	Machine *Machine `json:"machine,omitempty"`
 	// CurrentCPUTopology specifies the current CPU topology used by the VM workload.
@@ -357,15 +384,18 @@ type VirtualMachineInstanceStatus struct {
 	CurrentCPUTopology *CPUTopology `json:"currentCPUTopology,omitempty"`
 
 	// Memory shows various informations about the VirtualMachine memory.
+	// ---
 	// +optional
 	Memory *MemoryStatus `json:"memory,omitempty"`
 
 	// MigratedVolumes lists the source and destination volumes during the volume migration
+	// ---
 	// +listType=atomic
 	// +optional
 	MigratedVolumes []StorageMigratedVolumeInfo `json:"migratedVolumes,omitempty"`
 
 	// ChangedBlockTracking represents the status of the changedBlockTracking
+	// ---
 	// +nullable
 	// +optional
 	ChangedBlockTracking *ChangedBlockTrackingStatus `json:"changedBlockTracking,omitempty" optional:"true"`
@@ -387,28 +417,34 @@ type PersistentVolumeClaimInfo struct {
 	ClaimName string `json:"claimName,omitempty"`
 	// AccessModes contains the desired access modes the volume should have.
 	// More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#access-modes-1
+	// ---
 	// +listType=atomic
 	// +optional
 	AccessModes []k8sv1.PersistentVolumeAccessMode `json:"accessModes,omitempty"`
 
 	// VolumeMode defines what type of volume is required by the claim.
 	// Value of Filesystem is implied when not included in claim spec.
+	// ---
 	// +optional
 	VolumeMode *k8sv1.PersistentVolumeMode `json:"volumeMode,omitempty"`
 
 	// Capacity represents the capacity set on the corresponding PVC status
+	// ---
 	// +optional
 	Capacity k8sv1.ResourceList `json:"capacity,omitempty"`
 
 	// Requests represents the resources requested by the corresponding PVC spec
+	// ---
 	// +optional
 	Requests k8sv1.ResourceList `json:"requests,omitempty"`
 
 	// Preallocated indicates if the PVC's storage is preallocated or not
+	// ---
 	// +optional
 	Preallocated bool `json:"preallocated,omitempty"`
 
 	// Percentage of filesystem's size to be reserved when resizing the PVC
+	// ---
 	// +optional
 	FilesystemOverhead *Percent `json:"filesystemOverhead,omitempty"`
 }
@@ -829,8 +865,10 @@ const (
 type VirtualMachineInstanceCondition struct {
 	Type   VirtualMachineInstanceConditionType `json:"type"`
 	Status k8sv1.ConditionStatus               `json:"status"`
+	// ---
 	// +nullable
 	LastProbeTime metav1.Time `json:"lastProbeTime,omitempty"`
+	// ---
 	// +nullable
 	LastTransitionTime metav1.Time `json:"lastTransitionTime,omitempty"`
 	Reason             string      `json:"reason,omitempty"`
@@ -840,8 +878,10 @@ type VirtualMachineInstanceCondition struct {
 type VirtualMachineInstanceMigrationCondition struct {
 	Type   VirtualMachineInstanceMigrationConditionType `json:"type"`
 	Status k8sv1.ConditionStatus                        `json:"status"`
+	// ---
 	// +nullable
 	LastProbeTime metav1.Time `json:"lastProbeTime,omitempty"`
+	// ---
 	// +nullable
 	LastTransitionTime metav1.Time `json:"lastTransitionTime,omitempty"`
 	Reason             string      `json:"reason,omitempty"`
@@ -924,9 +964,11 @@ type VirtualMachineInstanceGuestOSInfo struct {
 	ID string `json:"id,omitempty"`
 }
 
+// ---
 // +k8s:openapi-gen=true
 type MigrationNetworkType string
 
+// ---
 // +k8s:openapi-gen=true
 const (
 	// PodNetworkMigration indicates the migration will happen over the pod network
@@ -956,6 +998,7 @@ type VirtualMachineInstanceCommonMigrationState struct {
 	VirtualMachineInstanceUID *types.UID `json:"virtualMachineInstanceUID,omitempty"`
 }
 
+// ---
 // +k8s:openapi-gen=true
 type VirtualMachineInstanceMigrationSourceState struct {
 	VirtualMachineInstanceCommonMigrationState `json:",inline"`
@@ -964,6 +1007,7 @@ type VirtualMachineInstanceMigrationSourceState struct {
 	NodeSelectors map[string]string `json:"nodeSelectors,omitempty"`
 }
 
+// ---
 // +k8s:openapi-gen=true
 type VirtualMachineInstanceMigrationTargetState struct {
 	VirtualMachineInstanceCommonMigrationState `json:",inline"`
@@ -980,6 +1024,7 @@ type VirtualMachineInstanceMigrationTargetState struct {
 	AttachmentPodUID *types.UID `json:"attachmentPodUID,omitempty"`
 	// If the VMI requires dedicated CPUs, this field will
 	// hold the dedicated CPU set on the target node
+	// ---
 	// +listType=atomic
 	CPUSet []int `json:"cpuSet,omitempty"`
 	// If the VMI requires dedicated CPUs, this field will
@@ -989,15 +1034,19 @@ type VirtualMachineInstanceMigrationTargetState struct {
 
 // MigrationConfigSource indicates the source of migration configuration.
 //
+// ---
 // +k8s:openapi-gen=true
 type MigrationConfigSource string
 
+// ---
 // +k8s:openapi-gen=true
 type VirtualMachineInstanceMigrationState struct {
 	// The time the migration action began
+	// ---
 	// +nullable
 	StartTimestamp *metav1.Time `json:"startTimestamp,omitempty"`
 	// The time the migration action ended
+	// ---
 	// +nullable
 	EndTimestamp *metav1.Time `json:"endTimestamp,omitempty"`
 
@@ -1040,6 +1089,7 @@ type VirtualMachineInstanceMigrationState struct {
 	MigrationConfiguration *MigrationConfiguration `json:"migrationConfiguration,omitempty"`
 	// If the VMI requires dedicated CPUs, this field will
 	// hold the dedicated CPU set on the target node
+	// ---
 	// +listType=atomic
 	TargetCPUSet []int `json:"targetCPUSet,omitempty"`
 	// If the VMI requires dedicated CPUs, this field will
@@ -1057,6 +1107,7 @@ type VirtualMachineInstanceMigrationState struct {
 	// The type of migration network, either 'pod' or 'migration'
 	MigrationNetworkType MigrationNetworkType `json:"migrationNetworkType,omitempty"`
 	// TargetMemoryOverhead is the memory overhead of the target virt-launcher pod
+	// ---
 	// +optional
 	TargetMemoryOverhead *resource.Quantity `json:"targetMemoryOverhead,omitempty"`
 }
@@ -1638,6 +1689,7 @@ func PrepareVMINodeAntiAffinitySelectorRequirement(vmi *VirtualMachineInstance) 
 
 // VirtualMachineInstance is *the* VirtualMachineInstance Definition. It represents a virtual machine in the runtime environment of kubernetes.
 //
+// ---
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 // +genclient
 type VirtualMachineInstanceReplicaSet struct {
@@ -1646,12 +1698,14 @@ type VirtualMachineInstanceReplicaSet struct {
 	// VirtualMachineInstance Spec contains the VirtualMachineInstance specification.
 	Spec VirtualMachineInstanceReplicaSetSpec `json:"spec" valid:"required"`
 	// Status is the high level overview of how the VirtualMachineInstance is doing. It contains information available to controllers and users.
+	// ---
 	// +nullable
 	Status VirtualMachineInstanceReplicaSetStatus `json:"status,omitempty"`
 }
 
 // VMIList is a list of VMIs
 //
+// ---
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type VirtualMachineInstanceReplicaSetList struct {
 	metav1.TypeMeta `json:",inline"`
@@ -1662,6 +1716,7 @@ type VirtualMachineInstanceReplicaSetList struct {
 type VirtualMachineInstanceReplicaSetSpec struct {
 	// Number of desired pods. This is a pointer to distinguish between explicit
 	// zero and not specified. Defaults to 1.
+	// ---
 	// +optional
 	Replicas *int32 `json:"replicas,omitempty"`
 
@@ -1673,16 +1728,19 @@ type VirtualMachineInstanceReplicaSetSpec struct {
 	Template *VirtualMachineInstanceTemplateSpec `json:"template" valid:"required"`
 
 	// Indicates that the replica set is paused.
+	// ---
 	// +optional
 	Paused bool `json:"paused,omitempty" protobuf:"varint,7,opt,name=paused"`
 }
 
 type VirtualMachineInstanceReplicaSetStatus struct {
 	// Total number of non-terminated pods targeted by this deployment (their labels match the selector).
+	// ---
 	// +optional
 	Replicas int32 `json:"replicas,omitempty" protobuf:"varint,2,opt,name=replicas"`
 
 	// The number of ready replicas for this replica set.
+	// ---
 	// +optional
 	ReadyReplicas int32 `json:"readyReplicas,omitempty" protobuf:"varint,4,opt,name=readyReplicas"`
 
@@ -1695,8 +1753,10 @@ type VirtualMachineInstanceReplicaSetStatus struct {
 type VirtualMachineInstanceReplicaSetCondition struct {
 	Type   VirtualMachineInstanceReplicaSetConditionType `json:"type"`
 	Status k8sv1.ConditionStatus                         `json:"status"`
+	// ---
 	// +nullable
 	LastProbeTime metav1.Time `json:"lastProbeTime,omitempty"`
+	// ---
 	// +nullable
 	LastTransitionTime metav1.Time `json:"lastTransitionTime,omitempty"`
 	Reason             string      `json:"reason,omitempty"`
@@ -1721,6 +1781,7 @@ type DataVolumeTemplateDummyStatus struct{}
 type DataVolumeTemplateSpec struct {
 	// TypeMeta only exists on DataVolumeTemplate for API backwards compatibility
 	// this field is not used by our controllers and is a no-op.
+	// ---
 	// +nullable
 	metav1.TypeMeta `json:",inline"`
 	// ---
@@ -1732,6 +1793,7 @@ type DataVolumeTemplateSpec struct {
 
 	// DataVolumeTemplateDummyStatus is here simply for backwards compatibility with
 	// a previous API.
+	// ---
 	// +nullable
 	// +optional
 	Status *DataVolumeTemplateDummyStatus `json:"status,omitempty"`
@@ -1749,6 +1811,7 @@ type VirtualMachineInstanceTemplateSpec struct {
 // VirtualMachineInstanceMigration represents the object tracking a VMI's migration
 // to another host in the cluster
 //
+// ---
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 // +genclient
 type VirtualMachineInstanceMigration struct {
@@ -1760,6 +1823,7 @@ type VirtualMachineInstanceMigration struct {
 
 // VirtualMachineInstanceMigrationList is a list of VirtualMachineMigrations
 //
+// ---
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type VirtualMachineInstanceMigrationList struct {
 	metav1.TypeMeta `json:",inline"`
@@ -1785,6 +1849,7 @@ type VirtualMachineInstanceMigrationSpec struct {
 	// In case of key collisions, values set on the VM objects
 	// are going to be preserved to ensure that addedNodeSelector
 	// can only restrict but not bypass constraints already set on the VM object.
+	// ---
 	// +optional
 	AddedNodeSelector map[string]string `json:"addedNodeSelector,omitempty"`
 
@@ -1793,6 +1858,7 @@ type VirtualMachineInstanceMigrationSpec struct {
 	// If receieve is specified, this VirtualMachineInstanceMigration will be considered the target
 	Receive *VirtualMachineInstanceMigrationTarget `json:"receive,omitempty"`
 	// Priority of the migration. This can be one of `system-critical`, `user-triggered`, `system-maintenance`.
+	// ---
 	// +optional
 	Priority *MigrationPriority `json:"priority,omitempty"`
 }
@@ -1822,6 +1888,7 @@ type VirtualMachineInstanceMigrationStatus struct {
 	Phase      VirtualMachineInstanceMigrationPhase       `json:"phase,omitempty"`
 	Conditions []VirtualMachineInstanceMigrationCondition `json:"conditions,omitempty"`
 	// PhaseTransitionTimestamp is the timestamp of when the last phase change occurred
+	// ---
 	// +listType=atomic
 	// +optional
 	PhaseTransitionTimestamps []VirtualMachineInstanceMigrationPhaseTransitionTimestamp `json:"phaseTransitionTimestamps,omitempty"`
@@ -1829,6 +1896,7 @@ type VirtualMachineInstanceMigrationStatus struct {
 	MigrationState *VirtualMachineInstanceMigrationState `json:"migrationState,omitempty"`
 	// The synchronization addresses one can use to connect to the synchronization controller, includes the port, if multiple
 	// addresses are available, the first one is reported in the synchronizationAddress field.
+	// ---
 	// +optional
 	// +listType=atomic
 	SynchronizationAddresses []string `json:"synchronizationAddresses,omitempty" optional:"true"`
@@ -1888,6 +1956,7 @@ func (m *VirtualMachineInstanceMigration) IsDecentralized() bool {
 // VirtualMachineInstancePreset defines a VMI spec.domain to be applied to all VMIs that match the provided label selector
 // More info: https://kubevirt.io/user-guide/virtual_machines/presets/#overrides
 //
+// ---
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 // +genclient
 type VirtualMachineInstancePreset struct {
@@ -1899,6 +1968,7 @@ type VirtualMachineInstancePreset struct {
 
 // VirtualMachineInstancePresetList is a list of VirtualMachinePresets
 //
+// ---
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type VirtualMachineInstancePresetList struct {
 	metav1.TypeMeta `json:",inline"`
@@ -1937,6 +2007,7 @@ func NewVirtualMachinePreset(name string, selector metav1.LabelSelector) *Virtua
 // VirtualMachineInstance. It also mirrors the running state of the created
 // VirtualMachineInstance in its status.
 //
+// ---
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 // +genclient
 type VirtualMachine struct {
@@ -1971,6 +2042,7 @@ func (vm *VirtualMachine) RunStrategy() (VirtualMachineRunStrategy, error) {
 
 // VirtualMachineList is a list of virtualmachines
 //
+// ---
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type VirtualMachineList struct {
 	metav1.TypeMeta `json:",inline"`
@@ -2127,6 +2199,7 @@ type VirtualMachineStatus struct {
 	StateChangeRequests []VirtualMachineStateChangeRequest `json:"stateChangeRequests,omitempty" optional:"true"`
 	// VolumeRequests indicates a list of volumes add or remove from the VMI template and
 	// hotplug on an active running VMI.
+	// ---
 	// +listType=atomic
 	VolumeRequests []VirtualMachineVolumeRequest `json:"volumeRequests,omitempty" optional:"true"`
 
@@ -2136,17 +2209,20 @@ type VirtualMachineStatus struct {
 
 	// StartFailure tracks consecutive VMI startup failures for the purposes of
 	// crash loop backoffs
+	// ---
 	// +nullable
 	// +optional
 	StartFailure *VirtualMachineStartFailure `json:"startFailure,omitempty" optional:"true"`
 
 	// MemoryDumpRequest tracks memory dump request phase and info of getting a memory
 	// dump to the given pvc
+	// ---
 	// +nullable
 	// +optional
 	MemoryDumpRequest *VirtualMachineMemoryDumpRequest `json:"memoryDumpRequest,omitempty" optional:"true"`
 
 	// ObservedGeneration is the generation observed by the vmi when started.
+	// ---
 	// +optional
 	ObservedGeneration int64 `json:"observedGeneration,omitempty" optional:"true"`
 
@@ -2155,6 +2231,7 @@ type VirtualMachineStatus struct {
 	// the VMI is out of sync. This will be changed at the same time as
 	// ObservedGeneration to remove errors which could occur if Generation is
 	// updated through an Update() before ObservedGeneration in Status.
+	// ---
 	// +optional
 	DesiredGeneration int64 `json:"desiredGeneration,omitempty" optional:"true"`
 
@@ -2167,16 +2244,19 @@ type VirtualMachineStatus struct {
 	VolumeUpdateState *VolumeUpdateState `json:"volumeUpdateState,omitempty" optional:"true"`
 
 	// ChangedBlockTracking represents the status of the changedBlockTracking
+	// ---
 	// +nullable
 	// +optional
 	ChangedBlockTracking *ChangedBlockTrackingStatus `json:"changedBlockTracking,omitempty" optional:"true"`
 
 	// InstancetypeRef captures the state of any referenced instance type from the VirtualMachine
+	// ---
 	//+nullable
 	//+optional
 	InstancetypeRef *InstancetypeStatusRef `json:"instancetypeRef,omitempty"`
 
 	// PreferenceRef captures the state of any referenced preference from the VirtualMachine
+	// ---
 	//+nullable
 	//+optional
 	PreferenceRef *InstancetypeStatusRef `json:"preferenceRef,omitempty"`
@@ -2200,11 +2280,13 @@ type InstancetypeStatusRef struct {
 
 	// InferFromVolume lists the name of a volume that should be used to infer or discover the resource
 	//
+	// ---
 	// +optional
 	InferFromVolume string `json:"inferFromVolume,omitempty"`
 
 	// InferFromVolumeFailurePolicy controls what should happen on failure when inferring the resource
 	//
+	// ---
 	// +optional
 	InferFromVolumeFailurePolicy *InferFromVolumeFailurePolicy `json:"inferFromVolumeFailurePolicy,omitempty"`
 }
@@ -2233,6 +2315,7 @@ const (
 )
 
 // VirtualMachineInstanceBackupStatus tracks the information of the executed backup
+// ---
 // +k8s:openapi-gen=true
 type VirtualMachineInstanceBackupStatus struct {
 	// BackupName is the name of the executed backup
@@ -2247,23 +2330,28 @@ type VirtualMachineInstanceBackupStatus struct {
 	Failed bool `json:"failed,omitempty"`
 	// BackupMsg resturns any relevant information like failure reason
 	// unfreeze failed etc...
+	// ---
 	// +optional
 	BackupMsg *string `json:"backupMsg,omitempty"`
 	// CheckpointName is the name of the checkpoint created for the backup
+	// ---
 	// +optional
 	CheckpointName *string `json:"checkpointName,omitempty"`
 	// Volumes lists the volumes included in the backup
+	// ---
 	// +optional
 	// +listType=atomic
 	Volumes []backupv1.BackupVolumeInfo `json:"volumes,omitempty"`
 }
 
 // ChangedBlockTrackingStatus represents the status of ChangedBlockTracking for a VM
+// ---
 // +k8s:openapi-gen=true
 type ChangedBlockTrackingStatus struct {
 	// State represents the current CBT state
 	State ChangedBlockTrackingState `json:"state"`
 	// BackupStatus represents the status of vmi backup
+	// ---
 	// +nullable
 	// +optional
 	BackupStatus *VirtualMachineInstanceBackupStatus `json:"backupStatus,omitempty"`
@@ -2276,6 +2364,7 @@ type VolumeUpdateState struct {
 
 type VolumeMigrationState struct {
 	// MigratedVolumes lists the source and destination volumes during the volume migration
+	// ---
 	// +listType=atomic
 	// +optional
 	MigratedVolumes []StorageMigratedVolumeInfo `json:"migratedVolumes,omitempty"`
@@ -2312,8 +2401,10 @@ type VirtualMachineStateChangeRequest struct {
 type VirtualMachineCondition struct {
 	Type   VirtualMachineConditionType `json:"type"`
 	Status k8sv1.ConditionStatus       `json:"status"`
+	// ---
 	// +nullable
 	LastProbeTime metav1.Time `json:"lastProbeTime,omitempty"`
+	// ---
 	// +nullable
 	LastTransitionTime metav1.Time `json:"lastTransitionTime,omitempty"`
 	Reason             string      `json:"reason,omitempty"`
@@ -2390,6 +2481,7 @@ type Handler struct {
 	// One and only one of the following should be specified.
 	// Exec specifies the action to take, it will be executed on the guest through the qemu-guest-agent.
 	// If the guest agent is not available, this probe will fail.
+	// ---
 	// +optional
 	Exec *k8sv1.ExecAction `json:"exec,omitempty" protobuf:"bytes,1,opt,name=exec"`
 	// GuestAgentPing contacts the qemu-guest-agent for availability checks.
@@ -2399,14 +2491,17 @@ type Handler struct {
 	// for an intentional or transient reason such as a user pause, snapshot,
 	// save, or dump. Failures are not suppressed when the VM is paused due to
 	// a fault (IO error, crash, or postcopy failure).
+	// ---
 	// +optional
 	GuestAgentPing *GuestAgentPing `json:"guestAgentPing,omitempty"`
 	// HTTPGet specifies the http request to perform.
+	// ---
 	// +optional
 	HTTPGet *k8sv1.HTTPGetAction `json:"httpGet,omitempty"`
 	// TCPSocket specifies an action involving a TCP port.
 	// TCP hooks not yet supported
 	// TODO: implement a realistic TCP lifecycle hook
+	// ---
 	// +optional
 	TCPSocket *k8sv1.TCPSocketAction `json:"tcpSocket,omitempty"`
 }
@@ -2418,6 +2513,7 @@ type Probe struct {
 	Handler `json:",inline"`
 	// Number of seconds after the VirtualMachineInstance has started before liveness probes are initiated.
 	// More info: https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle#container-probes
+	// ---
 	// +optional
 	InitialDelaySeconds int32 `json:"initialDelaySeconds,omitempty"`
 	// Number of seconds after which the probe times out.
@@ -2427,24 +2523,29 @@ type Probe struct {
 	// caused by the qemu guest exec mechanism.
 	// Defaults to 1 second. Minimum value is 1.
 	// More info: https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle#container-probes
+	// ---
 	// +optional
 	TimeoutSeconds int32 `json:"timeoutSeconds,omitempty"`
 	// How often (in seconds) to perform the probe.
 	// Default to 10 seconds. Minimum value is 1.
+	// ---
 	// +optional
 	PeriodSeconds int32 `json:"periodSeconds,omitempty"`
 	// Minimum consecutive successes for the probe to be considered successful after having failed.
 	// Defaults to 1. Must be 1 for liveness. Minimum value is 1.
+	// ---
 	// +optional
 	SuccessThreshold int32 `json:"successThreshold,omitempty"`
 	// Minimum consecutive failures for the probe to be considered failed after having succeeded.
 	// Defaults to 3. Minimum value is 1.
+	// ---
 	// +optional
 	FailureThreshold int32 `json:"failureThreshold,omitempty"`
 }
 
 // KubeVirt represents the object deploying all KubeVirt resources
 //
+// ---
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 // +genclient
 type KubeVirt struct {
@@ -2456,6 +2557,7 @@ type KubeVirt struct {
 
 // KubeVirtList is a list of KubeVirts
 //
+// ---
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type KubeVirtList struct {
 	metav1.TypeMeta `json:",inline"`
@@ -2519,6 +2621,7 @@ type KubeVirtWorkloadUpdateStrategy struct {
 	//
 	// An empty list defaults to no automated workload updating
 	//
+	// ---
 	// +listType=atomic
 	// +optional
 	WorkloadUpdateMethods []WorkloadUpdateMethod `json:"workloadUpdateMethods,omitempty"`
@@ -2528,6 +2631,7 @@ type KubeVirtWorkloadUpdateStrategy struct {
 	//
 	// Defaults to 10
 	//
+	// ---
 	// +optional
 	BatchEvictionSize *int `json:"batchEvictionSize,omitempty"`
 
@@ -2536,6 +2640,7 @@ type KubeVirtWorkloadUpdateStrategy struct {
 	//
 	// Defaults to 1 minute
 	//
+	// ---
 	// +optional
 	BatchEvictionInterval *metav1.Duration `json:"batchEvictionInterval,omitempty"`
 }
@@ -2553,6 +2658,7 @@ type KubeVirtSpec struct {
 
 	// The imagePullSecrets to pull the container images from
 	// Defaults to none
+	// ---
 	// +listType=atomic
 	ImagePullSecrets []k8sv1.LocalObjectReference `json:"imagePullSecrets,omitempty"`
 
@@ -2602,10 +2708,12 @@ type KubeVirtSpec struct {
 	Configuration KubeVirtConfiguration `json:"configuration,omitempty"`
 
 	// selectors and tolerations that should apply to KubeVirt infrastructure components
+	// ---
 	// +optional
 	Infra *ComponentConfig `json:"infra,omitempty"`
 
 	// selectors and tolerations that should apply to KubeVirt workloads
+	// ---
 	// +optional
 	Workloads *ComponentConfig `json:"workloads,omitempty"`
 
@@ -2613,6 +2721,7 @@ type KubeVirtSpec struct {
 }
 
 type CustomizeComponents struct {
+	// ---
 	// +listType=atomic
 	Patches []CustomizeComponentsPatch `json:"patches,omitempty"`
 
@@ -2665,6 +2774,7 @@ type GenerationStatus struct {
 	// resource is the resource type of the thing you're tracking
 	Resource string `json:"resource"`
 	// namespace is where the thing you're tracking is
+	// ---
 	// +optional
 	Namespace string `json:"namespace,omitempty" optional:"true"`
 	// name is the name of the thing you're tracking
@@ -2672,6 +2782,7 @@ type GenerationStatus struct {
 	// lastGeneration is the last generation of the workload controller involved
 	LastGeneration int64 `json:"lastGeneration"`
 	// hash is an optional field set for resources without generation that are content sensitive like secrets and configmaps
+	// ---
 	// +optional
 	Hash string `json:"hash,omitempty" optional:"true"`
 }
@@ -2692,8 +2803,10 @@ type KubeVirtStatus struct {
 	OutdatedVirtualMachineInstanceWorkloads *int                `json:"outdatedVirtualMachineInstanceWorkloads,omitempty" optional:"true"`
 	ObservedGeneration                      *int64              `json:"observedGeneration,omitempty"`
 	DefaultArchitecture                     string              `json:"defaultArchitecture,omitempty"`
+	// ---
 	// +listType=atomic
 	Generations []GenerationStatus `json:"generations,omitempty" optional:"true"`
+	// ---
 	// +optional
 	// +listType=atomic
 	SynchronizationAddresses []string `json:"synchronizationAddresses,omitempty" optional:"true"`
@@ -2718,9 +2831,11 @@ const (
 type KubeVirtCondition struct {
 	Type   KubeVirtConditionType `json:"type"`
 	Status k8sv1.ConditionStatus `json:"status"`
+	// ---
 	// +optional
 	// +nullable
 	LastProbeTime metav1.Time `json:"lastProbeTime,omitempty"`
+	// ---
 	// +optional
 	// +nullable
 	LastTransitionTime metav1.Time `json:"lastTransitionTime,omitempty"`
@@ -2762,6 +2877,7 @@ type RestartOptions struct {
 	// specified type will be used to determine on how much time to give the VMI to restart.
 	// Defaults to a per object value if not specified. zero means restart immediately.
 	// Allowed Values: nil and 0
+	// ---
 	// +optional
 	GracePeriodSeconds *int64 `json:"gracePeriodSeconds,omitempty" protobuf:"varint,1,opt,name=gracePeriodSeconds"`
 
@@ -2770,6 +2886,7 @@ type RestartOptions struct {
 	// result in an error response and no further processing of the
 	// request. Valid values are:
 	// - All: all dry run stages will be processed
+	// ---
 	// +optional
 	// +listType=atomic
 	DryRun []string `json:"dryRun,omitempty" protobuf:"bytes,2,rep,name=dryRun"`
@@ -2780,6 +2897,7 @@ type StartOptions struct {
 	metav1.TypeMeta `json:",inline"`
 
 	// Indicates that VM will be started in paused state.
+	// ---
 	// +optional
 	Paused bool `json:"paused,omitempty" protobuf:"varint,7,opt,name=paused"`
 	// When present, indicates that modifications should not be
@@ -2787,6 +2905,7 @@ type StartOptions struct {
 	// result in an error response and no further processing of the
 	// request. Valid values are:
 	// - All: all dry run stages will be processed
+	// ---
 	// +optional
 	// +listType=atomic
 	DryRun []string `json:"dryRun,omitempty" protobuf:"bytes,5,rep,name=dryRun"`
@@ -2801,6 +2920,7 @@ type PauseOptions struct {
 	// result in an error response and no further processing of the
 	// request. Valid values are:
 	// - All: all dry run stages will be processed
+	// ---
 	// +optional
 	// +listType=atomic
 	DryRun []string `json:"dryRun,omitempty" protobuf:"bytes,1,rep,name=dryRun"`
@@ -2815,6 +2935,7 @@ type UnpauseOptions struct {
 	// result in an error response and no further processing of the
 	// request. Valid values are:
 	// - All: all dry run stages will be processed
+	// ---
 	// +optional
 	// +listType=atomic
 	DryRun []string `json:"dryRun,omitempty" protobuf:"bytes,1,rep,name=dryRun"`
@@ -2830,6 +2951,7 @@ type StopOptions struct {
 	metav1.TypeMeta `json:",inline"`
 
 	// this updates the VMIs terminationGracePeriodSeconds during shutdown
+	// ---
 	// +optional
 	GracePeriod *int64 `json:"gracePeriod,omitempty" protobuf:"varint,1,opt,name=gracePeriod"`
 	// When present, indicates that modifications should not be
@@ -2837,6 +2959,7 @@ type StopOptions struct {
 	// result in an error response and no further processing of the
 	// request. Valid values are:
 	// - All: all dry run stages will be processed
+	// ---
 	// +optional
 	// +listType=atomic
 	DryRun []string `json:"dryRun,omitempty" protobuf:"bytes,2,rep,name=dryRun"`
@@ -2850,6 +2973,7 @@ type MigrateOptions struct {
 	// result in an error response and no further processing of the
 	// request. Valid values are:
 	// - All: all dry run stages will be processed
+	// ---
 	// +optional
 	// +listType=atomic
 	DryRun []string `json:"dryRun,omitempty" protobuf:"bytes,1,rep,name=dryRun"`
@@ -2860,6 +2984,7 @@ type MigrateOptions struct {
 	// In case of key collisions, values set on the VM objects
 	// are going to be preserved to ensure that addedNodeSelector
 	// can only restrict but not bypass constraints already set on the VM object.
+	// ---
 	// +optional
 	AddedNodeSelector map[string]string `json:"addedNodeSelector,omitempty"`
 }
@@ -2872,6 +2997,7 @@ type EvacuateCancelOptions struct {
 	// result in an error response and no further processing of the
 	// request. Valid values are:
 	// - All: all dry run stages will be processed
+	// ---
 	// +optional
 	// +listType=atomic
 	DryRun []string `json:"dryRun,omitempty" protobuf:"bytes,1,rep,name=dryRun"`
@@ -2881,12 +3007,14 @@ type EvacuateCancelOptions struct {
 
 // VirtualMachineInstanceGuestAgentInfo represents information from the installed guest agent
 //
+// ---
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type VirtualMachineInstanceGuestAgentInfo struct {
 	metav1.TypeMeta `json:",inline"`
 	// GAVersion is a version of currently installed guest agent
 	GAVersion string `json:"guestAgentVersion,omitempty"`
 	// Return command list the guest agent supports
+	// ---
 	// +listType=atomic
 	SupportedCommands []GuestAgentCommandInfo `json:"supportedCommands,omitempty"`
 	// Hostname represents FQDN of a guest
@@ -2913,6 +3041,7 @@ type GuestAgentCommandInfo struct {
 
 // VirtualMachineInstanceGuestOSUserList comprises the list of all active users on guest machine
 //
+// ---
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type VirtualMachineInstanceGuestOSUserList struct {
 	metav1.TypeMeta `json:",inline"`
@@ -2936,6 +3065,7 @@ type VirtualMachineInstanceFileSystemInfo struct {
 
 // VirtualMachineInstanceFileSystemList comprises the list of all filesystems on guest machine
 //
+// ---
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type VirtualMachineInstanceFileSystemList struct {
 	metav1.TypeMeta `json:",inline"`
@@ -2971,18 +3101,23 @@ type VirtualMachineMemoryDumpRequest struct {
 	// Phase represents the memory dump phase
 	Phase MemoryDumpPhase `json:"phase"`
 	// Remove represents request of dissociating the memory dump pvc
+	// ---
 	// +optional
 	Remove bool `json:"remove,omitempty"`
 	// StartTimestamp represents the time the memory dump started
+	// ---
 	// +optional
 	StartTimestamp *metav1.Time `json:"startTimestamp,omitempty"`
 	// EndTimestamp represents the time the memory dump was completed
+	// ---
 	// +optional
 	EndTimestamp *metav1.Time `json:"endTimestamp,omitempty"`
 	// FileName represents the name of the output file
+	// ---
 	// +optional
 	FileName *string `json:"fileName,omitempty"`
 	// Message is a detailed message about failure of the memory dump
+	// ---
 	// +optional
 	Message string `json:"message,omitempty"`
 }
@@ -3019,6 +3154,7 @@ type AddVolumeOptions struct {
 	// result in an error response and no further processing of the
 	// request. Valid values are:
 	// - All: all dry run stages will be processed
+	// ---
 	// +optional
 	// +listType=atomic
 	DryRun []string `json:"dryRun,omitempty"`
@@ -3043,6 +3179,7 @@ type RemoveVolumeOptions struct {
 	// result in an error response and no further processing of the
 	// request. Valid values are:
 	// - All: all dry run stages will be processed
+	// ---
 	// +optional
 	// +listType=atomic
 	DryRun []string `json:"dryRun,omitempty"`
@@ -3106,6 +3243,7 @@ type KubeVirtConfiguration struct {
 	// If not set, the default is 1.
 	AdditionalGuestMemoryOverheadRatio *string `json:"additionalGuestMemoryOverheadRatio,omitempty"`
 
+	// ---
 	// +listType=map
 	// +listMapKey=type
 	// SupportContainerResources specifies the resource requirements for various types of supporting containers such as container disks/virtiofs/sidecars and hotplug attachment pods. If omitted a sensible default will be supplied.
@@ -3150,14 +3288,17 @@ type KubeVirtConfiguration struct {
 	VMRolloutStrategy *VMRolloutStrategy `json:"vmRolloutStrategy,omitempty"`
 
 	// CommonInstancetypesDeployment controls the deployment of common-instancetypes resources
+	// ---
 	// +nullable
 	CommonInstancetypesDeployment *CommonInstancetypesDeployment `json:"commonInstancetypesDeployment,omitempty"`
 
 	// VirtTemplateDeployment controls the deployment of virt-template components
+	// ---
 	// +nullable
 	VirtTemplateDeployment *VirtTemplateDeployment `json:"virtTemplateDeployment,omitempty"`
 
 	// Instancetype configuration
+	// ---
 	// +nullable
 	Instancetype *InstancetypeConfiguration `json:"instancetype,omitempty"`
 
@@ -3169,14 +3310,17 @@ type KubeVirtConfiguration struct {
 
 	// ChangedBlockTrackingLabelSelectors defines label selectors. VMs matching these selectors will have changed block tracking enabled.
 	// Enabling changedBlockTracking is mandatory for performing storage-agnostic backups and incremental backups.
+	// ---
 	// +nullable
 	ChangedBlockTrackingLabelSelectors *ChangedBlockTrackingSelectors `json:"changedBlockTrackingLabelSelectors,omitempty"`
 
 	// PersistentReservationConfiguration controls the deployment of additional resources required for using SCSI persistent reservation in VMs
+	// ---
 	// +nullable
 	PersistentReservationConfiguration *PersistentReservationConfiguration `json:"persistentReservationConfiguration,omitempty"`
 
 	// QGS configuration for attestation on the Intel TDX Platform
+	// ---
 	// +nullable
 	ConfidentialCompute *ConfidentialComputeConfiguration `json:"confidentialCompute,omitempty"`
 
@@ -3210,6 +3354,7 @@ type TDXConfiguration struct {
 
 type ConfidentialComputeConfiguration struct {
 	// TDX configuration for attestation on the Intel TDX Platform
+	// ---
 	// +nullable
 	TDX *TDXConfiguration `json:"tdx,omitempty"`
 }
@@ -3233,9 +3378,11 @@ type HypervisorConfiguration struct {
 
 type ChangedBlockTrackingSelectors struct {
 	// NamespaceSelector will enable changedBlockTracking on all VMs running inside namespaces that match the label selector.
+	// ---
 	//+optional
 	NamespaceLabelSelector *metav1.LabelSelector `json:"namespaceLabelSelector,omitempty"`
 	// VirtualMachineSelector will enable changedBlockTracking on all VMs that match the label selector.
+	// ---
 	//+optional
 	VirtualMachineLabelSelector *metav1.LabelSelector `json:"virtualMachineLabelSelector,omitempty"`
 }
@@ -3264,12 +3411,14 @@ const (
 
 type CommonInstancetypesDeployment struct {
 	// Enabled controls the deployment of common-instancetypes resources, defaults to True.
+	// ---
 	// +nullable
 	Enabled *bool `json:"enabled,omitempty"`
 }
 
 type VirtTemplateDeployment struct {
 	// Enabled controls the deployment of virt-template resources, defaults to True when feature gate is enabled.
+	// ---
 	// +nullable
 	Enabled *bool `json:"enabled,omitempty"`
 }
@@ -3305,6 +3454,7 @@ type ArchConfiguration struct {
 
 type ArchSpecificConfiguration struct {
 	OVMFPath string `json:"ovmfPath,omitempty"`
+	// ---
 	// +listType=atomic
 	EmulatedMachines []string `json:"emulatedMachines,omitempty,flow"`
 	MachineType      string   `json:"machineType,omitempty"`
@@ -3400,6 +3550,7 @@ type TLSConfiguration struct {
 	// ---
 	// +kubebuilder:validation:Enum=VersionTLS10;VersionTLS11;VersionTLS12;VersionTLS13
 	MinTLSVersion TLSProtocolVersion `json:"minTLSVersion,omitempty"`
+	// ---
 	// +listType=set
 	Ciphers []string `json:"ciphers,omitempty"`
 }
@@ -3470,11 +3621,13 @@ type DiskVerification struct {
 type DeveloperConfiguration struct {
 	// FeatureGates specifies a list of experimental feature gates to enable. Defaults to none.
 	// A feature gate must not appear in both FeatureGates and DisabledFeatureGates.
+	// ---
 	// +optional
 	// +listType=atomic
 	FeatureGates []string `json:"featureGates,omitempty"`
 	// DisabledFeatureGates specifies a list of experimental feature gates to disable.
 	// A feature gate must not appear in both FeatureGates and DisabledFeatureGates.
+	// ---
 	// +optional
 	// +listType=atomic
 	DisabledFeatureGates []string `json:"disabledFeatureGates,omitempty"`
@@ -3537,10 +3690,13 @@ const (
 
 // PermittedHostDevices holds information about devices allowed for passthrough
 type PermittedHostDevices struct {
+	// ---
 	// +listType=atomic
 	PciHostDevices []PciHostDevice `json:"pciHostDevices,omitempty"`
+	// ---
 	// +listType=atomic
 	MediatedDevices []MediatedHostDevice `json:"mediatedDevices,omitempty"`
+	// ---
 	// +listType=atomic
 	USB []USBHostDevice `json:"usb,omitempty"`
 }
@@ -3549,6 +3705,7 @@ type USBHostDevice struct {
 	// Identifies the list of USB host devices.
 	// e.g: kubevirt.io/storage, kubevirt.io/bootable-usb, etc
 	ResourceName string `json:"resourceName"`
+	// ---
 	// +listType=atomic
 	Selectors []USBSelector `json:"selectors,omitempty"`
 	// If true, KubeVirt will leave the allocation and monitoring to an
@@ -3584,23 +3741,28 @@ type MediatedHostDevice struct {
 // MediatedDevicesConfiguration holds information about MDEV types to be defined, if available
 type MediatedDevicesConfiguration struct {
 	// Deprecated. Use mediatedDeviceTypes instead.
+	// ---
 	// +optional
 	// +listType=atomic
 	MediatedDevicesTypes []string `json:"mediatedDevicesTypes,omitempty"`
+	// ---
 	// +optional
 	// +listType=atomic
 	MediatedDeviceTypes []string `json:"mediatedDeviceTypes,omitempty"`
+	// ---
 	// +optional
 	// +listType=atomic
 	NodeMediatedDeviceTypes []NodeMediatedDeviceTypesConfig `json:"nodeMediatedDeviceTypes,omitempty"`
 	// Enable the creation and removal of mediated devices by virt-handler
 	// Replaces the deprecated DisableMDEVConfiguration feature gate
 	// Defaults to true
+	// ---
 	// +optional
 	Enabled *bool `json:"enabled,omitempty"`
 }
 
 // NodeMediatedDeviceTypesConfig holds information about MDEV types to be defined in a specific node that matches the NodeSelector field.
+// ---
 // +k8s:openapi-gen=true
 type NodeMediatedDeviceTypesConfig struct {
 	// NodeSelector is a selector which must be true for the vmi to fit on a node.
@@ -3608,19 +3770,23 @@ type NodeMediatedDeviceTypesConfig struct {
 	// More info: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/
 	NodeSelector map[string]string `json:"nodeSelector"`
 	// Deprecated. Use mediatedDeviceTypes instead.
+	// ---
 	// +optional
 	// +listType=atomic
 	MediatedDevicesTypes []string `json:"mediatedDevicesTypes,omitempty"`
+	// ---
 	// +optional
 	// +listType=atomic
 	MediatedDeviceTypes []string `json:"mediatedDeviceTypes"`
 }
 
 // KSMConfiguration holds information about KSM.
+// ---
 // +k8s:openapi-gen=true
 type KSMConfiguration struct {
 	// NodeLabelSelector is a selector that filters in which nodes the KSM will be enabled.
 	// Empty NodeLabelSelector will enable ksm for every node.
+	// ---
 	// +optional
 	NodeLabelSelector *metav1.LabelSelector `json:"nodeLabelSelector,omitempty"`
 }
@@ -3656,11 +3822,13 @@ type InterfaceBindingPlugin struct {
 	// DownwardAPI specifies what kind of data should be exposed to the binding plugin sidecar.
 	// Supported values: "device-info"
 	// version: v1alphav1
+	// ---
 	// +optional
 	DownwardAPI NetworkBindingDownwardAPIType `json:"downwardAPI,omitempty"`
 
 	// ComputeResourceOverhead specifies the resource overhead that should be added to the compute container when using the binding.
 	// version: v1alphav1
+	// ---
 	// +optional
 	ComputeResourceOverhead *ResourceRequirementsWithoutClaims `json:"computeResourceOverhead,omitempty"`
 }
@@ -3670,12 +3838,14 @@ type InterfaceBindingPlugin struct {
 type ResourceRequirementsWithoutClaims struct {
 	// Limits describes the maximum amount of compute resources allowed.
 	// More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
+	// ---
 	// +optional
 	Limits k8sv1.ResourceList `json:"limits,omitempty" protobuf:"bytes,1,rep,name=limits,casttype=ResourceList,castkey=ResourceName"`
 	// Requests describes the minimum amount of compute resources required.
 	// If Requests is omitted for a container, it defaults to Limits if that is explicitly specified,
 	// otherwise to an implementation-defined value. Requests cannot exceed Limits.
 	// More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
+	// ---
 	// +optional
 	Requests k8sv1.ResourceList `json:"requests,omitempty" protobuf:"bytes,2,rep,name=requests,casttype=ResourceList,castkey=ResourceName"`
 }
@@ -3751,6 +3921,7 @@ const (
 type InstancetypeMatcher struct {
 	// Name is the name of the VirtualMachineInstancetype or VirtualMachineClusterInstancetype
 	//
+	// ---
 	// +optional
 	Name string `json:"name,omitempty"`
 
@@ -3758,6 +3929,7 @@ type InstancetypeMatcher struct {
 	// Allowed values are: "VirtualMachineInstancetype" and "VirtualMachineClusterInstancetype".
 	// If not specified, "VirtualMachineClusterInstancetype" is used by default.
 	//
+	// ---
 	// +optional
 	Kind string `json:"kind,omitempty"`
 
@@ -3765,6 +3937,7 @@ type InstancetypeMatcher struct {
 	// VirtualMachineInstancetype or VirtualMachineClusterInstancetype to be used. This is initially
 	// captured the first time the instancetype is applied to the VirtualMachineInstance.
 	//
+	// ---
 	// +optional
 	RevisionName string `json:"revisionName,omitempty"`
 
@@ -3772,6 +3945,7 @@ type InstancetypeMatcher struct {
 	// to be used through known annotations on the underlying resource. Once applied to the InstancetypeMatcher
 	// this field is removed.
 	//
+	// ---
 	// +optional
 	InferFromVolume string `json:"inferFromVolume,omitempty"`
 
@@ -3779,6 +3953,7 @@ type InstancetypeMatcher struct {
 	// Allowed values are: "RejectInferFromVolumeFailure" and "IgnoreInferFromVolumeFailure".
 	// If not specified, "RejectInferFromVolumeFailure" is used by default.
 	//
+	// ---
 	// +optional
 	InferFromVolumeFailurePolicy *InferFromVolumeFailurePolicy `json:"inferFromVolumeFailurePolicy,omitempty"`
 }
@@ -3807,6 +3982,7 @@ func (i InstancetypeMatcher) GetInferFromVolumeFailurePolicy() *InferFromVolumeF
 type PreferenceMatcher struct {
 	// Name is the name of the VirtualMachinePreference or VirtualMachineClusterPreference
 	//
+	// ---
 	// +optional
 	Name string `json:"name,omitempty"`
 
@@ -3814,6 +3990,7 @@ type PreferenceMatcher struct {
 	// Allowed values are: "VirtualMachinePreference" and "VirtualMachineClusterPreference".
 	// If not specified, "VirtualMachineClusterPreference" is used by default.
 	//
+	// ---
 	// +optional
 	Kind string `json:"kind,omitempty"`
 
@@ -3821,6 +3998,7 @@ type PreferenceMatcher struct {
 	// VirtualMachinePreference or VirtualMachineClusterPreference to be used. This is
 	// initially captured the first time the instancetype is applied to the VirtualMachineInstance.
 	//
+	// ---
 	// +optional
 	RevisionName string `json:"revisionName,omitempty"`
 
@@ -3828,6 +4006,7 @@ type PreferenceMatcher struct {
 	// to be used through known annotations on the underlying resource. Once applied to the PreferenceMatcher
 	// this field is removed.
 	//
+	// ---
 	// +optional
 	InferFromVolume string `json:"inferFromVolume,omitempty"`
 
@@ -3835,6 +4014,7 @@ type PreferenceMatcher struct {
 	// Allowed values are: "RejectInferFromVolumeFailure" and "IgnoreInferFromVolumeFailure".
 	// If not specified, "RejectInferFromVolumeFailure" is used by default.
 	//
+	// ---
 	// +optional
 	InferFromVolumeFailurePolicy *InferFromVolumeFailurePolicy `json:"inferFromVolumeFailurePolicy,omitempty"`
 }
@@ -3877,6 +4057,7 @@ type LiveUpdateConfiguration struct {
 
 // SEVPlatformInfo contains information about the AMD SEV features for the node.
 //
+// ---
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type SEVPlatformInfo struct {
 	metav1.TypeMeta `json:",inline"`
@@ -3888,6 +4069,7 @@ type SEVPlatformInfo struct {
 
 // SEVMeasurementInfo contains information about the guest launch measurement.
 //
+// ---
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type SEVMeasurementInfo struct {
 	metav1.TypeMeta `json:",inline"`
@@ -3923,13 +4105,16 @@ type SEVSecretOptions struct {
 
 // ObjectGraphNode represents an individual node in the graph.
 //
+// ---
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type ObjectGraphNode struct {
 	metav1.TypeMeta `json:",inline"`
 	ObjectReference k8sv1.TypedObjectReference `json:"objectReference"`
 	Labels          map[string]string          `json:"labels,omitempty"`
+	// ---
 	// +optional
 	Optional *bool `json:"optional,omitempty"`
+	// ---
 	// +listType=atomic
 	Children []ObjectGraphNode `json:"children,omitempty"`
 }
@@ -3946,6 +4131,7 @@ type ObjectGraphOptions struct {
 type PersistentReservationConfiguration struct {
 	// Enabled controls the deployment of additional resources like the pr-helper container
 	// for enabling the use of the SCSI persistent reservation VMs, defaults to False.
+	// ---
 	// +nullable
 	Enabled *bool `json:"enabled,omitempty"`
 }
