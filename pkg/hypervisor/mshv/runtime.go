@@ -22,9 +22,11 @@ package mshv
 import (
 	"fmt"
 	"runtime"
+	"strconv"
 	"strings"
 
 	"github.com/mitchellh/go-ps"
+	"golang.org/x/sys/unix"
 	"k8s.io/apimachinery/pkg/api/resource"
 	v1 "kubevirt.io/api/core/v1"
 	"kubevirt.io/client-go/log"
@@ -126,6 +128,12 @@ func getVMIBaseMemory(vmi *v1.VirtualMachineInstance) *resource.Quantity {
 }
 
 func (m *MshvVirtRuntime) HandleHousekeeping(vmi *v1.VirtualMachineInstance, cgroupManager cgroup.Manager, domain *api.Domain) error {
+	if vmi.IsCPUDedicated() && vmi.Spec.Domain.CPU.IsolateVhostThread {
+		if err := m.configureVhostCgroup(vmi, cgroupManager, domain); err != nil {
+			return err
+		}
+	}
+
 	if vmi.IsCPUDedicated() && vmi.Spec.Domain.CPU.IsolateEmulatorThread {
 		err := m.configureHousekeepingCgroup(vmi, cgroupManager, domain)
 		if err != nil {
@@ -176,6 +184,7 @@ func (m *MshvVirtRuntime) configureHousekeepingCgroup(vmi *v1.VirtualMachineInst
 	}
 	hktids := make([]int, 0, 10)
 
+	skipVhost := vmi.Spec.Domain.CPU != nil && vmi.Spec.Domain.CPU.IsolateVhostThread
 	for _, tid := range tids {
 		proc, err := ps.FindProcess(tid)
 		if err != nil {
@@ -189,6 +198,9 @@ func (m *MshvVirtRuntime) configureHousekeepingCgroup(vmi *v1.VirtualMachineInst
 		if strings.Contains(comm, "CPU ") && strings.Contains(comm, "MSHV") {
 			continue
 		}
+		if skipVhost && strings.HasPrefix(comm, "vhost-") {
+			continue
+		}
 		hktids = append(hktids, tid)
 	}
 
@@ -197,6 +209,63 @@ func (m *MshvVirtRuntime) configureHousekeepingCgroup(vmi *v1.VirtualMachineInst
 		err = cgroupManager.AttachTID("cpuset", "housekeeping", tid)
 		if err != nil {
 			m.logger.Object(vmi).Errorf("Error attaching tid %d: %v", tid, err.Error())
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (m *MshvVirtRuntime) configureVhostCgroup(vmi *v1.VirtualMachineInstance, cgroupManager cgroup.Manager, domain *api.Domain) error {
+	if domain == nil {
+		return nil
+	}
+
+	vhostCPUSet := domain.Spec.Metadata.KubeVirt.VhostCPUSet
+	if vhostCPUSet == "" {
+		return nil
+	}
+
+	vhostCPUs, err := hardware.ParseCPUSetLine(vhostCPUSet, 100)
+	if err != nil {
+		return err
+	}
+
+	var mask unix.CPUSet
+	mask.Zero()
+	for _, cpu := range vhostCPUs {
+		mask.Set(cpu)
+	}
+
+	m.logger.V(3).Object(vmi).Infof("vhost cpus: %v", vhostCPUs)
+
+	res, err := m.podIsolationDetector.Detect(vmi)
+	if err != nil {
+		return err
+	}
+	qemuProcess, err := getQEMUProcess(res)
+	if err != nil {
+		return err
+	}
+	qemupid := qemuProcess.Pid()
+	if qemupid == -1 {
+		return nil
+	}
+	vhostPrefix := "vhost-" + strconv.Itoa(qemupid)
+
+	processes, err := ps.Processes()
+	if err != nil {
+		return fmt.Errorf("failed to list processes: %v", err)
+	}
+
+	for _, proc := range processes {
+		if proc.Executable() != vhostPrefix {
+			continue
+		}
+		tid := proc.Pid()
+		m.logger.V(3).Object(vmi).Infof("pinning vhost thread %d (%s) to cpus %v", tid, proc.Executable(), vhostCPUs)
+		if err := unix.SchedSetaffinity(tid, &mask); err != nil {
+			m.logger.Object(vmi).Errorf("Error setting affinity for vhost tid %d: %v", tid, err.Error())
 			return err
 		}
 	}
