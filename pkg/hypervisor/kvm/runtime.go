@@ -21,6 +21,7 @@ package kvm
 
 import (
 	"fmt"
+	"os/exec"
 	"runtime"
 	"strconv"
 	"strings"
@@ -256,6 +257,8 @@ func (k *KvmVirtRuntime) configureHousekeepingCgroup(vmi *v1.VirtualMachineInsta
 	}
 	hktids := make([]int, 0, 10)
 
+	isolateVhost := vmi.Spec.Domain.CPU != nil && vmi.Spec.Domain.CPU.IsolateVhostThread
+
 	for _, tid := range tids {
 		proc, err := ps.FindProcess(tid)
 		if err != nil {
@@ -267,6 +270,13 @@ func (k *KvmVirtRuntime) configureHousekeepingCgroup(vmi *v1.VirtualMachineInsta
 		}
 		comm := proc.Executable()
 		if strings.Contains(comm, "CPU ") && strings.Contains(comm, "KVM") {
+			continue
+		}
+		if isolateVhost && strings.HasPrefix(comm, "vhost-") && domain.Spec.Metadata.KubeVirt.VhostCPUSet != "" {
+			k.logger.V(3).Object(vmi).Infof("pinning vhost thread %d to cpus %s", tid, domain.Spec.Metadata.KubeVirt.VhostCPUSet)
+			if err := setThreadAffinity(tid, domain.Spec.Metadata.KubeVirt.VhostCPUSet); err != nil {
+				k.logger.Object(vmi).Errorf("Error setting vhost affinity for tid %d: %v", tid, err)
+			}
 			continue
 		}
 		hktids = append(hktids, tid)
@@ -281,6 +291,14 @@ func (k *KvmVirtRuntime) configureHousekeepingCgroup(vmi *v1.VirtualMachineInsta
 		}
 	}
 
+	return nil
+}
+
+func setThreadAffinity(tid int, cpuList string) error {
+	out, err := exec.Command("taskset", "-pc", cpuList, strconv.Itoa(tid)).CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("taskset -pc %s %d: %v (output: %s)", cpuList, tid, err, strings.TrimSpace(string(out)))
+	}
 	return nil
 }
 
