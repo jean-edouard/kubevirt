@@ -21,6 +21,7 @@ package kvm
 
 import (
 	"fmt"
+	"os"
 	"runtime"
 	"strconv"
 	"strings"
@@ -151,6 +152,12 @@ func getVMIBaseMemory(vmi *v1.VirtualMachineInstance) *resource.Quantity {
 }
 
 func (k *KvmVirtRuntime) HandleHousekeeping(vmi *v1.VirtualMachineInstance, cgroupManager cgroup.Manager, domain *api.Domain) error {
+	if vmi.IsCPUDedicated() && vmi.Spec.Domain.CPU.IsolateVhostThread {
+		if err := k.configureVhostCgroup(vmi, cgroupManager, domain); err != nil {
+			return err
+		}
+	}
+
 	if vmi.IsCPUDedicated() && vmi.Spec.Domain.CPU.IsolateEmulatorThread {
 		err := k.configureHousekeepingCgroup(vmi, cgroupManager, domain)
 		if err != nil {
@@ -256,6 +263,7 @@ func (k *KvmVirtRuntime) configureHousekeepingCgroup(vmi *v1.VirtualMachineInsta
 	}
 	hktids := make([]int, 0, 10)
 
+	skipVhost := vmi.Spec.Domain.CPU != nil && vmi.Spec.Domain.CPU.IsolateVhostThread
 	for _, tid := range tids {
 		proc, err := ps.FindProcess(tid)
 		if err != nil {
@@ -269,6 +277,9 @@ func (k *KvmVirtRuntime) configureHousekeepingCgroup(vmi *v1.VirtualMachineInsta
 		if strings.Contains(comm, "CPU ") && strings.Contains(comm, "KVM") {
 			continue
 		}
+		if skipVhost && strings.HasPrefix(comm, "vhost-") {
+			continue
+		}
 		hktids = append(hktids, tid)
 	}
 
@@ -277,6 +288,63 @@ func (k *KvmVirtRuntime) configureHousekeepingCgroup(vmi *v1.VirtualMachineInsta
 		err = cgroupManager.AttachTID("cpuset", "housekeeping", tid)
 		if err != nil {
 			k.logger.Object(vmi).Errorf("Error attaching tid %d: %v", tid, err.Error())
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (k *KvmVirtRuntime) configureVhostCgroup(vmi *v1.VirtualMachineInstance, cgroupManager cgroup.Manager, domain *api.Domain) error {
+	if domain == nil {
+		return nil
+	}
+
+	vhostCPUSet := domain.Spec.Metadata.KubeVirt.VhostCPUSet
+	if vhostCPUSet == "" {
+		return nil
+	}
+
+	vhostCPUs, err := hardware.ParseCPUSetLine(vhostCPUSet, 100)
+	if err != nil {
+		return err
+	}
+
+	var mask unix.CPUSet
+	mask.Zero()
+	for _, cpu := range vhostCPUs {
+		mask.Set(cpu)
+	}
+
+	k.logger.V(3).Object(vmi).Infof("vhost cpus: %v", vhostCPUs)
+
+	domainName := vmi.Namespace + "_" + vmi.Name
+
+	processes, err := ps.Processes()
+	if err != nil {
+		return fmt.Errorf("failed to list processes: %v", err)
+	}
+
+	for _, proc := range processes {
+		if !strings.HasPrefix(proc.Executable(), "vhost-") {
+			continue
+		}
+		qemuPidStr := strings.TrimPrefix(proc.Executable(), "vhost-")
+		qemuPid, err := strconv.Atoi(qemuPidStr)
+		if err != nil {
+			continue
+		}
+		cmdline, err := os.ReadFile(fmt.Sprintf("/proc/%d/cmdline", qemuPid))
+		if err != nil {
+			continue
+		}
+		if !strings.Contains(string(cmdline), "guest="+domainName) {
+			continue
+		}
+		tid := proc.Pid()
+		k.logger.V(3).Object(vmi).Infof("pinning vhost thread %d to cpus %v", tid, vhostCPUs)
+		if err := unix.SchedSetaffinity(tid, &mask); err != nil {
+			k.logger.Object(vmi).Errorf("Error setting affinity for vhost tid %d: %v", tid, err.Error())
 			return err
 		}
 	}
