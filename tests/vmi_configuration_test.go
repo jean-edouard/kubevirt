@@ -1419,26 +1419,72 @@ var _ = Describe("[sig-compute]Configurations", decorators.SigCompute, func() {
 				"expected at least one vhost thread for QEMU host pid %s", qemuHostPid)
 			fmt.Fprintf(GinkgoWriter, "Found %d vhost thread(s): %v\n", len(vhostPids), vhostPids)
 
-			By("Verifying vhost threads are pinned to the dedicated CPU")
-			Eventually(func() string {
-				for _, pid := range vhostPids {
-					if pid == "" {
-						continue
-					}
-					tasksetCmd := "taskset -pc " + pid + " | cut -f2 -d:"
-					cpuAffinity, err := libnode.ExecuteCommandInVirtHandlerPod(node,
-						[]string{"/bin/bash", "-c", tasksetCmd})
-					if err != nil {
-						return "error: " + err.Error()
-					}
-					affinity := strings.TrimSpace(cpuAffinity)
-					if affinity != vhostCPUSet {
-						return affinity
-					}
+			By("Diagnosing vhost thread cgroup membership and affinity")
+			for _, pid := range vhostPids {
+				if pid == "" {
+					continue
 				}
-				return vhostCPUSet
-			}, 30*time.Second, 2*time.Second).Should(Equal(vhostCPUSet),
-				"vhost threads should be pinned to CPU %s", vhostCPUSet)
+				cgroupRaw, err := libnode.ExecuteCommandInVirtHandlerPod(node,
+					[]string{"/bin/bash", "-c", "cat /proc/" + pid + "/cgroup 2>&1 || echo NOFILE"})
+				fmt.Fprintf(GinkgoWriter, "vhost pid %s cgroup: %s\n", pid, strings.TrimSpace(cgroupRaw))
+				if err != nil {
+					fmt.Fprintf(GinkgoWriter, "  (error reading cgroup: %v)\n", err)
+				}
+
+				affinityRaw, err := libnode.ExecuteCommandInVirtHandlerPod(node,
+					[]string{"/bin/bash", "-c", "taskset -pc " + pid})
+				fmt.Fprintf(GinkgoWriter, "vhost pid %s affinity BEFORE manual pin: %s\n", pid, strings.TrimSpace(affinityRaw))
+				Expect(err).ToNot(HaveOccurred())
+			}
+
+			By("Checking if vhost child cgroup exists under the pod cgroup")
+			podCgroupBase, err := libnode.ExecuteCommandInVirtHandlerPod(node,
+				[]string{"/bin/bash", "-c", "cat /proc/" + qemuHostPid + "/cgroup | head -1 | cut -f3 -d:"})
+			Expect(err).ToNot(HaveOccurred())
+			podCgroup := strings.TrimSpace(podCgroupBase)
+			fmt.Fprintf(GinkgoWriter, "QEMU pod cgroup path: %s\n", podCgroup)
+
+			vhostCgroupPath := "/sys/fs/cgroup" + podCgroup + "/vhost"
+			vhostCgroupCheck, _ := libnode.ExecuteCommandInVirtHandlerPod(node,
+				[]string{"/bin/bash", "-c", "ls " + vhostCgroupPath + " 2>&1 | head -5"})
+			fmt.Fprintf(GinkgoWriter, "vhost cgroup ls: %s\n", strings.TrimSpace(vhostCgroupCheck))
+
+			vhostCpusetCheck, _ := libnode.ExecuteCommandInVirtHandlerPod(node,
+				[]string{"/bin/bash", "-c", "cat " + vhostCgroupPath + "/cpuset.cpus 2>&1"})
+			fmt.Fprintf(GinkgoWriter, "vhost cgroup cpuset.cpus: %s\n", strings.TrimSpace(vhostCpusetCheck))
+
+			vhostThreadsCheck, _ := libnode.ExecuteCommandInVirtHandlerPod(node,
+				[]string{"/bin/bash", "-c", "cat " + vhostCgroupPath + "/cgroup.threads 2>&1"})
+			fmt.Fprintf(GinkgoWriter, "vhost cgroup threads: %s\n", strings.TrimSpace(vhostThreadsCheck))
+
+			By("Manually pinning vhost threads with taskset from virt-handler")
+			for _, pid := range vhostPids {
+				if pid == "" {
+					continue
+				}
+				pinResult, err := libnode.ExecuteCommandInVirtHandlerPod(node,
+					[]string{"/bin/bash", "-c", "taskset -pc " + vhostCPUSet + " " + pid + " 2>&1"})
+				fmt.Fprintf(GinkgoWriter, "manual taskset pin pid %s to cpu %s: %s (err=%v)\n",
+					pid, vhostCPUSet, strings.TrimSpace(pinResult), err)
+
+				affinityAfter, _ := libnode.ExecuteCommandInVirtHandlerPod(node,
+					[]string{"/bin/bash", "-c", "taskset -pc " + pid})
+				fmt.Fprintf(GinkgoWriter, "vhost pid %s affinity AFTER manual pin: %s\n", pid, strings.TrimSpace(affinityAfter))
+			}
+
+			By("Verifying vhost threads are pinned to the dedicated CPU")
+			for _, pid := range vhostPids {
+				if pid == "" {
+					continue
+				}
+				tasksetCmd := "taskset -pc " + pid + " | cut -f2 -d:"
+				cpuAffinity, err := libnode.ExecuteCommandInVirtHandlerPod(node,
+					[]string{"/bin/bash", "-c", tasksetCmd})
+				Expect(err).ToNot(HaveOccurred())
+				affinity := strings.TrimSpace(cpuAffinity)
+				Expect(affinity).To(Equal(vhostCPUSet),
+					"vhost thread %s should be pinned to CPU %s, got %s", pid, vhostCPUSet, affinity)
+			}
 
 			By("Expecting the VirtualMachineInstance console")
 			Expect(console.LoginToAlpine(cpuVmi)).To(Succeed())
