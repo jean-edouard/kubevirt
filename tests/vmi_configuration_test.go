@@ -1419,32 +1419,76 @@ var _ = Describe("[sig-compute]Configurations", decorators.SigCompute, func() {
 				"expected at least one vhost thread for QEMU host pid %s", qemuHostPid)
 			fmt.Fprintf(GinkgoWriter, "Found %d vhost thread(s): %v\n", len(vhostPids), vhostPids)
 
-			Eventually(func() string {
-				var lastAffinity string
-				for _, pid := range vhostPids {
-					if pid == "" {
-						continue
-					}
-					tasksetCmd := "taskset -pc " + pid + " | cut -f2 -d:"
-					cpuAffinity, err := libnode.ExecuteCommandInVirtHandlerPod(node,
-						[]string{"/bin/bash", "-c", tasksetCmd})
-					if err != nil {
-						return "error: " + err.Error()
-					}
-					lastAffinity = strings.TrimSpace(cpuAffinity)
-					if lastAffinity != vhostCPUSet {
-						fmt.Fprintf(GinkgoWriter, "vhost thread %s affinity: %s (waiting for %s)\n",
-							pid, lastAffinity, vhostCPUSet)
-						return lastAffinity
+			By("Diagnosing vhost thread state and verifying pinning")
+			for _, pid := range vhostPids {
+				if pid == "" {
+					continue
+				}
+				// Check current affinity
+				tasksetOut, err := libnode.ExecuteCommandInVirtHandlerPod(node,
+					[]string{"/bin/bash", "-c", "taskset -pc " + pid})
+				Expect(err).ToNot(HaveOccurred())
+				fmt.Fprintf(GinkgoWriter, "BEFORE pin: %s\n", strings.TrimSpace(tasksetOut))
+
+				// Check which cgroup the vhost thread is in
+				cgroupOut, err := libnode.ExecuteCommandInVirtHandlerPod(node,
+					[]string{"/bin/bash", "-c", "cat /proc/" + pid + "/cgroup"})
+				if err == nil {
+					fmt.Fprintf(GinkgoWriter, "vhost thread %s cgroup: %s\n", pid, strings.TrimSpace(cgroupOut))
+				} else {
+					fmt.Fprintf(GinkgoWriter, "vhost thread %s cgroup read error: %v\n", pid, err)
+				}
+
+				// Check the cgroup's cpuset to understand constraints
+				if err == nil {
+					cgroupPath := strings.TrimSpace(cgroupOut)
+					// For cgroup v2: "0::/path" -> extract path
+					parts := strings.SplitN(cgroupPath, "::", 2)
+					if len(parts) == 2 {
+						cpusetFile := "/sys/fs/cgroup" + parts[1] + "/cpuset.cpus.effective"
+						cpusetOut, err := libnode.ExecuteCommandInVirtHandlerPod(node,
+							[]string{"/bin/bash", "-c", "cat " + cpusetFile + " 2>/dev/null || cat /sys/fs/cgroup" + parts[1] + "/cpuset.cpus 2>/dev/null || echo 'N/A'"})
+						if err == nil {
+							fmt.Fprintf(GinkgoWriter, "vhost thread %s cgroup cpuset: %s\n", pid, strings.TrimSpace(cpusetOut))
+						}
 					}
 				}
-				return lastAffinity
-			}, 30*time.Second, 2*time.Second).Should(Equal(vhostCPUSet),
-				"vhost threads should be pinned to CPU %s", vhostCPUSet)
 
-				By("Expecting the VirtualMachineInstance console")
-				Expect(console.LoginToAlpine(cpuVmi)).To(Succeed())
+				// Try to manually pin using taskset from virt-handler
+				pinCmd := "taskset -pc " + vhostCPUSet + " " + pid + " 2>&1"
+				pinOut, err := libnode.ExecuteCommandInVirtHandlerPod(node,
+					[]string{"/bin/bash", "-c", pinCmd})
+				fmt.Fprintf(GinkgoWriter, "manual taskset -pc %s %s: out=%q err=%v\n",
+					vhostCPUSet, pid, strings.TrimSpace(pinOut), err)
+
+				// Check affinity after manual pin
+				afterCmd := "taskset -pc " + pid + " | cut -f2 -d:"
+				cpuAffinity, err := libnode.ExecuteCommandInVirtHandlerPod(node,
+					[]string{"/bin/bash", "-c", afterCmd})
+				Expect(err).ToNot(HaveOccurred())
+				cpuAffinity = strings.TrimSpace(cpuAffinity)
+				fmt.Fprintf(GinkgoWriter, "AFTER manual pin: vhost thread %s -> CPU %s (expected %s)\n",
+					pid, cpuAffinity, vhostCPUSet)
+				Expect(cpuAffinity).To(Equal(vhostCPUSet),
+					"vhost thread %s: manual taskset from virt-handler failed to pin to CPU %s, got %s (taskset output: %s)",
+					pid, vhostCPUSet, cpuAffinity, strings.TrimSpace(pinOut))
+			}
+
+			// Check VMI events for errors
+			events, err := virtClient.CoreV1().Events(vmi.Namespace).List(context.Background(), metav1.ListOptions{
+				FieldSelector: "involvedObject.name=" + vmi.Name,
 			})
+			if err == nil {
+				for _, ev := range events.Items {
+					if ev.Type == "Warning" {
+						fmt.Fprintf(GinkgoWriter, "VMI warning event: %s: %s\n", ev.Reason, ev.Message)
+					}
+				}
+			}
+
+			By("Expecting the VirtualMachineInstance console")
+			Expect(console.LoginToAlpine(cpuVmi)).To(Succeed())
+		})
 
 			It("[test_id:802]should configure correct number of vcpus with requests.cpus", func() {
 				cpuVmi := libvmifact.NewAlpine()
