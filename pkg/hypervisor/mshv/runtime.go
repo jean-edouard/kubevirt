@@ -25,7 +25,6 @@ import (
 	"strings"
 
 	"github.com/mitchellh/go-ps"
-	"golang.org/x/sys/unix"
 	"k8s.io/apimachinery/pkg/api/resource"
 	v1 "kubevirt.io/api/core/v1"
 	"kubevirt.io/client-go/log"
@@ -171,24 +170,27 @@ func (m *MshvVirtRuntime) configureHousekeepingCgroup(vmi *v1.VirtualMachineInst
 		return err
 	}
 
+	isolateVhost := vmi.Spec.Domain.CPU != nil && vmi.Spec.Domain.CPU.IsolateVhostThread
+	if isolateVhost && domain.Spec.Metadata.KubeVirt.VhostCPUSet != "" {
+		if err := cgroupManager.CreateChildCgroup("vhost", "cpuset"); err != nil {
+			m.logger.Reason(err).Error("CreateChildCgroup vhost")
+			return err
+		}
+		vhostCPUs, err := hardware.ParseCPUSetLine(domain.Spec.Metadata.KubeVirt.VhostCPUSet, 100)
+		if err != nil {
+			return err
+		}
+		if err := cgroupManager.SetCpuSet("vhost", vhostCPUs); err != nil {
+			return err
+		}
+		m.logger.V(3).Object(vmi).Infof("vhost cpus: %v", vhostCPUs)
+	}
+
 	tids, err := cgroupManager.GetCgroupThreads()
 	if err != nil {
 		return err
 	}
 	hktids := make([]int, 0, 10)
-
-	isolateVhost := vmi.Spec.Domain.CPU != nil && vmi.Spec.Domain.CPU.IsolateVhostThread
-	var vhostMask unix.CPUSet
-	if isolateVhost && domain.Spec.Metadata.KubeVirt.VhostCPUSet != "" {
-		vhostMask.Zero()
-		vhostCPUs, err := hardware.ParseCPUSetLine(domain.Spec.Metadata.KubeVirt.VhostCPUSet, 100)
-		if err != nil {
-			return err
-		}
-		for _, cpu := range vhostCPUs {
-			vhostMask.Set(cpu)
-		}
-	}
 
 	for _, tid := range tids {
 		proc, err := ps.FindProcess(tid)
@@ -204,9 +206,9 @@ func (m *MshvVirtRuntime) configureHousekeepingCgroup(vmi *v1.VirtualMachineInst
 			continue
 		}
 		if isolateVhost && strings.HasPrefix(comm, "vhost-") {
-			m.logger.V(3).Object(vmi).Infof("pinning vhost thread %d to cpus %s", tid, domain.Spec.Metadata.KubeVirt.VhostCPUSet)
-			if err := unix.SchedSetaffinity(tid, &vhostMask); err != nil {
-				m.logger.Object(vmi).Errorf("Error setting vhost affinity for tid %d: %v", tid, err)
+			m.logger.V(3).Object(vmi).Infof("moving vhost thread %d to vhost cgroup", tid)
+			if err := cgroupManager.AttachTID("cpuset", "vhost", tid); err != nil {
+				m.logger.Object(vmi).Errorf("Error attaching vhost tid %d: %v", tid, err)
 			}
 			continue
 		}

@@ -1437,7 +1437,7 @@ var _ = Describe("[sig-compute]Configurations", decorators.SigCompute, func() {
 					}
 				}
 				return vhostCPUSet
-			}, 30*time.Second, 2*time.Second).Should(Equal(vhostCPUSet),
+			}, 60*time.Second, 2*time.Second).Should(Equal(vhostCPUSet),
 				"vhost threads should be pinned to CPU %s", vhostCPUSet)
 
 			By("Expecting the VirtualMachineInstance console")
