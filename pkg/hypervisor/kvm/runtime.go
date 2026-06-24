@@ -271,6 +271,12 @@ func (k *KvmVirtRuntime) configureHousekeepingCgroup(vmi *v1.VirtualMachineInsta
 	if err != nil {
 		return err
 	}
+
+	if isolateVhost {
+		k.logger.Object(vmi).Infof("vhost isolation: GetCgroupThreads returned %d tids: %v", len(tids), tids)
+		k.logger.Object(vmi).Infof("vhost isolation: VhostCPUSet=%q, domain metadata=%+v", domain.Spec.Metadata.KubeVirt.VhostCPUSet, domain.Spec.Metadata.KubeVirt)
+	}
+
 	hktids := make([]int, 0, 10)
 
 	for _, tid := range tids {
@@ -280,9 +286,15 @@ func (k *KvmVirtRuntime) configureHousekeepingCgroup(vmi *v1.VirtualMachineInsta
 			return err
 		}
 		if proc == nil {
+			if isolateVhost {
+				k.logger.Object(vmi).Infof("vhost isolation: tid %d has no /proc entry (vanished)", tid)
+			}
 			return fmt.Errorf("failed to find process with tid: %d", tid)
 		}
 		comm := proc.Executable()
+		if isolateVhost {
+			k.logger.Object(vmi).Infof("vhost isolation: tid %d comm=%q", tid, comm)
+		}
 		if strings.Contains(comm, "CPU ") && strings.Contains(comm, "KVM") {
 			continue
 		}
