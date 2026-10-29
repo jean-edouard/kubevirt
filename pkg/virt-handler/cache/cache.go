@@ -21,6 +21,7 @@ package cache
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -201,6 +202,31 @@ func (store *GhostRecordStore) Add(namespace string, name string, socketFile str
 		return fmt.Errorf("can not add ghost record when entry already exists with differing socket file location")
 	}
 
+	return nil
+}
+
+// DeleteCheckpoints removes all ghost record checkpoint files
+// from the given directory. Called when the LauncherSocketAuthentication
+// feature gate is enabled so that disabling it later starts with a clean
+// slate rather than stale records.
+func (store *GhostRecordStore) DeleteCheckpoints(checkpointDir string) error {
+	entries, err := os.ReadDir(checkpointDir)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil
+		}
+		return fmt.Errorf("reading checkpoint directory %s: %w", checkpointDir, err)
+	}
+	for _, entry := range entries {
+		path := filepath.Join(checkpointDir, entry.Name())
+		if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
+			log.Log.Reason(err).Warningf("Failed to delete ghost record checkpoint %s", path)
+		}
+	}
+	// Also clear the in-memory cache
+	store.Lock()
+	store.cache = make(map[string]ghostRecord)
+	store.Unlock()
 	return nil
 }
 
