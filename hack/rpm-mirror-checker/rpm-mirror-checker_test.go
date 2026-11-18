@@ -24,89 +24,198 @@ import (
 	"testing"
 )
 
-const testRpmsJSON = `{
-	"name": "kubevirt-rpms-test",
+// The same digests as a WORKSPACE writes them, in hex, and as an
+// rpms.json integrity field writes them, in base64
+const (
+	hexMirrored    = "dd11bab2ea0abdfa310362eace871422a003340bf223135626500f8f5a985f6b"
+	base64Mirrored = "3RG6suoKvfoxA2LqzocUIqADNAvyIxNWJlAPj1qYX2s="
+
+	hexUnmirrored    = "153742d20ad378247d8256619d2fca5666565befd8dbf0743966da331c993540"
+	base64Unmirrored = "FTdC0grTeCR9glZhnS/KVmZWW+/Y2/B0OWbaMxyZNUA="
+
+	hexArchive = "9e6aa0c60204bb4b152ce541ca3a9f5c28b020ed551dd417d3936a8b2153f0df"
+)
+
+// testWorkspace is a WORKSPACE as a release branch carries it: one
+// mirrored rpm rule, one that is only reachable upstream, and a non rpm
+// rule that is mirrored elsewhere
+const testWorkspace = `
+rpm(
+    name = "acl-0__2.3.1-4.el9.x86_64",
+    sha256 = "` + hexMirrored + `",
+    urls = [
+        "http://mirror.stream.centos.org/9-stream/BaseOS/x86_64/os/Packages/acl-2.3.1-4.el9.x86_64.rpm",
+        "` + builddepsPrefix + hexMirrored + `",
+    ],
+)
+
+rpm(
+    name = "attr-0__2.5.1-3.el9.x86_64",
+    sha256 = "` + hexUnmirrored + `",
+    urls = [
+        "http://mirror.stream.centos.org/9-stream/BaseOS/x86_64/os/Packages/attr-2.5.1-3.el9.x86_64.rpm",
+    ],
+)
+
+http_archive(
+    name = "libguestfs-appliance-x86_64",
+    sha256 = "` + hexArchive + `",
+    urls = ["https://storage.googleapis.com/kubevirt-prow/devel/libguestfs-appliance.tar.xz"],
+)
+`
+
+// testRPMsJSON is an rpms.json as main carries it, declaring the same
+// two rpms as testWorkspace
+const testRPMsJSON = `{
+	"name": "kubevirt-rpms",
 	"rpms": [
 		{
-			"name": "healthy",
-			"integrity": "sha256-3RG6suoKvfoxA2LqzocUIqADNAvyIxNWJlAPj1qYX2s=",
+			"name": "acl-0__2.3.1-4.el9.x86_64",
+			"integrity": "sha256-` + base64Mirrored + `",
 			"urls": [
-				"http://mirror.stream.centos.org/9-stream/BaseOS/x86_64/os/Packages/healthy.rpm",
-				"https://storage.googleapis.com/builddeps/dd11bab2ea0abdfa310362eace871422a003340bf223135626500f8f5a985f6b"
+				"http://mirror.stream.centos.org/9-stream/BaseOS/x86_64/os/Packages/acl-2.3.1-4.el9.x86_64.rpm",
+				"` + builddepsPrefix + hexMirrored + `"
 			]
 		},
 		{
-			"name": "single-builddeps",
-			"integrity": "sha256-bWW7IJhEJjmuUZnsTI7jQrll28Mfcyd99j8EtCc/Ang=",
-			"urls": ["https://storage.googleapis.com/builddeps/6d65bb2098442639ae5199ec4c8ee342b965dbc31f73277df63f04b4273f0278"]
-		},
-		{
-			"name": "single-mirror",
-			"integrity": "sha256-FTdC0grTeCR9glZhnS/KVmZWW+/Y2/B0OWbaMxyZNUA=",
+			"name": "attr-0__2.5.1-3.el9.x86_64",
+			"integrity": "sha256-` + base64Unmirrored + `",
 			"urls": [
-				"http://mirror.stream.centos.org/9-stream/BaseOS/x86_64/os/Packages/single-mirror.rpm"
+				"http://mirror.stream.centos.org/9-stream/BaseOS/x86_64/os/Packages/attr-2.5.1-3.el9.x86_64.rpm"
 			]
-		},
-		{
-			"name": "no-urls",
-			"integrity": "sha256-nmqgxgIEu0sVLOVByjqfXCiwIO1VHdQX05NqiyFT8N8="
 		}
 	]
 }`
 
-func TestParseRPMRules(t *testing.T) {
-	rules, err := parseRPMRules([]byte(testRpmsJSON))
+func digestsOf(t *testing.T, content string) []digest {
+	t.Helper()
+	digests, err := declaredDigests(content)
 	if err != nil {
-		t.Fatalf("failed to parse test rpms.json: %v", err)
+		t.Fatalf("failed to collect the digests: %v", err)
 	}
+	return digests
+}
 
-	if len(rules) != 4 {
-		t.Fatalf("expected 4 rpms, got %d: %v", len(rules), rules)
+func hexesOf(digests []digest) []string {
+	var hexes []string
+	for _, d := range digests {
+		hexes = append(hexes, d.hex)
 	}
-	if rules[0].Name != "healthy" || len(rules[0].URLs) != 2 {
-		t.Errorf("unexpected first rpm: %v", rules[0])
+	return hexes
+}
+
+func TestDeclaredDigestsOfAWorkspace(t *testing.T) {
+	digests := digestsOf(t, testWorkspace)
+
+	expected := []digest{
+		{hex: hexMirrored, line: 4},
+		{hex: hexUnmirrored, line: 13},
+		{hex: hexArchive, line: 21},
 	}
-	if rules[1].Name != "single-builddeps" || !slices.Equal(rules[1].URLs, []string{"https://storage.googleapis.com/builddeps/6d65bb2098442639ae5199ec4c8ee342b965dbc31f73277df63f04b4273f0278"}) {
-		t.Errorf("unexpected second rpm: %v", rules[1])
-	}
-	if rules[2].Integrity != "sha256-FTdC0grTeCR9glZhnS/KVmZWW+/Y2/B0OWbaMxyZNUA=" {
-		t.Errorf("expected integrity of third rpm to be captured, got %q", rules[2].Integrity)
-	}
-	if rules[3].Name != "no-urls" || len(rules[3].URLs) != 0 {
-		t.Errorf("unexpected last rpm: %v", rules[3])
+	if !slices.Equal(digests, expected) {
+		t.Errorf("expected %v, got %v", expected, digests)
 	}
 }
 
-func TestBuilddepsURL(t *testing.T) {
-	for integrity, expectedURL := range map[string]string{
-		"sha256-3RG6suoKvfoxA2LqzocUIqADNAvyIxNWJlAPj1qYX2s=": "https://storage.googleapis.com/builddeps/dd11bab2ea0abdfa310362eace871422a003340bf223135626500f8f5a985f6b",
-		// not sha256-prefixed
-		"3RG6suoKvfoxA2LqzocUIqADNAvyIxNWJlAPj1qYX2s=": "",
-		// not base64
-		"sha256-not-base64!!": "",
-		// not a sha256-sized digest
-		"sha256-c2VjcmV0": "",
-		// empty
-		"": "",
+func TestDeclaredDigestsOfAnRPMsJSON(t *testing.T) {
+	digests := digestsOf(t, testRPMsJSON)
+
+	// the base64 integrity fields have to come back as the hex the
+	// builddeps bucket serves them under
+	expected := []digest{
+		{hex: hexMirrored, line: 6},
+		{hex: hexUnmirrored, line: 14},
+	}
+	if !slices.Equal(digests, expected) {
+		t.Errorf("expected %v, got %v", expected, digests)
+	}
+}
+
+// The checker reads a declared digest wherever it sits, so reformatting
+// the dependency file can never turn it into a silent no-op
+func TestDeclaredDigestsIgnoreFormatting(t *testing.T) {
+	for name, content := range map[string]string{
+		"indented":   `    rpm(name = "acl", sha256 = "` + hexMirrored + `")`,
+		"one line":   `rpm(name="acl",sha256="` + hexMirrored + `",urls=["x"])`,
+		"renamed":    `some_future_rule(sha256 = "` + hexMirrored + `")`,
+		"no padding": `sha256="` + hexMirrored + `"`,
+		"minified":   `{"integrity":"sha256-` + base64Mirrored + `"}`,
 	} {
-		if url := builddepsURL(integrity); url != expectedURL {
-			t.Errorf("builddepsURL(%q) = %q, expected %q", integrity, url, expectedURL)
-		}
+		t.Run(name, func(t *testing.T) {
+			if hexes := hexesOf(digestsOf(t, content)); !slices.Equal(hexes, []string{hexMirrored}) {
+				t.Errorf("expected [%s], got %v", hexMirrored, hexes)
+			}
+		})
 	}
 }
 
-func TestURLFailures(t *testing.T) {
-	rules, err := parseRPMRules([]byte(testRpmsJSON))
-	if err != nil {
-		t.Fatalf("failed to parse test rpms.json: %v", err)
+func TestDeclaredDigestsOfAFileWithout(t *testing.T) {
+	// the caller turns this into a hard failure, since a dependency file
+	// that declares nothing means the format moved
+	if digests := digestsOf(t, "nothing to see here\n"); len(digests) != 0 {
+		t.Errorf("expected no digest, got %v", digests)
 	}
+}
 
-	expectedFailures := []string{
-		"rpm single-mirror: only 1 url, not a builddeps url: http://mirror.stream.centos.org/9-stream/BaseOS/x86_64/os/Packages/single-mirror.rpm (add https://storage.googleapis.com/builddeps/153742d20ad378247d8256619d2fca5666565befd8dbf0743966da331c993540)",
-		"rpm no-urls: no urls (add https://storage.googleapis.com/builddeps/9e6aa0c60204bb4b152ce541ca3a9f5c28b020ed551dd417d3936a8b2153f0df)",
+func TestUnmirrored(t *testing.T) {
+	for name, content := range map[string]string{
+		"WORKSPACE": testWorkspace,
+		"rpms.json": testRPMsJSON,
+	} {
+		t.Run(name, func(t *testing.T) {
+			missing := unmirrored(content, digestsOf(t, content), nil)
+			if !slices.Equal(hexesOf(missing), expectedMissing(name)) {
+				t.Errorf("expected %v, got %v", expectedMissing(name), hexesOf(missing))
+			}
+		})
 	}
-	failures := urlFailures(rules, 2)
-	if !slices.Equal(failures, expectedFailures) {
-		t.Errorf("expected failures %v, got %v", expectedFailures, failures)
+}
+
+// the WORKSPACE also carries an archive that no builddeps url covers
+func expectedMissing(file string) []string {
+	if file == "WORKSPACE" {
+		return []string{hexUnmirrored, hexArchive}
+	}
+	return []string{hexUnmirrored}
+}
+
+func TestUnmirroredSkipsExemptDigests(t *testing.T) {
+	exempt := exemptDigests(hexArchive + " , " + hexUnmirrored)
+	missing := unmirrored(testWorkspace, digestsOf(t, testWorkspace), exempt)
+	if len(missing) != 0 {
+		t.Errorf("expected the exempt digests to be skipped, got %v", hexesOf(missing))
+	}
+}
+
+func TestUnmirroredReportsEveryDigestOnce(t *testing.T) {
+	// the same rpm is declared for several architectures
+	content := `
+rpm(sha256 = "` + hexUnmirrored + `")
+rpm(sha256 = "` + hexUnmirrored + `")
+`
+	missing := unmirrored(content, digestsOf(t, content), nil)
+	if !slices.Equal(hexesOf(missing), []string{hexUnmirrored}) {
+		t.Errorf("expected a single report, got %v", hexesOf(missing))
+	}
+}
+
+func TestExemptDigests(t *testing.T) {
+	if exempt := exemptDigests(""); len(exempt) != 0 {
+		t.Errorf("expected no exempt digest, got %v", exempt)
+	}
+	if exempt := exemptDigests(" " + hexArchive + ", ,"); len(exempt) != 1 || !exempt[hexArchive] {
+		t.Errorf("expected only %s to be exempt, got %v", hexArchive, exempt)
+	}
+}
+
+func TestDecodeBase64Digest(t *testing.T) {
+	if sum, err := decodeBase64Digest(base64Mirrored); err != nil || sum != hexMirrored {
+		t.Errorf("expected %s, got %q (%v)", hexMirrored, sum, err)
+	}
+	if _, err := decodeBase64Digest("not base64!!"); err == nil {
+		t.Error("expected an error for a malformed base64 sha256")
+	}
+	if _, err := decodeBase64Digest("c2VjcmV0"); err == nil {
+		t.Error("expected an error for a sha256 that is not 32 bytes")
 	}
 }
